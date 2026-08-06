@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/web-content-bundle-manifest.schema.json",
+  "title": "WebContentBundleManifest",
+  "description": "Immutable manifest header for a published Web content bundle (07_09 §3, §6). At WEB-M0 only bundleType=RUNTIME_FIXTURE_BUNDLE is produced; it must never be served as production content (07_09 §25).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bundleId",
+    "bundleType",
+    "schemaVersion",
+    "contentVersion",
+    "checksum",
+    "publishedAt",
+    "compatibleRuntimes"
+  ],
+  "properties": {
+    "bundleId": { "type": "string", "minLength": 1 },
+    "bundleType": {
+      "type": "string",
+      "enum": [
+        "COURSE_CATALOG_BUNDLE",
+        "LESSON_BUNDLE",
+        "ACTIVITY_BUNDLE",
+        "THEME_BUNDLE",
+        "ASSET_BUNDLE",
+        "LOCALIZATION_BUNDLE",
+        "RUNTIME_FIXTURE_BUNDLE"
+      ]
+    },
+    "schemaVersion": { "type": "string", "minLength": 1 },
+    "contentVersion": { "type": "string", "minLength": 1 },
+    "checksum": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "compatibleRuntimes": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["WEB", "ROBLOX"] },
+      "minItems": 1
+    },
+    "capabilityRequirements": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fallbacksDeclared": { "type": "boolean" }
+  }
+}

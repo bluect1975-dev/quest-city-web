@@ -1,0 +1,10 @@
+# Quest City Web — code ownership.
+# Per 05_01 §14 (Definition of Done: "codice, test e documentazione sono
+# sincronizzati") and ADR-0005 §8 ("ogni repository mantiene CODEOWNERS,
+# branch protection e Definition of Done propri").
+#
+# No individual owners are assigned yet at WEB-M0 bootstrap — update this
+# file once the team is confirmed. Every change currently requires review
+# per the branch protection rule on `main` (05_01 §9).
+
+* @quest-city-web/maintainers

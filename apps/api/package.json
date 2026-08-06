@@ -1,0 +1,32 @@
+{
+  "name": "@quest-city-web/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Quest City Web API app. WEB-M0 scope: /health/live and /health/ready only, with correlation-ID structured logging. Domain services (identity, class, curriculum, attempt, mastery, reward — 02_25 §4) are IMPLEMENT_LATER, not reimplementations of the shared Platform API.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port ${API_PORT:-4000}",
+    "build": "next build",
+    "start": "next start --port ${API_PORT:-4000}",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quest-city-web/telemetry": "workspace:*",
+    "next": "16.2.9",
+    "pg": "8.13.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/pg": "8.11.10",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "eslint": "9.18.0",
+    "eslint-config-next": "16.2.9",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

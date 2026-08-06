@@ -1,0 +1,25 @@
+{
+  "name": "@quest-city-web/tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repository tooling: migration runner, duplicate-file check, filename convention check (mirrors quest-city-roblox/tools/ci conventions, adapted for a TypeScript monorepo).",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint . --config ../packages/config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "migrate": "node migrate.mjs",
+    "check:duplicates": "node check-duplicates.mjs",
+    "check:filenames": "node check-filenames.mjs"
+  },
+  "dependencies": {
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/pg": "8.11.10",
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

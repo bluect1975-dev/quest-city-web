@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Lint, typecheck, unit test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Filename convention check
+        run: pnpm run check:filenames
+
+      - name: Duplicate file check
+        run: pnpm run check:duplicates
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Unit tests
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  integration:
+    name: Docker compose + health endpoint integration test
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Copy environment template
+        run: cp .env.example .env
+
+      - name: Build and start the local environment
+        run: docker compose -f infrastructure/deployment/docker-compose.yml up -d --build
+
+      - name: Wait for services and run health endpoint integration tests
+        env:
+          HEALTH_BASE_URL: http://localhost:8080
+        run: pnpm run test:integration
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose -f infrastructure/deployment/docker-compose.yml logs
+
+      - name: Tear down the local environment
+        if: always()
+        run: docker compose -f infrastructure/deployment/docker-compose.yml down -v

@@ -1,0 +1,23 @@
+{
+  "name": "@quest-city-web/content-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Loader/parser for published content bundles (07_09). WEB-M0 scope: validate and load RUNTIME_FIXTURE_BUNDLE only — no production content pipeline yet.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --config ../config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quest-city-web/content-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@quest-city-web/test-fixtures": "workspace:*",
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

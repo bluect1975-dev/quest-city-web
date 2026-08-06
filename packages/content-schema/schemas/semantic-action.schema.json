@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/semantic-action.schema.json",
+  "title": "SemanticAction",
+  "description": "Client-to-server action envelope (07_08 §4). The client sends semantic actions such as SELECT_OPTION or ENTER_VALUE, never raw device events such as a mouse coordinate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["actionType", "attemptId", "idempotencyKey", "occurredAt", "payload"],
+  "properties": {
+    "actionType": {
+      "type": "string",
+      "enum": ["SELECT_OPTION", "ENTER_VALUE", "PLACE_ITEM", "SUBMIT_ATTEMPT", "REQUEST_HINT"]
+    },
+    "attemptId": { "type": "string", "minLength": 1 },
+    "idempotencyKey": { "type": "string", "minLength": 16, "maxLength": 128 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object", "additionalProperties": true }
+  }
+}

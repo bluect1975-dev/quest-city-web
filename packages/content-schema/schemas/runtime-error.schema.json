@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/runtime-error.schema.json",
+  "title": "RuntimeError",
+  "description": "Typed domain error envelope (07_05 §12). The client must not infer an outcome from a generic HTTP status when a typed domain error exists.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "message", "retryable", "correlationId"],
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "AUTH_REQUIRED",
+        "FORBIDDEN",
+        "CONTENT_NOT_AVAILABLE",
+        "CONTENT_VERSION_MISMATCH",
+        "ATTEMPT_NOT_FOUND",
+        "ATTEMPT_CONFLICT",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "TEMPORARY_UNAVAILABLE"
+      ]
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "retryable": { "type": "boolean" },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "details": { "type": "object", "additionalProperties": true }
+  }
+}

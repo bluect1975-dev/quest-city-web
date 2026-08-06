@@ -1,0 +1,17 @@
+{
+  "name": "@quest-city-web/tests-integration",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Integration tests against a running local environment (WEB-M0 deliverable 22: health endpoint integration test). Requires the docker-compose environment to be up.",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint . --config ../../packages/config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

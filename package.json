@@ -1,0 +1,27 @@
+{
+  "name": "quest-city-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Quest City Web Learning Experience — Web runtime channel, shared with the Roblox runtime via versioned contracts and content bundles.",
+  "engines": {
+    "node": ">=24.0.0 <25.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@11.2.2",
+  "scripts": {
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present --filter=!@quest-city-web/tests-integration run test",
+    "test:integration": "pnpm --filter @quest-city-web/tests-integration run test",
+    "build": "pnpm -r --if-present run build",
+    "dev:student-web": "pnpm --filter @quest-city-web/student-web run dev",
+    "dev:dashboard": "pnpm --filter @quest-city-web/dashboard run dev",
+    "dev:api": "pnpm --filter @quest-city-web/api run dev",
+    "check:duplicates": "node tools/check-duplicates.mjs",
+    "check:filenames": "node tools/check-filenames.mjs",
+    "verify": "bash infrastructure/scripts/verify.sh"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}

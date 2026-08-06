@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/capability-profile.schema.json",
+  "title": "CapabilityProfile",
+  "description": "Declares what a client/browser can support, so a bundle or engine can be resolved or degraded (07_08 §4; 07_05 §11-16).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profileId", "input", "rendering"],
+  "properties": {
+    "profileId": { "type": "string", "minLength": 1 },
+    "input": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["pointer", "touch", "keyboard", "assistive"] },
+      "minItems": 1
+    },
+    "rendering": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["html", "svg", "canvas2d"] },
+      "minItems": 1
+    },
+    "reducedMotion": { "type": "boolean" },
+    "viewportClass": {
+      "type": "string",
+      "enum": ["compact", "medium", "large", "xlarge"]
+    }
+  }
+}

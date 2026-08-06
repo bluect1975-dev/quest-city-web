@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/activity-definition.schema.json",
+  "title": "ActivityDefinition",
+  "description": "Runtime-agnostic activity definition (07_08 §4). Not runtime-specific: objectives, validators, evidence and scoring/reward hooks live here, never in a presentation adapter.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["activityId", "activityVersion", "objectiveIds", "validatorRef", "semanticRoles"],
+  "properties": {
+    "activityId": { "type": "string", "minLength": 1 },
+    "activityVersion": { "type": "string", "minLength": 1 },
+    "objectiveIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "validatorRef": { "type": "string", "minLength": 1 },
+    "evidenceRef": { "type": "string" },
+    "outcomePolicyRef": { "type": "string" },
+    "scoringHookRef": { "type": "string" },
+    "rewardHookRef": { "type": "string" },
+    "semanticRoles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Semantic visual/interaction roles (07_08 §4) — never concrete asset or theme identifiers."
+    },
+    "capabilityRequirements": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

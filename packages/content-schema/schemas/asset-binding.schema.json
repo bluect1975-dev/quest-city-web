@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/asset-binding.schema.json",
+  "title": "AssetBinding",
+  "description": "Binds a semantic role to a concrete themed asset reference (07_01_02 §5). Validators must never look up an asset by ID; asset resolution is presentation-only and must not change difficulty, timer, score or mastery.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["semanticRole", "themeId", "assetRef"],
+  "properties": {
+    "semanticRole": { "type": "string", "minLength": 1 },
+    "themeId": { "type": "string", "enum": ["QC-THEME-CORE", "QC-THEME-ACADEMY"] },
+    "assetRef": { "type": "string", "minLength": 1 },
+    "fallbackAssetRef": { "type": "string" }
+  }
+}

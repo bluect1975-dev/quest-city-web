@@ -1,0 +1,658 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.2.0
+  description: Quest City API contract with Roblox Bearer Secret authentication and
+    optional school-managed identity linking.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+security:
+- bearerAuth: []
+paths:
+  /me:
+    get:
+      summary: Get current authenticated user and tenant context
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /classes:
+    get:
+      summary: List accessible classes
+      operationId: listClasses
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Class collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassListResponse'
+    post:
+      summary: Create a class
+      operationId: createClass
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassRequest'
+      responses:
+        '201':
+          description: Class created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /students/{studentId}/roblox-link-codes:
+    post:
+      summary: Create a one-time Roblox linking code
+      operationId: createRobloxLinkCode
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Code created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobloxLinkCodeResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /roblox/link/consume:
+    post:
+      summary: Consume a one-time link code from a signed Roblox server request
+      operationId: consumeRobloxLinkCode
+      security:
+      - robloxRuntimeBearer: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/QCTimestamp'
+      - $ref: '#/components/parameters/QCNonce'
+      - $ref: '#/components/parameters/QCUniverseId'
+      - $ref: '#/components/parameters/QCPlaceId'
+      - $ref: '#/components/parameters/QCJobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeLinkRequest'
+      responses:
+        '200':
+          description: Link created or already linked idempotently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobloxLinkResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /roblox/players/{robloxUserId}/launch-profile:
+    post:
+      summary: Resolve a minimized runtime launch profile
+      operationId: getLaunchProfile
+      security:
+      - robloxRuntimeBearer: []
+      parameters:
+      - $ref: '#/components/parameters/QCTimestamp'
+      - $ref: '#/components/parameters/QCNonce'
+      - name: robloxUserId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]+$
+      - $ref: '#/components/parameters/QCUniverseId'
+      - $ref: '#/components/parameters/QCPlaceId'
+      - $ref: '#/components/parameters/QCJobId'
+      responses:
+        '200':
+          description: Launch profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LaunchProfileResponse'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /roblox/learning-events:
+    post:
+      summary: Ingest a learning event
+      operationId: ingestLearningEvent
+      security:
+      - robloxRuntimeBearer: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/QCTimestamp'
+      - $ref: '#/components/parameters/QCNonce'
+      - $ref: '#/components/parameters/QCUniverseId'
+      - $ref: '#/components/parameters/QCPlaceId'
+      - $ref: '#/components/parameters/QCJobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningEventRequest'
+      responses:
+        '202':
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAcceptedResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /jobs/{jobId}:
+    get:
+      summary: Get asynchronous job state
+      operationId: getJob
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /students/{studentId}/roblox-links/manual:
+    post:
+      summary: Create an optional school-managed Roblox link from a declared UserId
+        or username
+      operationId: createManualRobloxLink
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Mapping created
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    robloxRuntimeBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Roblox Secret or short-lived runtime token
+      description: Server-only credential injected from Roblox Secrets Store. Combined
+        with timestamp, nonce and origin headers.
+  parameters:
+    TenantHeader:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+    QCTimestamp:
+      name: X-QC-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+    QCNonce:
+      name: X-QC-Nonce
+      in: header
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    QCUniverseId:
+      name: X-QC-Universe-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+    QCPlaceId:
+      name: X-QC-Place-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+    QCJobId:
+      name: X-QC-Job-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found or not visible
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource, version, linking or idempotency conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unprocessable:
+      description: Semantically invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unavailable:
+      description: Required dependency unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - request_id
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+    ErrorResponse:
+      type: object
+      required:
+      - error
+      - meta
+      properties:
+        error:
+          type: object
+          required:
+          - code
+          - message
+          - retryable
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            retryable:
+              type: boolean
+        meta:
+          $ref: '#/components/schemas/Meta'
+    CurrentUserResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - user_id
+          - tenants
+          properties:
+            user_id:
+              type: string
+            display_name:
+              type: string
+            tenants:
+              type: array
+              items:
+                type: object
+                required:
+                - tenant_id
+                - roles
+                - capabilities
+                properties:
+                  tenant_id:
+                    type: string
+                  roles:
+                    type: array
+                    items:
+                      type: string
+                  capabilities:
+                    type: array
+                    items:
+                      type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+    CreateClassRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - school_year
+      - track_id
+      - locale
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        school_year:
+          type: string
+        track_id:
+          type: string
+        locale:
+          type: string
+    Class:
+      type: object
+      required:
+      - class_id
+      - name
+      - school_year
+      - track_id
+      - status
+      - version
+      properties:
+        class_id:
+          type: string
+        name:
+          type: string
+        school_year:
+          type: string
+        track_id:
+          type: string
+        status:
+          type: string
+          enum:
+          - active
+          - archived
+        version:
+          type: integer
+          minimum: 1
+    ClassResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/Class'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    ClassListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Class'
+        meta:
+          allOf:
+          - $ref: '#/components/schemas/Meta'
+          - type: object
+            properties:
+              next_cursor:
+                type:
+                - string
+                - 'null'
+              has_more:
+                type: boolean
+    RobloxLinkCodeResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - code
+          - expires_at
+          properties:
+            code:
+              type: string
+            expires_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
+    ConsumeLinkRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - roblox_user_id
+      properties:
+        code:
+          type: string
+        roblox_user_id:
+          type: string
+          pattern: ^[0-9]+$
+        username_snapshot:
+          type: string
+          maxLength: 64
+    RobloxLinkResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - status
+          - student_public_id
+          properties:
+            status:
+              type: string
+              enum:
+              - linked
+              - already_linked
+            student_public_id:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+    LaunchProfileResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - player_public_id
+          - mode
+          - content_release
+          - enabled_modules
+          - expires_at
+          properties:
+            player_public_id:
+              type: string
+            mode:
+              type: string
+              enum:
+              - open
+              - school
+            class_public_id:
+              type:
+              - string
+              - 'null'
+            content_release:
+              type: string
+            enabled_modules:
+              type: array
+              items:
+                type: string
+            assignments:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            capabilities:
+              type: array
+              items:
+                type: string
+            expires_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
+    LearningEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - event_id
+      - roblox_user_id
+      - content_id
+      - content_version
+      - activity_id
+      - event_type
+      - occurred_at
+      - payload
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        roblox_user_id:
+          type: string
+          pattern: ^[0-9]+$
+        content_id:
+          type: string
+        content_version:
+          type: string
+        activity_id:
+          type: string
+        event_type:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+    EventAcceptedResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - status
+          - event_id
+          properties:
+            status:
+              type: string
+              enum:
+              - accepted
+              - already_processed
+            event_id:
+              type: string
+              format: uuid
+        meta:
+          $ref: '#/components/schemas/Meta'
+    JobResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - job_id
+          - type
+          - status
+          properties:
+            job_id:
+              type: string
+            type:
+              type: string
+            status:
+              type: string
+              enum:
+              - queued
+              - running
+              - succeeded
+              - failed
+              - cancelled
+              - human_review_required
+            progress:
+              type: number
+              minimum: 0
+              maximum: 1
+            poll_after_seconds:
+              type: integer
+              minimum: 1
+        meta:
+          $ref: '#/components/schemas/Meta'

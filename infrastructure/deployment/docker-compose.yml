@@ -1,0 +1,97 @@
+# Quest City Web — local/orchestrated environment (WEB-M0 deliverable 15).
+# Run from the repository root: docker compose -f infrastructure/deployment/docker-compose.yml up
+#
+# PostgreSQL is bound to the loopback interface only (127.0.0.1), never to
+# a public interface (07_06 §3/§4/§7: "niente database pubblicamente
+# raggiungibile"). This lets local tooling (tools/migrate.mjs, psql) reach
+# it from the host for development, while remaining unreachable from the
+# network or from any browser.
+#
+# Host port 5434 (not the default 5432) avoids colliding with PostgreSQL
+# instances you may already have running natively on this machine. Inside
+# the Docker network the container still listens on its standard 5432.
+
+services:
+  postgres:
+    image: postgres:17.2-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: quest_city_web
+      POSTGRES_USER: quest_city_web
+      POSTGRES_PASSWORD: changeme_local_only
+    volumes:
+      - ../database/data:/var/lib/postgresql/data
+      - ../database/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    ports:
+      - "127.0.0.1:5434:5432"
+    networks:
+      - qc-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quest_city_web -d quest_city_web"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/api.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://quest_city_web:changeme_local_only@postgres:5432/quest_city_web
+      DATABASE_SSL: "false"
+      HEALTH_READY_DB_TIMEOUT_MS: "2000"
+      PORT: "4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - qc-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  student-web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/student-web.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      NEXT_PUBLIC_API_BASE_URL: http://localhost/api
+    networks:
+      - qc-internal
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/dashboard.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      NEXT_PUBLIC_API_BASE_URL_DASHBOARD: http://localhost/api
+    networks:
+      - qc-internal
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ../reverse-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+      - student-web
+      - dashboard
+    networks:
+      - qc-internal
+
+networks:
+  qc-internal:
+    driver: bridge

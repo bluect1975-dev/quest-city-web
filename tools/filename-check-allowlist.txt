@@ -1,0 +1,2 @@
+# Pre-existing, explicitly grandfathered filename violations, one relative
+# path per line. Empty by default: no violation is expected at WEB-M0.

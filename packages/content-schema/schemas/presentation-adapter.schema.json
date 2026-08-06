@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/presentation-adapter.schema.json",
+  "title": "PresentationAdapter",
+  "description": "Runtime-specific presentation binding (07_08 §4, §8.2). May change presentation and input mapping only — must never modify objectives, validators, answer keys, mastery or reward, and must never write to the database directly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["adapterId", "runtimeChannel", "activityId", "semanticRoleBindings"],
+  "properties": {
+    "adapterId": { "type": "string", "minLength": 1 },
+    "runtimeChannel": { "type": "string", "enum": ["WEB", "ROBLOX"] },
+    "activityId": { "type": "string", "minLength": 1 },
+    "engineId": { "type": "string" },
+    "semanticRoleBindings": {
+      "type": "object",
+      "description": "Maps ActivityDefinition semantic roles to this runtime's presentation components.",
+      "additionalProperties": { "type": "string" }
+    },
+    "themeAdapterRef": { "type": "string" }
+  }
+}

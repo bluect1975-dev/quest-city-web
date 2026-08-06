@@ -1,0 +1,66 @@
+Quest City Web — WEB-M0 repository bootstrap — file manifest
+Change set: WEB-M0 (repository discovery, bootstrap and foundation)
+Repository: quest-city-web (new, autonomous Git root, sibling to quest-city-roblox)
+Authorized by: ADR-0005 (quest-city-roblox), 05_01 v2.0 (quest-city-roblox)
+
+This is the initial commit of quest-city-web. Every file in the repository
+is NEW as of this change set. Rather than listing hundreds of individual
+paths, this manifest groups them by area, consistent with the categorized
+"file manifest" convention used in quest-city-roblox's own manifest.txt.
+See README.md for the full repository layout and docs/implementation/web-m0.md
+for the apps/packages manifest and scope record (deliverable 28).
+
+WORKSPACE ROOT (11)
+  package.json, pnpm-workspace.yaml, tsconfig.base.json, .editorconfig,
+  .gitignore, .nvmrc, .env.example, .dockerignore, README.md, manifest.txt,
+  CODEOWNERS, SECURITY.md, CONTRIBUTING.md
+
+APPS (3 apps: student-web, dashboard, api)
+  Each with: package.json, tsconfig.json, next.config.ts, eslint.config.mjs
+  (Next.js apps only), app/layout.tsx, app/page.tsx, and app-specific routes
+  (student-web: app/w/page.tsx; dashboard: app/dashboard/page.tsx; api:
+  app/health/live/route.ts, app/health/ready/route.ts, proxy.ts, lib/env.ts,
+  lib/db.ts, lib/env.test.ts, vitest.config.ts).
+
+PACKAGES (9: contracts, content-schema, content-runtime, learning-engines,
+  theme-system, ui, telemetry, config, test-fixtures)
+  Each with package.json, tsconfig.json, src/ (and vitest.config.ts where
+  tests exist). Notable non-code artifacts:
+    packages/contracts/vendor/quest-city-platform-openapi-v1_2.yaml
+      (byte-identical vendored copy of quest-city-roblox's
+      contracts/quest-city-platform-openapi-v1_2.yaml)
+    packages/contracts/vendor/provenance.json (checksum + resync procedure)
+    packages/content-schema/schemas/*.schema.json (8 fixture-stage schemas
+      per 07_09 §26)
+
+INFRASTRUCTURE
+  infrastructure/containers/{api,student-web,dashboard}.Dockerfile
+  infrastructure/reverse-proxy/nginx.conf
+  infrastructure/database/migrations/{README.md,0001_init_extensions.sql,
+    0001_init_extensions.rollback.sql}
+  infrastructure/deployment/docker-compose.yml
+  infrastructure/scripts/{bootstrap.sh,verify.sh}
+
+DOCS
+  docs/adr/0001-reverse-proxy-nginx.md
+  docs/implementation/web-m0.md
+  docs/runbooks/ (reserved, empty at WEB-M0)
+
+TOOLS
+  tools/package.json, tools/tsconfig.json, tools/vitest.config.ts,
+  tools/migrate.mjs, tools/migration-filename.mjs,
+  tools/migration-filename.test.mjs, tools/check-duplicates.mjs,
+  tools/check-filenames.mjs, tools/duplicate-check-allowlist.txt,
+  tools/filename-check-allowlist.txt
+
+TESTS
+  tests/integration/{package.json,tsconfig.json,vitest.config.ts,
+    health-endpoints.test.ts}
+  tests/{unit,contract,e2e,fixtures}/README.md (scope placeholders)
+
+CI
+  .github/workflows/ci.yml
+
+NOT TOUCHED
+  quest-city-roblox/ — read-only source of truth for this change set; no
+  file inside it was created, modified, renamed or deleted.
