@@ -1,0 +1,1096 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.3.0
+  description: Quest City API contract with Roblox Bearer Secret authentication,
+    optional school-managed identity linking, and the Web student access API
+    (class-code + alias + PIN pilot login, session lifecycle, protected student
+    context). v1.2.0 remains available unchanged as a separate immutable
+    artifact; this file is additive and does not remove or alter any v1.2 path
+    or schema.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+security:
+- bearerAuth: []
+paths:
+  /me:
+    get:
+      summary: Get current authenticated user and tenant context
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /classes:
+    get:
+      summary: List accessible classes
+      operationId: listClasses
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Class collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassListResponse'
+    post:
+      summary: Create a class
+      operationId: createClass
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassRequest'
+      responses:
+        '201':
+          description: Class created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /students/{studentId}/roblox-link-codes:
+    post:
+      summary: Create a one-time Roblox linking code
+      operationId: createRobloxLinkCode
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Code created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobloxLinkCodeResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /roblox/link/consume:
+    post:
+      summary: Consume a one-time link code from a signed Roblox server request
+      operationId: consumeRobloxLinkCode
+      security:
+      - robloxRuntimeBearer: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/QCTimestamp'
+      - $ref: '#/components/parameters/QCNonce'
+      - $ref: '#/components/parameters/QCUniverseId'
+      - $ref: '#/components/parameters/QCPlaceId'
+      - $ref: '#/components/parameters/QCJobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeLinkRequest'
+      responses:
+        '200':
+          description: Link created or already linked idempotently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobloxLinkResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /roblox/players/{robloxUserId}/launch-profile:
+    post:
+      summary: Resolve a minimized runtime launch profile
+      operationId: getLaunchProfile
+      security:
+      - robloxRuntimeBearer: []
+      parameters:
+      - $ref: '#/components/parameters/QCTimestamp'
+      - $ref: '#/components/parameters/QCNonce'
+      - name: robloxUserId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]+$
+      - $ref: '#/components/parameters/QCUniverseId'
+      - $ref: '#/components/parameters/QCPlaceId'
+      - $ref: '#/components/parameters/QCJobId'
+      responses:
+        '200':
+          description: Launch profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LaunchProfileResponse'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /roblox/learning-events:
+    post:
+      summary: Ingest a learning event
+      operationId: ingestLearningEvent
+      security:
+      - robloxRuntimeBearer: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/QCTimestamp'
+      - $ref: '#/components/parameters/QCNonce'
+      - $ref: '#/components/parameters/QCUniverseId'
+      - $ref: '#/components/parameters/QCPlaceId'
+      - $ref: '#/components/parameters/QCJobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearningEventRequest'
+      responses:
+        '202':
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAcceptedResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /jobs/{jobId}:
+    get:
+      summary: Get asynchronous job state
+      operationId: getJob
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /students/{studentId}/roblox-links/manual:
+    post:
+      summary: Create an optional school-managed Roblox link from a declared UserId
+        or username
+      operationId: createManualRobloxLink
+      parameters:
+      - $ref: '#/components/parameters/TenantHeader'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: studentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Mapping created
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # --- Added in v1.3.0: Web Student Access API (WEB-M1) ---
+  # Tenant is always resolved server-side from the class access code / session,
+  # never from a client-supplied header — unlike the dashboard/admin paths
+  # above, which use X-Tenant-Id because a human admin may belong to several
+  # tenants. These paths intentionally omit TenantHeader.
+  /web-auth/class-code/resolve:
+    post:
+      summary: Resolve a class access code to its school/class context (pilot login,
+        step 1 of 2)
+      operationId: resolveClassCode
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassCodeResolveRequest'
+      responses:
+        '200':
+          description: Class context resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassCodeResolveResponse'
+              example:
+                data:
+                  tenantPublicId: sch_8f2a1c
+                  classPublicId: cls_4b91d0
+                  schoolName: IC Rossi
+                  requiresAlias: true
+                  requiresPin: true
+                meta:
+                  request_id: req_01hz3x
+                  api_version: v1
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          description: Class code is not usable for any reason (does not exist,
+            expired, or revoked). The response is deliberately identical for
+            every cause to prevent enumeration; the real cause is recorded only
+            in the internal audit log.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: CLASS_CODE_INVALID
+                  message: Il codice classe non è valido.
+                  details: null
+                  retryable: false
+                meta:
+                  request_id: req_01hz3y
+                  api_version: v1
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /web-auth/session/start:
+    post:
+      summary: Start a Web student pilot session (class code + alias + PIN)
+      operationId: startWebStudentSession
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionStartRequest'
+      responses:
+        '200':
+          description: Session started
+          headers:
+            Set-Cookie:
+              description: 'HttpOnly; Secure; SameSite=Lax student session cookie.
+                Max-Age equals the configured absolute session TTL in seconds.'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStartResponse'
+              example:
+                data:
+                  studentPublicId: std_0a19ff
+                  tenantPublicId: sch_8f2a1c
+                  classPublicId: cls_4b91d0
+                  sessionExpiresAt: '2026-08-06T21:34:00Z'
+                  csrfToken: 3f9c2e7b1a...
+                meta:
+                  request_id: req_01hz3z
+                  api_version: v1
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Alias or PIN incorrect, or alias not associated with the
+            class. The response is deliberately identical for both causes to
+            prevent alias enumeration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ACCESS_CREDENTIALS_INVALID
+                  message: Alias o PIN non validi.
+                  details: null
+                  retryable: false
+                meta:
+                  request_id: req_01hz40
+                  api_version: v1
+        '403':
+          description: ENROLLMENT_SUSPENDED or TENANT_ACCESS_DENIED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Class code is not usable for any reason (same uniform
+            CLASS_CODE_INVALID contract as class-code/resolve).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /web-auth/session/refresh:
+    post:
+      summary: Rotate the current Web student session and CSRF token
+      operationId: refreshWebStudentSession
+      security:
+      - studentSessionCookie: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: Session rotated. A new session row is created (old one
+            revoked with reason ROTATED); the absolute expiry is carried over
+            unchanged from the original session.
+          headers:
+            Set-Cookie:
+              description: New opaque session token, HttpOnly; Secure; SameSite=Lax.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionRefreshResponse'
+        '401':
+          description: SESSION_EXPIRED (absolute or inactivity timeout, or session
+            already rotated/revoked)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: CSRF_INVALID (missing/incorrect X-CSRF-Token, or Origin/Sec-Fetch-Site
+            mismatch)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /web-auth/logout:
+    post:
+      summary: End the current Web student session (idempotent)
+      operationId: logoutWebStudentSession
+      security:
+      - studentSessionCookie: []
+        csrfHeader: []
+      responses:
+        '200':
+          description: 'Always 200 with the same body, regardless of prior session
+            state (valid, already revoked, expired, or absent) — logout does
+            not reveal whether a session previously existed. CSRF is verified
+            only when a currently-valid session is presented; when no valid
+            session exists there is nothing to protect and the check is
+            skipped. The cookie is always cleared.'
+          headers:
+            Set-Cookie:
+              description: qc_web_session=; Max-Age=0 (cookie cleared unconditionally)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+              example:
+                data:
+                  loggedOut: true
+                meta:
+                  request_id: req_01hz41
+                  api_version: v1
+        '403':
+          description: CSRF_INVALID — only returned when a valid session is
+            presented but the CSRF check fails; the session is NOT revoked in
+            this case.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /me/student-context:
+    get:
+      summary: Get the authenticated student's minimal context
+      operationId: getStudentContext
+      security:
+      - studentSessionCookie: []
+      responses:
+        '200':
+          description: Student context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentContextResponse'
+              example:
+                data:
+                  studentPublicId: std_0a19ff
+                  tenantPublicId: sch_8f2a1c
+                  classPublicId: cls_4b91d0
+                  enrollmentStatus: ACTIVE
+                  displayAlias: Marco.R
+                meta:
+                  request_id: req_01hz42
+                  api_version: v1
+        '401':
+          description: SESSION_EXPIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    robloxRuntimeBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Roblox Secret or short-lived runtime token
+      description: Server-only credential injected from Roblox Secrets Store. Combined
+        with timestamp, nonce and origin headers.
+    studentSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_web_session
+      description: HttpOnly, Secure, SameSite=Lax opaque Web student session token.
+        Never accessible to client-side JavaScript.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Synchronizer-token CSRF protection. Raw token is returned once
+        in the session/start and session/refresh response bodies, held in
+        memory only by the client (never a cookie, never localStorage), and
+        must be echoed on every authenticated mutation. The server stores and
+        compares only its hash, constant-time. Combined with an Origin /
+        Sec-Fetch-Site check on every mutating request.
+  parameters:
+    TenantHeader:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+    QCTimestamp:
+      name: X-QC-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+    QCNonce:
+      name: X-QC-Nonce
+      in: header
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    QCUniverseId:
+      name: X-QC-Universe-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+    QCPlaceId:
+      name: X-QC-Place-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+    QCJobId:
+      name: X-QC-Job-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+  headers:
+    RetryAfter:
+      description: Seconds until the rate-limit fixed window resets and the
+        request may be retried.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found or not visible
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource, version, linking or idempotency conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unprocessable:
+      description: Semantically invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unavailable:
+      description: Required dependency unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Malformed request body (VALIDATION_ERROR)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Fixed-window rate limit exceeded (RATE_LIMITED)
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: RATE_LIMITED
+              message: Troppi tentativi. Riprova più tardi.
+              details: null
+              retryable: true
+            meta:
+              request_id: req_01hz43
+              api_version: v1
+  schemas:
+    Meta:
+      type: object
+      required:
+      - request_id
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+    ErrorResponse:
+      type: object
+      required:
+      - error
+      - meta
+      properties:
+        error:
+          type: object
+          required:
+          - code
+          - message
+          - retryable
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            retryable:
+              type: boolean
+        meta:
+          $ref: '#/components/schemas/Meta'
+    CurrentUserResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - user_id
+          - tenants
+          properties:
+            user_id:
+              type: string
+            display_name:
+              type: string
+            tenants:
+              type: array
+              items:
+                type: object
+                required:
+                - tenant_id
+                - roles
+                - capabilities
+                properties:
+                  tenant_id:
+                    type: string
+                  roles:
+                    type: array
+                    items:
+                      type: string
+                  capabilities:
+                    type: array
+                    items:
+                      type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+    CreateClassRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - school_year
+      - track_id
+      - locale
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        school_year:
+          type: string
+        track_id:
+          type: string
+        locale:
+          type: string
+    Class:
+      type: object
+      required:
+      - class_id
+      - name
+      - school_year
+      - track_id
+      - status
+      - version
+      properties:
+        class_id:
+          type: string
+        name:
+          type: string
+        school_year:
+          type: string
+        track_id:
+          type: string
+        status:
+          type: string
+          enum:
+          - active
+          - archived
+        version:
+          type: integer
+          minimum: 1
+    ClassResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/Class'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    ClassListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Class'
+        meta:
+          allOf:
+          - $ref: '#/components/schemas/Meta'
+          - type: object
+            properties:
+              next_cursor:
+                type:
+                - string
+                - 'null'
+              has_more:
+                type: boolean
+    RobloxLinkCodeResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - code
+          - expires_at
+          properties:
+            code:
+              type: string
+            expires_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
+    ConsumeLinkRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - roblox_user_id
+      properties:
+        code:
+          type: string
+        roblox_user_id:
+          type: string
+          pattern: ^[0-9]+$
+        username_snapshot:
+          type: string
+          maxLength: 64
+    RobloxLinkResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - status
+          - student_public_id
+          properties:
+            status:
+              type: string
+              enum:
+              - linked
+              - already_linked
+            student_public_id:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+    LaunchProfileResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - player_public_id
+          - mode
+          - content_release
+          - enabled_modules
+          - expires_at
+          properties:
+            player_public_id:
+              type: string
+            mode:
+              type: string
+              enum:
+              - open
+              - school
+            class_public_id:
+              type:
+              - string
+              - 'null'
+            content_release:
+              type: string
+            enabled_modules:
+              type: array
+              items:
+                type: string
+            assignments:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            capabilities:
+              type: array
+              items:
+                type: string
+            expires_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
+    LearningEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - event_id
+      - roblox_user_id
+      - content_id
+      - content_version
+      - activity_id
+      - event_type
+      - occurred_at
+      - payload
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        roblox_user_id:
+          type: string
+          pattern: ^[0-9]+$
+        content_id:
+          type: string
+        content_version:
+          type: string
+        activity_id:
+          type: string
+        event_type:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+    EventAcceptedResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - status
+          - event_id
+          properties:
+            status:
+              type: string
+              enum:
+              - accepted
+              - already_processed
+            event_id:
+              type: string
+              format: uuid
+        meta:
+          $ref: '#/components/schemas/Meta'
+    JobResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - job_id
+          - type
+          - status
+          properties:
+            job_id:
+              type: string
+            type:
+              type: string
+            status:
+              type: string
+              enum:
+              - queued
+              - running
+              - succeeded
+              - failed
+              - cancelled
+              - human_review_required
+            progress:
+              type: number
+              minimum: 0
+              maximum: 1
+            poll_after_seconds:
+              type: integer
+              minimum: 1
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    # --- Added in v1.3.0: Web Student Access API schemas (WEB-M1) ---
+    ClassCodeResolveRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - classCode
+      properties:
+        classCode:
+          type: string
+          minLength: 4
+          maxLength: 32
+    ClassCodeResolveResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - tenantPublicId
+          - classPublicId
+          - schoolName
+          - requiresAlias
+          - requiresPin
+          properties:
+            tenantPublicId:
+              type: string
+            classPublicId:
+              type: string
+            schoolName:
+              type: string
+            requiresAlias:
+              type: boolean
+              const: true
+            requiresPin:
+              type: boolean
+              const: true
+        meta:
+          $ref: '#/components/schemas/Meta'
+    SessionStartRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - classCode
+      - accessAlias
+      - pin
+      properties:
+        classCode:
+          type: string
+          minLength: 4
+          maxLength: 32
+        accessAlias:
+          type: string
+          minLength: 1
+          maxLength: 64
+        pin:
+          type: string
+          minLength: 6
+          maxLength: 8
+          pattern: ^[0-9]+$
+    SessionStartResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - studentPublicId
+          - tenantPublicId
+          - classPublicId
+          - sessionExpiresAt
+          - csrfToken
+          properties:
+            studentPublicId:
+              type: string
+            tenantPublicId:
+              type: string
+            classPublicId:
+              type: string
+            sessionExpiresAt:
+              type: string
+              format: date-time
+            csrfToken:
+              type: string
+              description: Raw CSRF token. Present only in this response and in
+                session/refresh. Client stores it in memory only.
+        meta:
+          $ref: '#/components/schemas/Meta'
+    SessionRefreshResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - sessionExpiresAt
+          - csrfToken
+          properties:
+            sessionExpiresAt:
+              type: string
+              format: date-time
+              description: Unchanged from the original session's absolute expiry;
+                refresh never extends it.
+            csrfToken:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+    LogoutResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - loggedOut
+          properties:
+            loggedOut:
+              type: boolean
+              const: true
+        meta:
+          $ref: '#/components/schemas/Meta'
+    StudentContextResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - studentPublicId
+          - tenantPublicId
+          - classPublicId
+          - enrollmentStatus
+          - displayAlias
+          properties:
+            studentPublicId:
+              type: string
+            tenantPublicId:
+              type: string
+            classPublicId:
+              type: string
+            enrollmentStatus:
+              type: string
+              enum:
+              - ACTIVE
+              - SUSPENDED
+            displayAlias:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'

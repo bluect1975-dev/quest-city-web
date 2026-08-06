@@ -43,6 +43,16 @@ services:
       DATABASE_SSL: "false"
       HEALTH_READY_DB_TIMEOUT_MS: "2000"
       PORT: "4000"
+      # No value, no placeholder, no fallback — ever (WEB-M1 Fase 2 third
+      # correction: a committed "local-only" value is still a predictable,
+      # versioned secret, since it is used verbatim by anyone who runs this
+      # file without an override). The `:?` form makes `docker compose`
+      # itself refuse to resolve the config — and therefore refuse to
+      # build or start ANY service — if CLASS_CODE_HASH_PEPPER is not set
+      # in the invoking shell environment (or a local, gitignored .env).
+      # Real staging/production values are provisioned via the secret
+      # store (07_06 §9), never committed here or anywhere else.
+      CLASS_CODE_HASH_PEPPER: ${CLASS_CODE_HASH_PEPPER:?CLASS_CODE_HASH_PEPPER is required — export it in your shell (see .env.example for how to generate one) before running docker compose.}
     depends_on:
       postgres:
         condition: service_healthy

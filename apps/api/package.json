@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@quest-city-web/identity": "workspace:*",
     "@quest-city-web/telemetry": "workspace:*",
     "next": "16.2.9",
     "pg": "8.13.1",
