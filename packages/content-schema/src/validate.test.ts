@@ -41,7 +41,7 @@ describe("content-schema fixture validation", () => {
     const result = validateAgainst("semanticAction", {
       actionType: "SELECT_OPTION",
       attemptId: "attempt-1",
-      idempotencyKey: "0123456789abcdef",
+      idempotencyKey: "0123456789abcdef", // gitleaks:allow — fixture placeholder, not a credential
       occurredAt: "2026-08-05T00:00:00.000Z",
       payload: { optionId: "opt-a" },
     });
@@ -52,7 +52,7 @@ describe("content-schema fixture validation", () => {
     const result = validateAgainst("semanticAction", {
       actionType: "MOUSE_DOWN_AT_440_217",
       attemptId: "attempt-1",
-      idempotencyKey: "0123456789abcdef",
+      idempotencyKey: "0123456789abcdef", // gitleaks:allow — fixture placeholder, not a credential
       occurredAt: "2026-08-05T00:00:00.000Z",
       payload: {},
     });
