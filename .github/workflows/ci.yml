@@ -15,6 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # gitleaks-action (Secret scan, below) runs a base..head diff scan
+          # on pull_request events and needs the base commit's parent to be
+          # resolvable — the default shallow clone (fetch-depth: 1) doesn't
+          # include it, causing a "fatal: ambiguous argument" git error that
+          # aborts the scan before it can run.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
         with:
