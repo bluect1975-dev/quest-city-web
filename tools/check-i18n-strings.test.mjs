@@ -92,6 +92,20 @@ describe("check-i18n-strings", () => {
     expect(violations).toEqual([]);
   });
 
+  it("does not flag a TypeScript arrow-function Promise<T> return type as JSX text (WEB-M3B)", async () => {
+    tempRoot = await mkdtemp(path.join(tmpdir(), "qc-i18n-gate-"));
+    const libDir = path.join(tempRoot, "apps", "dashboard", "lib");
+    await mkdir(libDir, { recursive: true });
+    await writeFile(
+      path.join(libDir, "staff-auth-context.tsx"),
+      `interface Value {\n  logout: () => Promise<void>;\n}\n`,
+      "utf8",
+    );
+
+    const violations = await scan(tempRoot);
+    expect(violations).toEqual([]);
+  });
+
   it("does not scan a *.test.tsx fixture file", async () => {
     tempRoot = await mkdtemp(path.join(tmpdir(), "qc-i18n-gate-"));
     const pageDir = path.join(tempRoot, "apps", "student-web", "app");

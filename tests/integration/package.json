@@ -13,6 +13,7 @@
     "@quest-city-web/attempts": "workspace:*",
     "@quest-city-web/i18n": "workspace:*",
     "@quest-city-web/identity": "workspace:*",
+    "@quest-city-web/staff-identity": "workspace:*",
     "@quest-city-web/test-fixtures": "workspace:*",
     "@types/pg": "8.11.10",
     "eslint": "9.18.0",

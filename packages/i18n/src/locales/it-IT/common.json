@@ -10,6 +10,7 @@
   "status": {
     "loading": "Caricamento in corso...",
     "empty": "Nessun contenuto disponibile.",
-    "underConstruction": "Questa sezione è in costruzione."
+    "underConstruction": "Questa sezione è in costruzione.",
+    "unauthorized": "Accesso non autorizzato. Reindirizzamento alla pagina di accesso..."
   }
 }

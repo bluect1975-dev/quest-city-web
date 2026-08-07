@@ -53,6 +53,26 @@ export class SchoolClassRepository {
     return row ? mapSchoolClass(row) : null;
   }
 
+  /** WEB-M3B (02_35 §3.2, §5): SCHOOL_ADMIN's implicit tenant-wide class scope. */
+  async findByTenant(tenantId: string): Promise<SchoolClass[]> {
+    const result = await this.db.query<SchoolClassRow>(
+      `SELECT id, tenant_id, public_id, name, status, created_at FROM school_class WHERE tenant_id = $1 ORDER BY name ASC`,
+      [tenantId],
+    );
+    return result.rows.map(mapSchoolClass);
+  }
+
+  /** WEB-M3B (02_35 §3.2, §5): TEACHER's explicit `staff_class_assignment`-scoped class list. */
+  async findByIds(ids: string[], tenantId: string): Promise<SchoolClass[]> {
+    if (ids.length === 0) return [];
+    const result = await this.db.query<SchoolClassRow>(
+      `SELECT id, tenant_id, public_id, name, status, created_at
+       FROM school_class WHERE tenant_id = $1 AND id = ANY($2::uuid[]) ORDER BY name ASC`,
+      [tenantId, ids],
+    );
+    return result.rows.map(mapSchoolClass);
+  }
+
   /** Administrative provisioning only (seed). */
   async create(input: {
     tenantId: string;

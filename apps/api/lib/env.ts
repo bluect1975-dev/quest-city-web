@@ -22,6 +22,12 @@ export interface ApiEnv {
   sessionCookieSecureOverrideInsecureLocal: boolean;
   /** Origins allowed to perform mutating web-auth requests (CSRF Origin check, AGENTS.md WEB-M1 baseline rule 1). */
   webAuthTrustedOrigins: string[];
+  /** WEB-M3B (02_35 §4.4): distinct cookie name from `sessionCookieName` — never the same cookie or table as the student session. */
+  staffSessionCookieName: string;
+  staffSessionAbsoluteTtlSeconds: number;
+  staffSessionInactivityTtlSeconds: number;
+  /** Origins allowed to perform mutating staff-auth/dashboard requests — separate list from `webAuthTrustedOrigins` since `apps/dashboard` runs on its own origin. */
+  staffAuthTrustedOrigins: string[];
   /**
    * HMAC-SHA-256 key for class-code hashing (WEB-M1 Fase 2 correction #1).
    * Required in every environment — no default, ever. Decoded and length
@@ -51,6 +57,10 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
   // 12h absolute / 60min inactivity (WEB-M1 Fase 2 correction report §5).
   const sessionAbsoluteTtlSeconds = parsePositiveInt(source, "SESSION_ABSOLUTE_TTL_SECONDS", String(12 * 60 * 60));
   const sessionInactivityTtlSeconds = parsePositiveInt(source, "SESSION_INACTIVITY_TTL_SECONDS", String(60 * 60));
+  // WEB-M3B (02_35 §4.4): 12h absolute / 60min inactivity — same baseline
+  // values as the student session, independently configurable.
+  const staffSessionAbsoluteTtlSeconds = parsePositiveInt(source, "STAFF_SESSION_ABSOLUTE_TTL_SECONDS", String(12 * 60 * 60));
+  const staffSessionInactivityTtlSeconds = parsePositiveInt(source, "STAFF_SESSION_INACTIVITY_TTL_SECONDS", String(60 * 60));
   const nodeEnv = source.NODE_ENV ?? "development";
   const sessionCookieSecureOverrideInsecureLocal =
     nodeEnv === "development" && source.SESSION_COOKIE_SECURE_OVERRIDE_INSECURE_LOCAL === "true";
@@ -81,5 +91,12 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
     classCodeHashPepper,
+    staffSessionCookieName: source.STAFF_SESSION_COOKIE_NAME ?? "qc_staff_session",
+    staffSessionAbsoluteTtlSeconds,
+    staffSessionInactivityTtlSeconds,
+    staffAuthTrustedOrigins: (source.STAFF_AUTH_TRUSTED_ORIGINS ?? "http://localhost:3001,http://localhost:8080")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
   };
 }

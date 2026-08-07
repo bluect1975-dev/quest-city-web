@@ -7,9 +7,22 @@ apps/api/eslint.config.mjs, apps/dashboard/eslint.config.mjs, apps/student-web/e
 apps/api/next-env.d.ts, apps/dashboard/next-env.d.ts, apps/student-web/next-env.d.ts
 apps/api/tsconfig.json, apps/dashboard/tsconfig.json, apps/student-web/tsconfig.json
 apps/dashboard/next.config.ts, apps/student-web/next.config.ts
-packages/attempts/tsconfig.json, packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/i18n/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
-packages/attempts/vitest.config.ts, packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/i18n/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
+# Pre-existing staleness corrected here (WEB-M3B): this used to be one
+# 10-member line mixing attempts/i18n in with the rest, but their
+# tsconfig.json/vitest.config.ts content has actually differed from the
+# others' for some time (attempts/i18n carry their own path-mapping
+# needs) — the two are genuinely separate byte-identical groups, not one.
+packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/staff-identity/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
+packages/attempts/tsconfig.json, packages/i18n/tsconfig.json
+packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/staff-identity/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
+packages/attempts/vitest.config.ts, packages/i18n/vitest.config.ts
 # packages/attempts/src/repository/types.ts intentionally mirrors
 # packages/identity/src/repository/types.ts's Queryable = Pool | PoolClient
 # alias (docs/adr/0003) — same per-package boilerplate rationale as above.
-packages/attempts/src/repository/types.ts, packages/identity/src/repository/types.ts
+# Not byte-identical to the other two (differing line endings), so it is
+# its own single-file entry below rather than joining their group.
+packages/identity/src/repository/types.ts, packages/staff-identity/src/repository/types.ts
+# Single-line `/// <reference types="@testing-library/jest-dom/vitest" />`
+# stub (WEB-M3B FVR), needed inside each package's own tsconfig `include`
+# scope — same per-package-boilerplate rationale as the rest of this file.
+apps/dashboard/vitest.d.ts, packages/ui/src/vitest.d.ts

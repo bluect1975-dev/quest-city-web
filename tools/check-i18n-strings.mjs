@@ -101,6 +101,11 @@ export async function scan(root) {
       while ((match = JSX_TEXT_RE.exec(line))) {
         const text = match[1];
         if (looksLikeIdentifierOrPath(text)) continue;
+        // The `>` opening this match is itself the second character of a
+        // TypeScript arrow `=>` (e.g. `() => Promise<void>`), not a JSX
+        // tag close — a false positive this line-based heuristic cannot
+        // otherwise distinguish from real `>text<` JSX content.
+        if (line[match.index - 1] === "=") continue;
         violations.push({ file: relative, line: index + 1, snippet: text.trim() });
       }
       METADATA_STRING_RE.lastIndex = 0;

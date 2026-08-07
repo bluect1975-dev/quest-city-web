@@ -93,6 +93,28 @@ describe("loadEnv", () => {
     });
   });
 
+  describe("WEB-M3B — staff session parameters (02_35 §4.4)", () => {
+    it("defaults staffSessionCookieName to qc_staff_session, distinct from sessionCookieName", () => {
+      const env = loadEnv(baseSource());
+      expect(env.staffSessionCookieName).toBe("qc_staff_session");
+      expect(env.staffSessionCookieName).not.toBe(env.sessionCookieName);
+    });
+
+    it("defaults to the same 12h absolute / 60min inactivity TTL baseline as the student session", () => {
+      const env = loadEnv(baseSource());
+      expect(env.staffSessionAbsoluteTtlSeconds).toBe(12 * 60 * 60);
+      expect(env.staffSessionInactivityTtlSeconds).toBe(60 * 60);
+    });
+
+    it("parses custom staff session TTLs independently from the student session ones", () => {
+      const env = loadEnv(
+        baseSource({ STAFF_SESSION_ABSOLUTE_TTL_SECONDS: "600", SESSION_ABSOLUTE_TTL_SECONDS: "999" }),
+      );
+      expect(env.staffSessionAbsoluteTtlSeconds).toBe(600);
+      expect(env.sessionAbsoluteTtlSeconds).toBe(999);
+    });
+  });
+
   describe("CLASS_CODE_HASH_PEPPER (WEB-M1 Fase 2 correction #1) — no default, ever", () => {
     it("decodes a valid pepper into a 32+ byte Buffer", () => {
       const env = loadEnv(baseSource());
