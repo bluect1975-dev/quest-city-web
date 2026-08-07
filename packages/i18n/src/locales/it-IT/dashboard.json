@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "title": "Quest City Dashboard",
+    "description": "Dashboard condivisa scuola/docente di Quest City."
+  },
+  "home": {
+    "title": "Quest City Dashboard",
+    "underConstructionPart1": "La dashboard condivisa scuola/docente è in costruzione. Questo placeholder conferma che la rotta",
+    "underConstructionPart2": "è attiva end-to-end. La futura IA delle schermate (02_23) vivrà sotto",
+    "underConstructionPart3": "all'interno di questa stessa applicazione — non come una dashboard separata."
+  }
+}

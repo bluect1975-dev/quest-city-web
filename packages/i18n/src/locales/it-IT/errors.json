@@ -1,0 +1,19 @@
+{
+  "CLASS_CODE_INVALID": "Il codice classe inserito non è valido.",
+  "ACCESS_CREDENTIALS_INVALID": "Alias o PIN non corretti.",
+  "ENROLLMENT_SUSPENDED": "L'iscrizione è sospesa. Contatta il tuo insegnante.",
+  "SESSION_EXPIRED": "La sessione è scaduta. Accedi di nuovo.",
+  "TENANT_ACCESS_DENIED": "Non hai accesso a questa scuola.",
+  "CSRF_INVALID": "La richiesta non è valida. Riprova.",
+  "RATE_LIMITED": "Troppi tentativi. Riprova tra qualche istante.",
+  "VALIDATION_ERROR": "I dati inviati non sono validi.",
+  "RUNTIME_CHANNEL_NOT_ALLOWED": "Questa assegnazione non è disponibile su questo dispositivo.",
+  "RUNTIME_CAPABILITY_MISMATCH": "Il tuo dispositivo non supporta questa attività.",
+  "PRESENTATION_ADAPTER_UNAVAILABLE": "Questa attività non è al momento disponibile su questo dispositivo.",
+  "CROSS_RUNTIME_ATTEMPT_CONFLICT": "È in corso un altro tentativo su questa assegnazione.",
+  "ATTEMPT_ALREADY_CONSOLIDATED": "Questo tentativo è già stato completato.",
+  "RECONCILIATION_REQUIRED": "Il completamento è in fase di verifica.",
+  "LEGACY_RUNTIME_UNKNOWN": "Non è possibile determinare la provenienza di questo tentativo.",
+  "ATTEMPT_NOT_COMPLETABLE": "Questo tentativo non può essere completato nel suo stato attuale.",
+  "UNKNOWN_ERROR": "Si è verificato un errore imprevisto. Riprova."
+}

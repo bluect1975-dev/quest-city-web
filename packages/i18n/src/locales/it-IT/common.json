@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "Quest City"
+  },
+  "action": {
+    "continue": "Continua",
+    "back": "Indietro",
+    "retry": "Riprova"
+  },
+  "status": {
+    "loading": "Caricamento in corso...",
+    "empty": "Nessun contenuto disponibile.",
+    "underConstruction": "Questa sezione è in costruzione."
+  }
+}

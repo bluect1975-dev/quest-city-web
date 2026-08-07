@@ -13,6 +13,7 @@
     "test": "echo \"no component tests at WEB-M0\" && exit 0"
   },
   "dependencies": {
+    "@quest-city-web/i18n": "workspace:*",
     "@quest-city-web/theme-system": "workspace:*",
     "@quest-city-web/ui": "workspace:*",
     "next": "16.2.9",

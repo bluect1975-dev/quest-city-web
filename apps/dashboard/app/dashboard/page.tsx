@@ -1,4 +1,5 @@
 import { StatusMessage } from "@quest-city-web/ui";
+import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 
 /**
  * WEB-M0 controlled placeholder (deliverable 11). `/dashboard` is the
@@ -8,16 +9,19 @@ import { StatusMessage } from "@quest-city-web/ui";
  * `/app` — that IA is not implemented yet and is intentionally out of
  * scope here. This placeholder must not be mistaken for a second,
  * competing dashboard: there is exactly one dashboard product, shared by
- * school and teacher roles, per 02_16 / 02_23.
+ * school and teacher roles, per 02_16 / 02_23. Text is sourced from the
+ * it-IT catalog (WEB-I18N-FOUNDATION I18N-B) instead of hardcoded — route
+ * paths stay separate <code> elements rather than embedded markup so the
+ * catalog holds plain text only.
  */
 export default function DashboardPlaceholderPage() {
   return (
     <main>
-      <h1>Quest City Dashboard</h1>
+      <h1>{t(DASHBOARD_CATALOG_IT_IT, "home.title")}</h1>
       <StatusMessage kind="empty">
-        The shared school/teacher dashboard is under construction. This placeholder confirms the{" "}
-        <code>/dashboard</code> route is live end-to-end. The eventual screen IA (02_23) will live
-        under <code>/app</code> within this same application — not as a separate dashboard.
+        {t(DASHBOARD_CATALOG_IT_IT, "home.underConstructionPart1")} <code>/dashboard</code>{" "}
+        {t(DASHBOARD_CATALOG_IT_IT, "home.underConstructionPart2")} <code>/app</code>{" "}
+        {t(DASHBOARD_CATALOG_IT_IT, "home.underConstructionPart3")}
       </StatusMessage>
     </main>
   );

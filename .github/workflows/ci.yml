@@ -43,6 +43,9 @@ jobs:
       - name: Fixture isolation check
         run: pnpm run check:fixture-isolation
 
+      - name: i18n anti-hardcoding check
+        run: pnpm run check:i18n-strings
+
       - name: Lint
         run: pnpm run lint
 

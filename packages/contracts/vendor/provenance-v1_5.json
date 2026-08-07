@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-locale-foundation",
+  "artifactVersion": "1.5.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "feature/web-i18n-a-canonical-contracts",
+  "sourceCommit": "ec1c4093d1c38ff477960cd7e7b0b7dc406af9d0",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_5.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_7",
+  "checksum": "sha256:5fe14e28d4f568643cec88dea0d2ca196f63dbb589b459ab36edf6e21d558d7a",
+  "syncedAt": "2026-08-07",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml, v1_3.yaml and v1_4.yaml, all unmodified and independently tracked (see provenance.json, provenance-v1_3.json, provenance-v1_4.json). Adds the optional, purely presentational presentationLocale field to LaunchContextRequest and LaunchContextResponse.data only (WEB-I18N-FOUNDATION I18N-A, 07_15_01 v1.2 §15.2-bis / 02_26 v1.7 §18.2 / 02_34 v1.0). No other path or schema is touched; CompleteAttemptRequest, CompleteAttemptResponse, CompletionStatus, AttemptState, SemanticActionRequest and AttemptSummary are byte-identical to v1.4. Do not edit vendor/quest-city-platform-openapi-v1_5.yaml directly.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_5.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_5.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

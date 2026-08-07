@@ -1,10 +1,11 @@
 import { Pool } from "pg";
-import { ClassCodeService, SessionService, type SessionSecurityConfig } from "@quest-city-web/identity";
+import { ClassCodeService, SessionService, TenantRepository, type SessionSecurityConfig } from "@quest-city-web/identity";
 import { loadEnv } from "./env";
 
 let pool: Pool | undefined;
 let classCodeService: ClassCodeService | undefined;
 let sessionService: SessionService | undefined;
+let tenantRepository: TenantRepository | undefined;
 
 /**
  * Separate connection pool from `lib/db.ts`'s readiness-probe pool — that
@@ -46,4 +47,16 @@ export function getSessionService(): SessionService {
     sessionService = new SessionService(getIdentityPool(), env.classCodeHashPepper, getSessionSecurityConfig());
   }
   return sessionService;
+}
+
+/**
+ * WEB-I18N-FOUNDATION I18N-B: the school level of the locale resolution
+ * hierarchy (02_34 §3) reads `tenant.settings_json.locale`. No new
+ * repository was needed -- TenantRepository already existed for WEB-M1.
+ */
+export function getTenantRepository(): TenantRepository {
+  if (!tenantRepository) {
+    tenantRepository = new TenantRepository(getIdentityPool());
+  }
+  return tenantRepository;
 }
