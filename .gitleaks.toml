@@ -3,19 +3,23 @@ title = "quest-city-web gitleaks config"
 # Extends gitleaks' full default ruleset — no rule is disabled, no rule's
 # regex/severity is redefined or weakened. This file adds exactly one
 # minimal, narrow allowlist entry (see below), nothing else.
+#
+# Uses the singular [allowlist] block (not the newer [[allowlists]] array +
+# matchCondition form) deliberately: gitleaks/gitleaks-action@v2 currently
+# pins gitleaks v8.24.3, which does not apply [[allowlists]]/matchCondition
+# entries — verified empirically (the array form silently suppressed
+# nothing on v8.24.3, while this singular form works identically on both
+# v8.24.3 and the latest release). With both `paths` and `regexes` given
+# together, a finding is only allowlisted when it is BOTH in this exact
+# test file AND matches this exact value pattern — verified with a
+# negative-test scratch repo before this file was committed: the same
+# generic-api-key rule still fires for this same literal value in a
+# different file, and for any other value in this same file.
 [extend]
 useDefault = true
 
-[[allowlists]]
+[allowlist]
 description = "known synthetic idempotency test fixture, not a credential"
-# Both conditions must match (AND, not OR) — a finding is only allowlisted
-# if it is BOTH in this exact test file AND matches this exact value
-# pattern. The same generic-api-key rule still fires normally everywhere
-# else, including for this same literal value if it ever appeared in a
-# different file, and for any other value in this same file — verified
-# empirically with a negative-test scratch repo before this file was
-# committed (see docs/adr/0003 CI correction history / commit message).
-matchCondition = "AND"
 paths = [
   '''^tests/integration/attempt-lifecycle\.test\.ts$''',
 ]
