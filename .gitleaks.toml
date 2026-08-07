@@ -1,0 +1,24 @@
+title = "quest-city-web gitleaks config"
+
+# Extends gitleaks' full default ruleset — no rule is disabled, no rule's
+# regex/severity is redefined or weakened. This file adds exactly one
+# minimal, narrow allowlist entry (see below), nothing else.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "known synthetic idempotency test fixture, not a credential"
+# Both conditions must match (AND, not OR) — a finding is only allowlisted
+# if it is BOTH in this exact test file AND matches this exact value
+# pattern. The same generic-api-key rule still fires normally everywhere
+# else, including for this same literal value if it ever appeared in a
+# different file, and for any other value in this same file — verified
+# empirically with a negative-test scratch repo before this file was
+# committed (see docs/adr/0003 CI correction history / commit message).
+matchCondition = "AND"
+paths = [
+  '''^tests/integration/attempt-lifecycle\.test\.ts$''',
+]
+regexes = [
+  '''creationIdempotencyKey: "creation-key-[1-4]"''',
+]
