@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { IdentityError } from "@quest-city-web/identity";
 import { CrossRuntimeError, RuntimeCapabilityResolver } from "@quest-city-web/attempts";
-import { getSessionService } from "../../../../lib/identity-context";
+import { resolvePresentationLocale } from "@quest-city-web/i18n";
+import { getSessionService, getTenantRepository } from "../../../../lib/identity-context";
 import {
   getAssignmentRepository,
   getContentBundleRepository,
@@ -18,6 +19,7 @@ interface LaunchContextRequestBody {
   runtimeVersion?: string;
   presentationAdapterVersion?: string;
   themeId?: string;
+  presentationLocale?: string;
 }
 
 /**
@@ -50,6 +52,27 @@ export async function POST(
     const body = (await request.json().catch(() => ({}))) as LaunchContextRequestBody;
     if (body.runtimeChannel !== "WEB" && body.runtimeChannel !== "ROBLOX") {
       throw new IdentityError("VALIDATION_ERROR", "runtimeChannel must be WEB or ROBLOX");
+    }
+
+    // presentationLocale (WEB-I18N-FOUNDATION I18N-A/B, contracts v1.5,
+    // 07_15_01 v1.2 §15.2-bis): a malformed value is rejected here, before
+    // any attempt state is created or mutated -- never silently treated as
+    // absent. Absent/unsupported are NOT errors and are resolved further
+    // down, once the tenant (school-level hierarchy input) is available.
+    const localeSyntaxCheck = resolvePresentationLocale(body.presentationLocale, {});
+    if (!localeSyntaxCheck.ok) {
+      return NextResponse.json(
+        {
+          domain: "PLATFORM",
+          code: "VALIDATION_ERROR",
+          httpStatus: 400,
+          message: "presentationLocale is not a syntactically valid locale tag.",
+          correlationId: correlationId ?? "",
+          retryable: false,
+          safeDetails: { field: "presentationLocale" },
+        },
+        { status: 400 },
+      );
     }
 
     const identity = await getSessionService().resolveInternalIdentity(sessionToken);
@@ -122,6 +145,17 @@ export async function POST(
       throw new CrossRuntimeError(code, "No compatible presentation adapter for this runtime.");
     }
 
+    // presentationLocale resolution (02_34 §3-4, 07_15_01 v1.2 §15.2-bis):
+    // school level reads tenant.settings_json.locale; student/class levels
+    // are reserved, not persisted in this milestone. Malformed input was
+    // already rejected above; this call always succeeds (`ok: true`) here.
+    const tenant = await getTenantRepository().findById(identity.tenantId);
+    const schoolLocale = tenant?.settingsJson.locale;
+    const localeResolution = resolvePresentationLocale(body.presentationLocale, {
+      schoolLocale: typeof schoolLocale === "string" ? schoolLocale : null,
+    });
+    const presentationLocale = localeResolution.ok ? localeResolution.resolved : "it-IT";
+
     const attempt =
       existing ??
       (await attempts.create({
@@ -155,6 +189,7 @@ export async function POST(
           bundle: { contentBundleId: bundle.id, bundleVersion: bundle.bundleVersion },
           adapter: { adapterId: resolution.adapter.adapterId, adapterVersion: resolution.adapter.adapterVersion },
           completionPolicy: assignment.completionPolicy,
+          presentationLocale,
         },
         meta: { request_id: correlationId ?? undefined, api_version: "v1" },
       },

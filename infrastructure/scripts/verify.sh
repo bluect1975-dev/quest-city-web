@@ -33,6 +33,7 @@ run_step() {
 run_step "Filename convention check" pnpm run check:filenames
 run_step "Duplicate file check" pnpm run check:duplicates
 run_step "Fixture isolation check" pnpm run check:fixture-isolation
+run_step "i18n anti-hardcoding check" pnpm run check:i18n-strings
 run_step "Lint (all packages)" pnpm run lint
 run_step "Type check (all packages)" pnpm run typecheck
 run_step "Unit tests (all packages)" pnpm run test

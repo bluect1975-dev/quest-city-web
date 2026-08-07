@@ -20,6 +20,7 @@
     "check:duplicates": "node tools/check-duplicates.mjs",
     "check:filenames": "node tools/check-filenames.mjs",
     "check:fixture-isolation": "node tools/check-fixture-isolation.mjs",
+    "check:i18n-strings": "node tools/check-i18n-strings.mjs",
     "verify": "bash infrastructure/scripts/verify.sh"
   },
   "devDependencies": {

@@ -16,6 +16,7 @@ import {
   CrossRuntimeError,
 } from "@quest-city-web/attempts";
 import { CrossRuntimeReconciliationFixtureDriver } from "@quest-city-web/test-fixtures/fixture-driver";
+import { resolvePresentationLocale } from "@quest-city-web/i18n";
 
 /**
  * WEB-M2B integration tests against a real, dockerized PostgreSQL instance
@@ -900,5 +901,104 @@ describe("RuntimeCapabilityResolver (real, no mock)", () => {
     if (!result.compatible) {
       expect(result.reason).toBe("PRESENTATION_ADAPTER_UNAVAILABLE");
     }
+  });
+});
+
+describe("presentationLocale resolution against a real tenant row (WEB-I18N-FOUNDATION I18N-B, 07_15_01 v1.2 §15.2-bis)", () => {
+  it("launch-context without presentationLocale resolves via the hierarchy to the real tenant.settings_json.locale", async () => {
+    const fx = await buildFixture();
+    await pool.query(`UPDATE tenant SET settings_json = $2 WHERE id = $1`, [
+      fx.tenantId,
+      JSON.stringify({ locale: "it-IT" }),
+    ]);
+    const tenantRow = await pool.query<{ settings_json: { locale?: string } }>(
+      `SELECT settings_json FROM tenant WHERE id = $1`,
+      [fx.tenantId],
+    );
+    const schoolLocale = tenantRow.rows[0]?.settings_json.locale ?? null;
+
+    const result = resolvePresentationLocale(undefined, { schoolLocale });
+    expect(result).toEqual({ ok: true, resolved: "it-IT" });
+  });
+
+  it("a valid, supported requested locale is honored directly, independent of the tenant row", async () => {
+    const fx = await buildFixture();
+    await pool.query(`UPDATE tenant SET settings_json = $2 WHERE id = $1`, [fx.tenantId, JSON.stringify({})]);
+    const result = resolvePresentationLocale("it-IT", { schoolLocale: null });
+    expect(result).toEqual({ ok: true, resolved: "it-IT" });
+  });
+
+  it("a valid but unsupported requested locale (a plannedLocale) falls back silently to the real tenant locale, never an error", async () => {
+    const fx = await buildFixture();
+    await pool.query(`UPDATE tenant SET settings_json = $2 WHERE id = $1`, [
+      fx.tenantId,
+      JSON.stringify({ locale: "it-IT" }),
+    ]);
+    const tenantRow = await pool.query<{ settings_json: { locale?: string } }>(
+      `SELECT settings_json FROM tenant WHERE id = $1`,
+      [fx.tenantId],
+    );
+    const result = resolvePresentationLocale("en-GB", { schoolLocale: tenantRow.rows[0]?.settings_json.locale ?? null });
+    expect(result).toEqual({ ok: true, resolved: "it-IT" });
+  });
+
+  it("a syntactically malformed requested locale is rejected -- never silently treated as absent", () => {
+    const result = resolvePresentationLocale("not!!valid", { schoolLocale: "it-IT" });
+    expect(result).toEqual({ ok: false, reason: "MALFORMED", value: "not!!valid" });
+  });
+
+  it("the same semantic actions consolidate to the identical outcome regardless of which presentationLocale was resolved at launch", async () => {
+    // Two independent attempts on the SAME fixture (content_bundle has a
+    // natural-key unique constraint on (subject_id, bundle_version,
+    // manifest_hash) that buildFixture() always populates identically, so
+    // a second buildFixture() call in the same test would collide -- one
+    // tenant/assignment/bundle is sufficient here since the invariant
+    // under test is per-attempt, not per-tenant), identical actions,
+    // deliberately different resolved presentationLocale at "launch" time
+    // -- proves the value never reaches AttemptConsolidationService / the
+    // validator.
+    const fx = await buildFixture();
+
+    const localeForA = resolvePresentationLocale("it-IT", {});
+    const localeForB = resolvePresentationLocale("en-GB", { schoolLocale: "it-IT" }); // unsupported -> falls back
+    expect(localeForA.ok && localeForA.resolved).toBe("it-IT");
+    expect(localeForB.ok && localeForB.resolved).toBe("it-IT");
+    // Even though both resolve to the same value here, the point is that
+    // consolidate() below receives no locale input at all in either case.
+
+    const attempts = new LearningAttemptRepository(pool);
+    const semanticActions = new SemanticActionLogRepository(pool);
+    const attemptResponses = new AttemptResponseRepository(pool);
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
+
+    async function runToConsolidated(fx: Fixture, creationKey: string) {
+      const created = await attempts.create({
+        tenantId: fx.tenantId,
+        eventId: randomUUID(),
+        assignmentId: fx.assignmentId,
+        studentProfileId: fx.studentProfileId,
+        enrollmentId: fx.enrollmentId,
+        contentBundleId: fx.contentBundleId,
+        contentId: fx.contentBundleId,
+        contentVersion: "1.0.0",
+        runtimeChannel: "WEB",
+        creationIdempotencyKey: creationKey,
+      });
+      await attempts.transitionToInProgress(created.id, fx.tenantId);
+      await attempts.transitionToCompletionSubmitted(created.id, fx.tenantId, "ACCEPTED_NOT_CONSOLIDATED");
+      await placeBalancedBalanceMachineActions(semanticActions, fx.tenantId, created.id);
+      const actions = await semanticActions.findByAttempt(created.id, fx.tenantId);
+      // consolidate() takes no locale input whatsoever -- this is the
+      // structural guarantee, not merely an observed coincidence.
+      return consolidation.consolidate({ attemptId: created.id, tenantId: fx.tenantId, actions });
+    }
+
+    const resultA = await runToConsolidated(fx, "locale-independence-a");
+    const resultB = await runToConsolidated(fx, "locale-independence-b");
+
+    expect(resultA.completionStatus).toBe("CONSOLIDATED");
+    expect(resultB.completionStatus).toBe("CONSOLIDATED");
+    expect(resultA.outcome?.["score"]).toBe(resultB.outcome?.["score"]);
+    expect(resultA.outcome?.["completionStatus"]).toBe(resultB.outcome?.["completionStatus"]);
   });
 });

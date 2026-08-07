@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "title": "Quest City",
+    "description": "Esperienza Web Studente di Quest City."
+  },
+  "home": {
+    "title": "Quest City",
+    "underConstructionBefore": "L'Esperienza Web Studente è in costruzione. Questo placeholder conferma che la rotta",
+    "underConstructionAfter": "è attiva end-to-end (reverse proxy → app student-web).",
+    "continueButton": "Continua (a breve)"
+  }
+}
