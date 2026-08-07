@@ -296,6 +296,36 @@ export class SessionService {
   }
 
   /**
+   * WEB-M2: resolves the internal identity (tenant/student profile/
+   * enrollment/class UUIDs) behind an active session cookie, for
+   * consumers (packages/attempts repositories) that need real foreign
+   * keys rather than the public-facing StudentContext DTO. Reuses the
+   * same `resolveActiveSession` session validation as `getContext` — no
+   * separate/divergent session-validation logic.
+   */
+  async resolveInternalIdentity(rawSessionToken: string): Promise<{
+    tenantId: string;
+    studentProfileId: string;
+    enrollmentId: string;
+    classId: string;
+  }> {
+    const session = await this.resolveActiveSession(rawSessionToken);
+    if (!session) {
+      throw new IdentityError("SESSION_EXPIRED");
+    }
+    const enrollment = await this.enrollments.findById(session.enrollmentId, session.tenantId);
+    if (!enrollment) {
+      throw new IdentityError("SESSION_EXPIRED");
+    }
+    return {
+      tenantId: session.tenantId,
+      studentProfileId: session.studentProfileId,
+      enrollmentId: session.enrollmentId,
+      classId: enrollment.classId,
+    };
+  }
+
+  /**
    * Resolves an active session from its raw cookie token. A session found
    * to be past its absolute or inactivity deadline is lazily revoked with
    * the matching reason (ABSOLUTE_EXPIRY / INACTIVITY_TIMEOUT) as a side

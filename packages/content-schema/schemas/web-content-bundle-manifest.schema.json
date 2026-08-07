@@ -1,21 +1,25 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.questcity.dev/web/web-content-bundle-manifest.schema.json",
+  "$id": "https://schemas.questcity.dev/web/v2/web-content-bundle-manifest.schema.json",
   "title": "WebContentBundleManifest",
-  "description": "Immutable manifest header for a published Web content bundle (07_09 §3, §6). At WEB-M0 only bundleType=RUNTIME_FIXTURE_BUNDLE is produced; it must never be served as production content (07_09 §25).",
+  "description": "schemaVersion 2.0.0. Immutable manifest for a published Web content bundle (07_09 §5-6), superseding the WEB-M0 fixture-stage shape (flat `checksum` -> nested `integrity`, added `entries[]`/`dependencies[]` — see docs/adr/0003). RUNTIME_FIXTURE_BUNDLE must never be served as production content (07_09 §25).",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "bundleSchemaVersion",
     "bundleId",
+    "bundleVersion",
     "bundleType",
-    "schemaVersion",
+    "status",
     "contentVersion",
-    "checksum",
     "publishedAt",
-    "compatibleRuntimes"
+    "entries",
+    "integrity"
   ],
   "properties": {
+    "bundleSchemaVersion": { "type": "string", "minLength": 1 },
     "bundleId": { "type": "string", "minLength": 1 },
+    "bundleVersion": { "type": "string", "minLength": 1 },
     "bundleType": {
       "type": "string",
       "enum": [
@@ -28,10 +32,25 @@
         "RUNTIME_FIXTURE_BUNDLE"
       ]
     },
-    "schemaVersion": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "DEPRECATED"] },
+    "subjectId": { "type": "string" },
+    "moduleId": { "type": "string" },
+    "locale": { "type": "string" },
+    "curriculumVersion": { "type": "string" },
     "contentVersion": { "type": "string", "minLength": 1 },
-    "checksum": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "createdAt": { "type": "string", "format": "date-time" },
     "publishedAt": { "type": "string", "format": "date-time" },
+    "minPlatformVersion": { "type": "string" },
+    "minWebRuntimeVersion": { "type": "string" },
+    "maxTestedWebRuntimeVersion": { "type": "string" },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "https://schemas.questcity.dev/web/v2/bundle-entry.schema.json" }
+    },
     "compatibleRuntimes": {
       "type": "array",
       "items": { "type": "string", "enum": ["WEB", "ROBLOX"] },
@@ -41,6 +60,15 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "fallbacksDeclared": { "type": "boolean" }
+    "fallbacksDeclared": { "type": "boolean" },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": { "type": "string", "const": "sha256" },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
   }
 }

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/v2/outcome.schema.json",
+  "title": "Outcome",
+  "description": "schemaVersion 2.0.0. Server-computed attempt outcome, populated exclusively when learning_attempt.completion_status = CONSOLIDATED (07_15_01 v1.1 §11-bis.5). New in WEB-M2 — neither 07_08 nor 07_09 define this shape (07_08 §8 explicitly states the runtime does not return outcome directly); designed for this implementation, informed by 07_15_01 §9/§11 and the WEB-M2 planning rounds.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["attemptId", "completionStatus", "consolidatedAt"],
+  "properties": {
+    "attemptId": { "type": "string", "minLength": 1 },
+    "completionStatus": { "type": "string", "const": "CONSOLIDATED" },
+    "evidenceRef": { "type": "string" },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "consolidatedAt": { "type": "string", "format": "date-time" },
+    "reconciliationStatus": {
+      "type": "string",
+      "enum": ["ACCEPTED_NOT_CONSOLIDATED", "RECONCILIATION_REQUIRED", "CONSOLIDATED"]
+    }
+  }
+}

@@ -19,6 +19,7 @@
     "dev:api": "pnpm --filter @quest-city-web/api run dev",
     "check:duplicates": "node tools/check-duplicates.mjs",
     "check:filenames": "node tools/check-filenames.mjs",
+    "check:fixture-isolation": "node tools/check-fixture-isolation.mjs",
     "verify": "bash infrastructure/scripts/verify.sh"
   },
   "devDependencies": {

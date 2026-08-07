@@ -14,6 +14,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@quest-city-web/attempts':
+        specifier: workspace:*
+        version: link:../../packages/attempts
+      '@quest-city-web/content-runtime':
+        specifier: workspace:*
+        version: link:../../packages/content-runtime
+      '@quest-city-web/content-schema':
+        specifier: workspace:*
+        version: link:../../packages/content-schema
       '@quest-city-web/identity':
         specifier: workspace:*
         version: link:../../packages/identity
@@ -132,6 +141,34 @@ importers:
         specifier: 5.7.3
         version: 5.7.3
 
+  packages/attempts:
+    dependencies:
+      '@quest-city-web/content-runtime':
+        specifier: workspace:*
+        version: link:../content-runtime
+      '@quest-city-web/content-schema':
+        specifier: workspace:*
+        version: link:../content-schema
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.7
+        version: 22.10.7
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      eslint:
+        specifier: 9.18.0
+        version: 9.18.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.4
+        version: 3.0.4(@types/node@22.10.7)(tsx@4.23.7)
+
   packages/config:
     dependencies:
       '@typescript-eslint/eslint-plugin':
@@ -246,7 +283,13 @@ importers:
       '@quest-city-web/content-schema':
         specifier: workspace:*
         version: link:../content-schema
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
     devDependencies:
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
       eslint:
         specifier: 9.18.0
         version: 9.18.0
@@ -286,9 +329,15 @@ importers:
 
   tests/integration:
     devDependencies:
+      '@quest-city-web/attempts':
+        specifier: workspace:*
+        version: link:../../packages/attempts
       '@quest-city-web/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@quest-city-web/test-fixtures':
+        specifier: workspace:*
+        version: link:../../packages/test-fixtures
       '@types/pg':
         specifier: 8.11.10
         version: 8.11.10

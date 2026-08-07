@@ -10,6 +10,7 @@
     "test": "vitest run",
     "migrate": "node migrate.mjs",
     "seed": "tsx seed-pilot.ts",
+    "seed:assignment": "tsx seed-assignment.ts",
     "check:duplicates": "node check-duplicates.mjs",
     "check:filenames": "node check-filenames.mjs"
   },

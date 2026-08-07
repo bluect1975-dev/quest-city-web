@@ -1,20 +1,34 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.questcity.dev/web/attempt-context.schema.json",
+  "$id": "https://schemas.questcity.dev/web/v2/attempt-context.schema.json",
   "title": "AttemptContext",
-  "description": "Server-authoritative attempt context handed to the Learning Runtime Host (07_05 §10). The client holds a presentational projection only; the server owns the authoritative state.",
+  "description": "schemaVersion 2.0.0. Server-authoritative attempt context (07_09 §9), superseding the WEB-M0 fixture-stage shape (no consumer existed for the superseded shape — see docs/adr/0003). The client holds a presentational projection only; the server owns the authoritative state. `state` mirrors learning_attempt.attempt_state (07_15_01 v1.1 §11-bis).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["attemptId", "activityId", "studentPublicId", "runtimeChannel", "status", "sequenceNumber"],
+  "required": ["attemptId", "attemptVersion", "userPublicId", "activityId", "activityVersion", "runtimeChannel", "state", "serverSequence"],
   "properties": {
     "attemptId": { "type": "string", "minLength": 1 },
+    "attemptVersion": { "type": "integer", "minimum": 0 },
+    "userPublicId": { "type": "string", "minLength": 1 },
     "activityId": { "type": "string", "minLength": 1 },
-    "studentPublicId": { "type": "string", "minLength": 1 },
+    "activityVersion": { "type": "string", "minLength": 1 },
+    "mode": { "type": "string" },
     "runtimeChannel": { "type": "string", "enum": ["WEB", "ROBLOX"] },
-    "status": {
+    "runtimeVersion": { "type": "string" },
+    "adapterId": { "type": "string" },
+    "adapterVersion": { "type": "string" },
+    "seed": { "type": "string" },
+    "state": {
       "type": "string",
-      "enum": ["created", "in_progress", "submitted", "evaluated", "abandoned"]
+      "enum": ["CREATED", "IN_PROGRESS", "COMPLETION_SUBMITTED", "COMPLETED", "ABANDONED", "EXPIRED"]
     },
-    "sequenceNumber": { "type": "integer", "minimum": 0 }
+    "currentStageId": { "type": "string" },
+    "serverSequence": { "type": "integer", "minimum": 0 },
+    "permissions": { "type": "object", "additionalProperties": true },
+    "offlinePolicy": {
+      "type": "string",
+      "enum": ["OFFLINE_NONE", "OFFLINE_READ_ONLY", "OFFLINE_PRACTICE_BUFFERED", "OFFLINE_RESUMABLE"]
+    },
+    "expiresAt": { "type": "string", "format": "date-time" }
   }
 }

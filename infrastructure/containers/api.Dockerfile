@@ -26,4 +26,9 @@ COPY --from=build /workspace/apps/api/public ./apps/api/public
 USER node
 EXPOSE 4000
 ENV PORT=4000
+# Docker injects HOSTNAME=<container-id> into every container; Next.js's
+# standalone server.js binds to process.env.HOSTNAME when set, which would
+# otherwise make it unreachable via localhost/127.0.0.1 inside the container
+# (only via the container's network IP) and fail the compose healthcheck.
+ENV HOSTNAME=0.0.0.0
 CMD ["node", "apps/api/server.js"]

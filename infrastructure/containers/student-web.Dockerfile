@@ -25,4 +25,8 @@ COPY --from=build /workspace/apps/student-web/public ./apps/student-web/public
 USER node
 EXPOSE 3000
 ENV PORT=3000
+# Docker injects HOSTNAME=<container-id> into every container; Next.js's
+# standalone server.js binds to process.env.HOSTNAME when set, which would
+# otherwise make it unreachable via localhost/127.0.0.1 inside the container.
+ENV HOSTNAME=0.0.0.0
 CMD ["node", "apps/student-web/server.js"]

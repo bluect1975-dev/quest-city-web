@@ -1,0 +1,742 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.4.0
+  description: >-
+    Quest City API contract additions for WEB-M2 (07_15_01 v1.1, 02_26 v1.6):
+    read-only assignment access, cross-runtime attempt lifecycle
+    (launch-context, semantic action submission, completion), and a single
+    aggregated student progress query. v1.2.0 and v1.3.0 remain available
+    unchanged as separate immutable artifacts; this file is additive and does
+    not remove or alter any v1.2 or v1.3 path or schema.
+
+    Assignment creation and modification are intentionally NOT part of this
+    contract: WEB-M1/WEB-M2 have no staff/teacher authentication model.
+    Assignments are pre-provisioned through a controlled offline
+    administrative seed process (see AGENTS.md WEB-M1 baseline rule 6,
+    extended by AGENTS.md v4.30 to assignments). A public
+    POST /assignments endpoint is deferred to a future milestone that
+    introduces staff authentication, authorization and audit actors. This is
+    distinct from the pre-existing POST /assignments listed narratively in
+    02_26 v1.6 §15 (broader platform contract, presupposes the dashboard/
+    staff authentication of §7.1) — that endpoint is not vendored in this
+    file and, per 02_26 §18.1, is not yet implemented in quest-city-web
+    (confirmed: no assignments/sessions path exists in any vendored OpenAPI
+    artifact there). This file neither redefines nor duplicates it.
+
+    GET /progress/summary is student-scoped only in this version: it always
+    resolves to the authenticated student's own aggregate (from the session),
+    never an open cross-student or cross-class query, because no staff
+    authentication exists yet to authorize a broader dashboard view. The
+    optional filters narrow within that already-narrow scope; they do not
+    widen it.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+security:
+- studentSessionCookie: []
+paths:
+  /assignments/{assignmentId}:
+    get:
+      summary: Get an assignment (read-only; no public create/update endpoint exists)
+      operationId: getAssignment
+      security:
+      - studentSessionCookie: []
+      parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Assignment detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /assignments/{assignmentId}/launch-context:
+    post:
+      summary: Create or resume a learning attempt for the authenticated student
+        on this assignment, resolving capability, adapter and content bundle
+      operationId: getLaunchContext
+      security:
+      - studentSessionCookie: []
+        csrfHeader: []
+      parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LaunchContextRequest'
+      responses:
+        '200':
+          description: Launch context resolved. The Idempotency-Key header scopes
+            attempt CREATION only (learning_attempt.creation_idempotency_key,
+            unique per tenant+assignment+student) — distinct in meaning from
+            the same header name reused on the complete endpoint, which scopes
+            completion instead (idempotency_record).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LaunchContextResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: RUNTIME_CHANNEL_NOT_ALLOWED — the declared runtimeChannel
+            is not present in assignment.allowedRuntimeChannels (07_15_01 v1.1 §14)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                domain: CROSS_RUNTIME
+                code: RUNTIME_CHANNEL_NOT_ALLOWED
+                httpStatus: 403
+                message: Il runtime dichiarato non è ammesso per questa assegnazione.
+                correlationId: req_01hz50
+                retryable: false
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: RUNTIME_CAPABILITY_MISMATCH or PRESENTATION_ADAPTER_UNAVAILABLE
+            (07_15_01 v1.1 §14; capability model consumed, not redefined, from
+            07_08 §9-10)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /attempts/{attemptId}/actions:
+    post:
+      summary: Submit a semantic action for an in-progress attempt
+      operationId: submitSemanticAction
+      security:
+      - studentSessionCookie: []
+        csrfHeader: []
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SemanticActionRequest'
+      responses:
+        '202':
+          description: Action accepted. Deduplicated by (attemptId, actionId) and
+            (attemptId, clientSequence) — no separate Idempotency-Key header is
+            used on this endpoint (see AGENTS.md v4.30, idempotency-per-operation
+            rule).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SemanticActionAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: ATTEMPT_RUNTIME_MISMATCH — the attempt is not in
+            attempt_state=IN_PROGRESS (e.g. CREATED with no prior action,
+            COMPLETED, ABANDONED, EXPIRED); or the declared runtimeChannel does
+            not match the attempt's own runtime_channel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: SEMANTIC_ACTION_INVALID — actionType outside the canonical
+            vocabulary, or payload fails validator-side pre-validation (07_08 §18)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /attempts/{attemptId}/complete:
+    post:
+      summary: Request completion of an attempt. The server computes the
+        outcome server-side (AttemptConsolidationService) from the
+        accumulated semantic action log; the client never proposes an
+        outcome directly (07_08 §8)
+      operationId: completeAttempt
+      security:
+      - studentSessionCookie: []
+        csrfHeader: []
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteAttemptRequest'
+      responses:
+        '200':
+          description: The response always carries an explicit completionStatus,
+            never only a generic HTTP success code. RECONCILIATION_REQUIRED is
+            returned HERE only as this 2xx completionStatus value — never as an
+            ErrorEnvelope from this specific endpoint (07_15_01 v1.1 §11,
+            AGENTS.md v4.30).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompleteAttemptResponse'
+              examples:
+                consolidated:
+                  value:
+                    data:
+                      attemptId: att_01hz60
+                      completionStatus: CONSOLIDATED
+                      outcome:
+                        score: 0.86
+                    meta:
+                      request_id: req_01hz61
+                      api_version: v1
+                reconciliationRequired:
+                  value:
+                    data:
+                      attemptId: att_01hz62
+                      completionStatus: RECONCILIATION_REQUIRED
+                    meta:
+                      request_id: req_01hz63
+                      api_version: v1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: One of ATTEMPT_NOT_COMPLETABLE (attempt_state is ABANDONED,
+            EXPIRED, or otherwise not eligible — safeDetails.reason in
+            ABANDONED|EXPIRED|INVALID_STATE), ATTEMPT_ALREADY_CONSOLIDATED
+            (reserved exclusively for attempt_state=COMPLETED with a
+            non-matching Idempotency-Key), or CROSS_RUNTIME_ATTEMPT_CONFLICT
+            (07_15_01 v1.1 §14)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                notCompletableAbandoned:
+                  value:
+                    domain: CROSS_RUNTIME
+                    code: ATTEMPT_NOT_COMPLETABLE
+                    httpStatus: 409
+                    message: Il tentativo non è completabile nel suo stato attuale.
+                    correlationId: req_01hz64
+                    retryable: false
+                    safeDetails:
+                      reason: ABANDONED
+                alreadyConsolidated:
+                  value:
+                    domain: CROSS_RUNTIME
+                    code: ATTEMPT_ALREADY_CONSOLIDATED
+                    httpStatus: 409
+                    message: Il tentativo è già stato consolidato con una chiave diversa.
+                    correlationId: req_01hz65
+                    retryable: false
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /progress/summary:
+    get:
+      summary: Get the authenticated student's single aggregated progress
+        summary. Always the student's own aggregate — never a cross-student
+        or cross-class dashboard query, because no staff authentication
+        exists yet (see path-level note above and AGENTS.md v4.30). Filters
+        are diagnostic refinements within that scope, never a separate
+        per-runtime ledger (07_15_01 v1.1 §7).
+      operationId: getProgressSummary
+      security:
+      - studentSessionCookie: []
+      parameters:
+      - name: runtimeChannel
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/AttemptRuntimeChannel'
+      - name: reconciliationStatus
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/CompletionStatus'
+      - name: technicalVersion
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Single unified progress aggregate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    studentSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_web_session
+      description: HttpOnly, Secure, SameSite=Lax opaque Web student session token
+        (same WEB-M1 session mechanism reused, unchanged, by WEB-M2 endpoints).
+        Never accessible to client-side JavaScript.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Synchronizer-token CSRF protection, same WEB-M1 mechanism
+        reused unchanged. Required on every mutating WEB-M2 endpoint.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Same header name reused across launch-context and complete;
+        server-side scope differs per endpoint (creation_idempotency_key vs.
+        idempotency_record) — see each operation's own description.
+  headers:
+    RetryAfter:
+      description: Seconds until the rate-limit fixed window resets and the
+        request may be retried.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid (PLATFORM domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Resource not found or not visible (PLATFORM domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain, RATE_LIMITED)
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - request_id
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+          description: Scrubbed/safe details only. On ATTEMPT_NOT_COMPLETABLE,
+            carries a "reason" field whose value is one of ABANDONED, EXPIRED
+            or INVALID_STATE.
+
+    CrossRuntimeErrorCode:
+      type: string
+      enum:
+      - RUNTIME_CHANNEL_NOT_ALLOWED
+      - RUNTIME_CAPABILITY_MISMATCH
+      - PRESENTATION_ADAPTER_UNAVAILABLE
+      - CROSS_RUNTIME_ATTEMPT_CONFLICT
+      - ATTEMPT_ALREADY_CONSOLIDATED
+      - RECONCILIATION_REQUIRED
+      - LEGACY_RUNTIME_UNKNOWN
+      - ATTEMPT_NOT_COMPLETABLE
+      description: Exact emission conditions defined in 07_15_01 v1.1 §14.
+        ATTEMPT_ALREADY_CONSOLIDATED is reserved exclusively for
+        attempt_state=COMPLETED. RECONCILIATION_REQUIRED as an
+        ErrorEnvelope.code is used only by endpoints other than
+        POST /attempts/{attemptId}/complete, which returns it exclusively as
+        completionStatus in a 2xx body.
+
+    RuntimeChannelInput:
+      type: string
+      enum:
+      - WEB
+      - ROBLOX
+      description: Input-only enum. UNKNOWN_LEGACY is never accepted as input;
+        it is written exclusively by the server-side legacy migration process.
+
+    AttemptRuntimeChannel:
+      type: string
+      enum:
+      - WEB
+      - ROBLOX
+      - UNKNOWN_LEGACY
+      description: Response/read-only superset of RuntimeChannelInput, used on
+        diagnostic surfaces compatible with migrated legacy records.
+
+    AttemptState:
+      type: string
+      enum:
+      - CREATED
+      - IN_PROGRESS
+      - COMPLETION_SUBMITTED
+      - COMPLETED
+      - ABANDONED
+      - EXPIRED
+      description: Technical lifecycle state of the attempt row, distinct from
+        completionStatus (07_15_01 v1.1 §11-bis).
+
+    CompletionStatus:
+      type: string
+      enum:
+      - ACCEPTED_NOT_CONSOLIDATED
+      - RECONCILIATION_REQUIRED
+      - CONSOLIDATED
+      description: Persisted completion states only (3 values). DUPLICATE and
+        CONFLICT are response-only outcomes of the complete write, never
+        persisted on the attempt — see CompleteAttemptResponseStatus.
+
+    CompleteAttemptResponseStatus:
+      type: string
+      enum:
+      - CONSOLIDATED
+      - ACCEPTED_NOT_CONSOLIDATED
+      - DUPLICATE
+      - CONFLICT
+      - RECONCILIATION_REQUIRED
+      description: Full 5-value response enum for the completion write
+        (07_15_01 v1.1 §11).
+
+    Assignment:
+      type: object
+      required:
+      - assignmentId
+      - title
+      - status
+      - allowedRuntimeChannels
+      - completionPolicy
+      - contentBundleId
+      properties:
+        assignmentId:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PUBLISHED
+          - ARCHIVED
+        opensAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        dueAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        allowedRuntimeChannels:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RuntimeChannelInput'
+        completionPolicy:
+          type: string
+          enum:
+          - FIRST_VALID_COMPLETION
+        contentBundleId:
+          type: string
+      description: Read-only. No corresponding create/update request schema
+        exists in this contract — see info.description.
+
+    AssignmentResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/Assignment'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    LaunchContextRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - runtimeChannel
+      properties:
+        runtimeChannel:
+          $ref: '#/components/schemas/RuntimeChannelInput'
+        runtimeVersion:
+          type: string
+        presentationAdapterVersion:
+          type: string
+        themeId:
+          type: string
+
+    ContentBundleRef:
+      type: object
+      required:
+      - contentBundleId
+      - bundleVersion
+      properties:
+        contentBundleId:
+          type: string
+        bundleVersion:
+          type: string
+
+    PresentationAdapterRef:
+      type: object
+      required:
+      - adapterId
+      - adapterVersion
+      properties:
+        adapterId:
+          type: string
+        adapterVersion:
+          type: string
+
+    AttemptSummary:
+      type: object
+      required:
+      - attemptId
+      - assignmentId
+      - attemptState
+      - runtimeChannel
+      - startedAt
+      properties:
+        attemptId:
+          type: string
+        assignmentId:
+          type: string
+        attemptState:
+          $ref: '#/components/schemas/AttemptState'
+        completionStatus:
+          oneOf:
+          - $ref: '#/components/schemas/CompletionStatus'
+          - type: 'null'
+        runtimeChannel:
+          $ref: '#/components/schemas/AttemptRuntimeChannel'
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+
+    LaunchContextResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - attempt
+          - bundle
+          - adapter
+          - completionPolicy
+          properties:
+            attempt:
+              $ref: '#/components/schemas/AttemptSummary'
+            bundle:
+              $ref: '#/components/schemas/ContentBundleRef'
+            adapter:
+              $ref: '#/components/schemas/PresentationAdapterRef'
+            completionPolicy:
+              type: string
+              enum:
+              - FIRST_VALID_COMPLETION
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SemanticActionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - actionId
+      - actionType
+      - payload
+      - clientSequence
+      - occurredAt
+      properties:
+        actionId:
+          type: string
+          minLength: 1
+        actionType:
+          type: string
+          enum:
+          - SELECT_OPTION
+          - ENTER_VALUE
+          - PLACE_ITEM
+          - MOVE_ITEM
+          - CONNECT_NODES
+          - ORDER_ITEMS
+          - REQUEST_HINT
+          - CONFIRM_SOLUTION
+          - RESET_STAGE
+          - PAUSE_ACTIVITY
+          - RESUME_ACTIVITY
+        targetRole:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        clientSequence:
+          type: integer
+          minimum: 0
+        occurredAt:
+          type: string
+          format: date-time
+
+    SemanticActionAcceptedResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - actionId
+          - accepted
+          properties:
+            actionId:
+              type: string
+            accepted:
+              type: boolean
+              const: true
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CompleteAttemptRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        finalClientSequence:
+          type: integer
+          minimum: 0
+          description: Optional defensive checkpoint — the last action
+            clientSequence the client believes it sent, used server-side to
+            verify no in-flight action is missing before consolidating. The
+            client never proposes an outcome directly (07_08 §8).
+
+    CompleteAttemptResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - attemptId
+          - completionStatus
+          properties:
+            attemptId:
+              type: string
+            completionStatus:
+              $ref: '#/components/schemas/CompleteAttemptResponseStatus'
+            outcome:
+              type: object
+              additionalProperties: true
+              description: Present only when completionStatus is CONSOLIDATED.
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ProgressSummaryResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - studentPublicId
+          - aggregate
+          properties:
+            studentPublicId:
+              type: string
+            aggregate:
+              type: object
+              additionalProperties: true
+              description: Single unified progress aggregate (07_15_01 v1.1 §7.1)
+                — never a per-runtime aggregate.
+            filtersApplied:
+              type: object
+              properties:
+                runtimeChannel:
+                  $ref: '#/components/schemas/AttemptRuntimeChannel'
+                reconciliationStatus:
+                  $ref: '#/components/schemas/CompletionStatus'
+                technicalVersion:
+                  type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
