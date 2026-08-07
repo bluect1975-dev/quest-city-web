@@ -7,10 +7,18 @@
  * checksum tracked in `vendor/provenance.json`, per ADR-0005's rule that
  * shared contracts must be consumed as immutable, versioned artifacts —
  * never forked or manually respecified.
+ *
+ * `vendor/quest-city-platform-openapi-v1_3.yaml` (provenance in
+ * `vendor/provenance-v1_3.json`) is a separate, additive artifact — it adds
+ * only the WEB-M1 `/web-auth/*` and `/me/student-context` paths and does
+ * not replace or modify the v1.2 baseline.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";
 export const CONTRACT_ARTIFACT_VERSION = "1.2.0";
+
+export const CONTRACT_ARTIFACT_ID_V1_3 = "qc-platform-openapi-web-auth";
+export const CONTRACT_ARTIFACT_VERSION_V1_3 = "1.3.0";
 
 /**
  * Domain error codes defined by 07_05 §12. The API client must not infer

@@ -1,29 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.questcity.dev/web/runtime-error.schema.json",
+  "$id": "https://schemas.questcity.dev/web/v2/runtime-error.schema.json",
   "title": "RuntimeError",
-  "description": "Typed domain error envelope (07_05 §12). The client must not infer an outcome from a generic HTTP status when a typed domain error exists.",
+  "description": "schemaVersion 2.0.0. ErrorEnvelope shape (02_26 v1.6 §18.7), superseding the WEB-M0 fixture-stage `code`/`details` shape (aligned to a single ad hoc enum) with the three-domain discriminated envelope approved for WEB-M2 (PLATFORM/CONTENT_RUNTIME/CROSS_RUNTIME — see docs/adr/0003). The client must not infer an outcome from a generic HTTP status when a typed domain error exists.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["code", "message", "retryable", "correlationId"],
+  "required": ["domain", "code", "httpStatus", "message", "correlationId", "retryable"],
   "properties": {
-    "code": {
+    "domain": {
       "type": "string",
-      "enum": [
-        "AUTH_REQUIRED",
-        "FORBIDDEN",
-        "CONTENT_NOT_AVAILABLE",
-        "CONTENT_VERSION_MISMATCH",
-        "ATTEMPT_NOT_FOUND",
-        "ATTEMPT_CONFLICT",
-        "VALIDATION_FAILED",
-        "RATE_LIMITED",
-        "TEMPORARY_UNAVAILABLE"
-      ]
+      "enum": ["PLATFORM", "CONTENT_RUNTIME", "CROSS_RUNTIME"]
     },
+    "code": { "type": "string", "minLength": 1 },
+    "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
     "message": { "type": "string", "minLength": 1 },
-    "retryable": { "type": "boolean" },
     "correlationId": { "type": "string", "minLength": 1 },
-    "details": { "type": "object", "additionalProperties": true }
+    "retryable": { "type": "boolean" },
+    "safeDetails": { "type": "object", "additionalProperties": true }
   }
 }

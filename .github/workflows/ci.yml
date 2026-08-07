@@ -15,6 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # gitleaks-action (Secret scan, below) runs a base..head diff scan
+          # on pull_request events and needs the base commit's parent to be
+          # resolvable — the default shallow clone (fetch-depth: 1) doesn't
+          # include it, causing a "fatal: ambiguous argument" git error that
+          # aborts the scan before it can run.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
         with:
@@ -32,6 +39,9 @@ jobs:
 
       - name: Duplicate file check
         run: pnpm run check:duplicates
+
+      - name: Fixture isolation check
+        run: pnpm run check:fixture-isolation
 
       - name: Lint
         run: pnpm run lint
@@ -51,9 +61,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   integration:
-    name: Docker compose + health endpoint integration test
+    name: Docker compose + integration tests (WEB-M0/M1/M2B, real Postgres)
     runs-on: ubuntu-latest
     needs: build-and-test
+    env:
+      # Host-side connection string reaching the docker-compose Postgres
+      # container (infrastructure/deployment/docker-compose.yml maps it to
+      # 127.0.0.1:5434, same convention as .env.example's local-dev value).
+      # Explicit here so no test file's own hardcoded fallback (historically
+      # localhost:5555, an ad hoc standalone container never provisioned in
+      # CI) is ever relied upon. The password is the long-documented
+      # non-secret local/CI placeholder from docker-compose.yml's `postgres`
+      # service and .env.example — not a real credential.
+      DATABASE_URL: postgresql://quest_city_web:changeme_local_only@localhost:5434/quest_city_web
+      DATABASE_SSL: "false"
+      HEALTH_BASE_URL: http://localhost:8080
     steps:
       - uses: actions/checkout@v4
 
@@ -68,15 +90,53 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
-      - name: Copy environment template
-        run: cp .env.example .env
+      - name: Generate ephemeral test pepper
+        # CLASS_CODE_HASH_PEPPER has no default (by design — WEB-M1 Fase 2
+        # correction #1) and docker-compose.yml refuses to resolve without
+        # it. A fresh, disposable value is generated per run and exported
+        # via $GITHUB_ENV (available to every later step's shell — this is
+        # what lets `docker compose` resolve the variable; a committed
+        # .env.example copy is not read by these `-f` invocations at all,
+        # see docs/implementation/web-m2-contracts-bundle-attempt.md). Masked
+        # so it never appears in logs even if a later step echoes it.
+        run: |
+          PEPPER="$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")"
+          echo "::add-mask::$PEPPER"
+          echo "CLASS_CODE_HASH_PEPPER=$PEPPER" >> "$GITHUB_ENV"
 
       - name: Build and start the local environment
         run: docker compose -f infrastructure/deployment/docker-compose.yml up -d --build
 
-      - name: Wait for services and run health endpoint integration tests
-        env:
-          HEALTH_BASE_URL: http://localhost:8080
+      - name: Wait for PostgreSQL healthy
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -f infrastructure/deployment/docker-compose.yml exec -T postgres pg_isready -U quest_city_web -d quest_city_web >/dev/null 2>&1; then
+              echo "Postgres is ready."
+              exit 0
+            fi
+            echo "Postgres not ready yet ($i/30)..."
+            sleep 2
+          done
+          echo "Postgres did not become ready in time." >&2
+          exit 1
+
+      - name: Apply database migrations (0001-0003)
+        run: pnpm --filter @quest-city-web/tools run migrate
+
+      - name: Wait for API ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "$HEALTH_BASE_URL/api/health/ready" >/dev/null 2>&1; then
+              echo "API is ready."
+              exit 0
+            fi
+            echo "API not ready yet ($i/30)..."
+            sleep 2
+          done
+          echo "API did not become ready in time." >&2
+          exit 1
+
+      - name: Run integration tests (health-endpoints, identity-flow, identity-security, attempt-lifecycle)
         run: pnpm run test:integration
 
       - name: Dump container logs on failure

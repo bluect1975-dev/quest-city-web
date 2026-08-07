@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-cross-runtime-attempt",
+  "artifactVersion": "1.4.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "feature/web-m2a-canonical-contracts",
+  "sourceCommit": "5297d2d8cd6f3804ac6a277cd7fe37718d69dc07",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_4.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_6",
+  "checksum": "sha256:aa064e2e7f65d565e58a5b004e054c0a9a09334a79f10b46c9edeb1644b4f0d7",
+  "syncedAt": "2026-08-06",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml and quest-city-platform-openapi-v1_3.yaml, both unmodified and independently tracked (see provenance.json and provenance-v1_3.json). Adds read-only assignment access, cross-runtime attempt lifecycle (launch-context, semantic action, complete), and the aggregated progress summary query (WEB-M2, 07_15_01 v1.1 / 02_26 v1.6). No POST /assignments and no staff authentication are present in this artifact by design (AGENTS.md v4.30 §4.21 rule 16) — deferred to a future staff-authentication milestone. Do not edit vendor/quest-city-platform-openapi-v1_4.yaml directly.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_4.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_4.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

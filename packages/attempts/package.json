@@ -1,0 +1,26 @@
+{
+  "name": "@quest-city-web/attempts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WEB-M2B: cross-runtime assignment/attempt lifecycle — tenant-scoped repositories, RuntimeCapabilityResolver, AttemptConsolidationService, CrossRuntimeReconciliationService.evaluate(), IdempotencyService with generation-based optimistic concurrency (07_15_01 v1.1, 02_25 §28, 02_26 v1.6 §18). attempt = learning_attempt extended (AGENTS.md §4.21 D2) — no second attempt table.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --config ../config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quest-city-web/content-runtime": "workspace:*",
+    "@quest-city-web/content-schema": "workspace:*",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/pg": "8.11.10",
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

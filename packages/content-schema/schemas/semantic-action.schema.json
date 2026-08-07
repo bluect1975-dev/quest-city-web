@@ -1,19 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.questcity.dev/web/semantic-action.schema.json",
+  "$id": "https://schemas.questcity.dev/web/v2/semantic-action.schema.json",
   "title": "SemanticAction",
-  "description": "Client-to-server action envelope (07_08 §4). The client sends semantic actions such as SELECT_OPTION or ENTER_VALUE, never raw device events such as a mouse coordinate.",
+  "description": "schemaVersion 2.0.0. Client-to-server action envelope (07_08 §6), superseding the WEB-M0 fixture-stage shape and its non-canonical SUBMIT_ATTEMPT value (see docs/adr/0003). Dedup key is `actionId` + `clientSequence` (semantic_action_log unique constraints) — no separate idempotencyKey field.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["actionType", "attemptId", "idempotencyKey", "occurredAt", "payload"],
+  "required": ["actionId", "attemptId", "activityId", "actionType", "payload", "clientSequence", "runtimeChannel", "occurredAt"],
   "properties": {
+    "actionId": { "type": "string", "minLength": 1 },
+    "attemptId": { "type": "string", "minLength": 1 },
+    "activityId": { "type": "string", "minLength": 1 },
+    "stageId": { "type": "string" },
     "actionType": {
       "type": "string",
-      "enum": ["SELECT_OPTION", "ENTER_VALUE", "PLACE_ITEM", "SUBMIT_ATTEMPT", "REQUEST_HINT"]
+      "enum": [
+        "SELECT_OPTION", "ENTER_VALUE", "PLACE_ITEM", "MOVE_ITEM", "CONNECT_NODES",
+        "ORDER_ITEMS", "REQUEST_HINT", "CONFIRM_SOLUTION", "RESET_STAGE",
+        "PAUSE_ACTIVITY", "RESUME_ACTIVITY"
+      ]
     },
-    "attemptId": { "type": "string", "minLength": 1 },
-    "idempotencyKey": { "type": "string", "minLength": 16, "maxLength": 128 },
-    "occurredAt": { "type": "string", "format": "date-time" },
-    "payload": { "type": "object", "additionalProperties": true }
+    "targetRole": { "type": "string" },
+    "payload": { "type": "object", "additionalProperties": true },
+    "clientSequence": { "type": "integer", "minimum": 0 },
+    "runtimeChannel": { "type": "string", "enum": ["WEB", "ROBLOX"] },
+    "adapterVersion": { "type": "string" },
+    "occurredAt": { "type": "string", "format": "date-time" }
   }
 }

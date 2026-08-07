@@ -7,5 +7,9 @@ apps/api/eslint.config.mjs, apps/dashboard/eslint.config.mjs, apps/student-web/e
 apps/api/next-env.d.ts, apps/dashboard/next-env.d.ts, apps/student-web/next-env.d.ts
 apps/api/tsconfig.json, apps/dashboard/tsconfig.json, apps/student-web/tsconfig.json
 apps/dashboard/next.config.ts, apps/student-web/next.config.ts
-packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/learning-engines/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
-packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
+packages/attempts/tsconfig.json, packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
+packages/attempts/vitest.config.ts, packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
+# packages/attempts/src/repository/types.ts intentionally mirrors
+# packages/identity/src/repository/types.ts's Queryable = Pool | PoolClient
+# alias (docs/adr/0003) — same per-package boilerplate rationale as above.
+packages/attempts/src/repository/types.ts, packages/identity/src/repository/types.ts

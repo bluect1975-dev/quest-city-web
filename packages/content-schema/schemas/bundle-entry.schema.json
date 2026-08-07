@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/v2/bundle-entry.schema.json",
+  "title": "BundleEntry",
+  "description": "schemaVersion 2.0.0. Entry contract for a single file within a content bundle manifest (07_09 §6). New in WEB-M2 — 07_09 defined this shape but the WEB-M0 schema inventory never materialized it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entryId", "entryType", "path", "schemaRef", "contentDigest", "required"],
+  "properties": {
+    "entryId": { "type": "string", "minLength": 1 },
+    "entryType": { "type": "string", "minLength": 1 },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//).+$"
+    },
+    "schemaRef": { "type": "string", "pattern": "^qc://schemas/" },
+    "contentDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "required": { "type": "boolean" }
+  }
+}

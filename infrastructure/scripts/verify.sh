@@ -32,17 +32,30 @@ run_step() {
 
 run_step "Filename convention check" pnpm run check:filenames
 run_step "Duplicate file check" pnpm run check:duplicates
+run_step "Fixture isolation check" pnpm run check:fixture-isolation
 run_step "Lint (all packages)" pnpm run lint
 run_step "Type check (all packages)" pnpm run typecheck
 run_step "Unit tests (all packages)" pnpm run test
 run_step "Build (all packages)" pnpm run build
 
-wait_for_api_health() {
+wait_for_postgres_health() {
   local attempt=0
-  until curl -fsS http://localhost:8080/api/health/live >/dev/null 2>&1; do
+  until docker compose -f infrastructure/deployment/docker-compose.yml exec -T postgres pg_isready -U quest_city_web -d quest_city_web >/dev/null 2>&1; do
     attempt=$((attempt + 1))
     if [ "$attempt" -ge 30 ]; then
-      echo "API did not become healthy in time."
+      echo "Postgres did not become ready in time."
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+wait_for_api_health() {
+  local attempt=0
+  until curl -fsS "${HEALTH_BASE_URL}/api/health/ready" >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 30 ]; then
+      echo "API did not become ready in time."
       return 1
     fi
     sleep 2
@@ -50,9 +63,30 @@ wait_for_api_health() {
 }
 
 if [ "$WITH_INTEGRATION" = true ]; then
+  # Mirrors .github/workflows/ci.yml's `integration` job exactly, so this
+  # is a genuine local reproduction of CI, not an approximation: an
+  # ephemeral pepper (never a committed/local .env value — a copied
+  # .env.example is not read by these `-f` invocations at all, since
+  # Compose resolves its project directory from the compose file's own
+  # location here, not from cwd) and an explicit DATABASE_URL pointing at
+  # the docker-compose-provisioned Postgres on the host-mapped port 5434 —
+  # never localhost:5555, which no step in this script (or in CI) ever
+  # provisions.
+  export CLASS_CODE_HASH_PEPPER
+  CLASS_CODE_HASH_PEPPER="$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")"
+  export DATABASE_URL="postgresql://quest_city_web:changeme_local_only@localhost:5434/quest_city_web"
+  export DATABASE_SSL="false"
+  export HEALTH_BASE_URL="http://localhost:8080"
+
   run_step "Docker compose build + up" docker compose -f infrastructure/deployment/docker-compose.yml up -d --build
+  run_step "Wait for Postgres health" wait_for_postgres_health
+  run_step "Apply database migrations (0001-0003)" pnpm --filter @quest-city-web/tools run migrate
   run_step "Wait for API health" wait_for_api_health
-  run_step "Integration tests (health endpoints)" env HEALTH_BASE_URL=http://localhost:8080 pnpm run test:integration
+  run_step "Integration tests (health-endpoints, identity-flow, identity-security, attempt-lifecycle)" pnpm run test:integration
+  if [ "$FAILED" -ne 0 ]; then
+    echo "==> Dumping container logs (a step above failed)"
+    docker compose -f infrastructure/deployment/docker-compose.yml logs
+  fi
   docker compose -f infrastructure/deployment/docker-compose.yml down -v >/dev/null 2>&1
 fi
 
