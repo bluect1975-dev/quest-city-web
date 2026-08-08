@@ -2,7 +2,7 @@
   "name": "@quest-city-web/learning-engines",
   "version": "0.1.0",
   "private": true,
-  "description": "Engine registry contract (07_05 §10.1, 07_10). WEB-M0 scope: registry types and an empty registry only — no engine is implemented; that is Step 5 (07_10 §28), well past bootstrap.",
+  "description": "Learning Engine Governance runtime (02_36, 07_10, R3B): canonical Engine/Template Registry, Capability Contract consumer, deterministic Support Evaluator and Engine Gap Report producer. R3B scope: governance runtime foundation only — no production engine is registered; that remains Step 5 (07_10 §28).",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -10,6 +10,9 @@
     "lint": "eslint . --config ../config/eslint/base.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@quest-city-web/content-schema": "workspace:*"
   },
   "devDependencies": {
     "eslint": "9.18.0",

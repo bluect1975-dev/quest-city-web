@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://questcity.example/schemas/template-contract.schema.json",
+  "title": "Quest City Template Contract",
+  "description": "A reusable pedagogical/configuration pattern layered above exactly one canonical engine. Distinct from ENGINE and from CONFIGURATION (02_36 section 6).",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "templateId",
+    "templateVersion",
+    "canonicalEngineId",
+    "requiredCapabilities",
+    "configurationSchemaRef",
+    "defaultConfiguration",
+    "semanticActions",
+    "validatorRequirements",
+    "accessibilityRequirements"
+  ],
+  "properties": {
+    "templateId": { "type": "string", "minLength": 1 },
+    "templateVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "canonicalEngineId": { "type": "string", "pattern": "^ENG-[A-Z0-9-]+$" },
+    "requiredCapabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "configurationSchemaRef": { "type": "string", "minLength": 1 },
+    "configurationSchemaVersion": { "type": "string" },
+    "defaultConfiguration": { "type": "object" },
+    "semanticActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "SELECT_OPTION", "ENTER_VALUE", "PLACE_ITEM", "MOVE_ITEM",
+          "CONNECT_NODES", "ORDER_ITEMS", "REQUEST_HINT", "CONFIRM_SOLUTION",
+          "RESET_STAGE", "PAUSE_ACTIVITY", "RESUME_ACTIVITY"
+        ]
+      }
+    },
+    "validatorRequirements": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "accessibilityRequirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "object" }
+    },
+    "presentationConstraints": { "type": "object" },
+    "evidenceScoringExpectations": { "type": "object" }
+  }
+}

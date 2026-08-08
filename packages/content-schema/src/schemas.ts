@@ -9,6 +9,11 @@ import runtimeError from "../schemas/runtime-error.schema.json" with { type: "js
 import bundleEntry from "../schemas/bundle-entry.schema.json" with { type: "json" };
 import outcome from "../schemas/outcome.schema.json" with { type: "json" };
 import validatorFixture from "../schemas/validator-fixture.schema.json" with { type: "json" };
+import r3aCapabilityContract from "../schemas/vendor/r3a/capability-contract.schema.json" with { type: "json" };
+import r3aEngineRegistry from "../schemas/vendor/r3a/engine-registry.schema.json" with { type: "json" };
+import r3aTemplateContract from "../schemas/vendor/r3a/template-contract.schema.json" with { type: "json" };
+import r3aEngineGapReport from "../schemas/vendor/r3a/engine-gap-report.schema.json" with { type: "json" };
+import r3aSupportEvaluation from "../schemas/vendor/r3a/support-evaluation.schema.json" with { type: "json" };
 
 /**
  * WEB-M2 schemas (schemaVersion 2.0.0): attemptContext, semanticAction,
@@ -18,6 +23,13 @@ import validatorFixture from "../schemas/validator-fixture.schema.json" with { t
  * bundleEntry, outcome and validatorFixture are new. activityDefinition,
  * presentationAdapter, capabilityProfile and assetBinding are unchanged
  * WEB-M0 fixture-stage shapes, out of WEB-M2 scope.
+ *
+ * R3B schemas (`r3a*`): vendored verbatim from quest-city-roblox
+ * `schemas/*.schema.json` at commit `945571b4...` (R3A canonical mainline
+ * integration, `02_36`), checksum-verified — see
+ * `../schemas/vendor/r3a/provenance.json`. Never edited locally; a Web
+ * runtime need that these schemas cannot express is a contract gap to
+ * raise upstream, not to fork here.
  */
 export const schemas = {
   webContentBundleManifest,
@@ -31,6 +43,11 @@ export const schemas = {
   bundleEntry,
   outcome,
   validatorFixture,
+  r3aCapabilityContract,
+  r3aEngineRegistry,
+  r3aTemplateContract,
+  r3aEngineGapReport,
+  r3aSupportEvaluation,
 } as const;
 
 export type SchemaName = keyof typeof schemas;

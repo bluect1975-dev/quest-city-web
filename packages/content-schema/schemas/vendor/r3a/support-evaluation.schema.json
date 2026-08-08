@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://questcity.example/schemas/support-evaluation.schema.json",
+  "title": "Quest City Support Evaluation",
+  "description": "Design-time compatibility evaluation of an activity against the Engine Registry and Template Contracts. Not an HTTP error, attemptState, or completionStatus (02_36 section 10, 02_26 section 18.6/18.7). Defined by 02_36 section 8.",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["activityId", "outcome", "evaluatedEngines", "evaluatedTemplates", "evaluationTimestamp", "evaluationVersion"],
+  "properties": {
+    "activityId": { "type": "string", "minLength": 1 },
+    "outcome": {
+      "type": "string",
+      "enum": ["SUPPORTED", "SUPPORTED_WITH_TEMPLATE", "SUPPORTED_WITH_LIMITATIONS", "ENGINE_GAP"]
+    },
+    "evaluatedEngines": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ENG-[A-Z0-9-]+$" }
+    },
+    "evaluatedTemplates": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "selectedEngine": {
+      "type": "string",
+      "pattern": "^ENG-[A-Z0-9-]+$"
+    },
+    "selectedTemplate": {
+      "type": "string"
+    },
+    "limitations": {
+      "type": "array",
+      "description": "Required and non-empty when outcome is SUPPORTED_WITH_LIMITATIONS.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["description", "pedagogicallySubstantial"],
+        "properties": {
+          "description": { "type": "string", "minLength": 1 },
+          "pedagogicallySubstantial": { "const": false }
+        }
+      }
+    },
+    "engineGapReportRef": {
+      "type": "string",
+      "description": "Reference to the corresponding Engine Gap Report, required when outcome is ENGINE_GAP."
+    },
+    "publicationEligibility": {
+      "type": "string",
+      "enum": ["NOT_PUBLISHABLE", "ELIGIBLE"]
+    },
+    "capabilityContractVersion": { "type": "string" },
+    "registryVersion": { "type": "string" },
+    "evaluationTimestamp": { "type": "string", "format": "date-time" },
+    "evaluationVersion": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "ENGINE_GAP" } } },
+      "then": {
+        "required": ["engineGapReportRef"],
+        "properties": { "publicationEligibility": { "const": "NOT_PUBLISHABLE" } }
+      }
+    },
+    {
+      "if": { "properties": { "outcome": { "const": "SUPPORTED_WITH_LIMITATIONS" } } },
+      "then": { "required": ["limitations"] }
+    }
+  ]
+}

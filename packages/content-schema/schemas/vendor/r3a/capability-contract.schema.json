@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://questcity.example/schemas/capability-contract.schema.json",
+  "title": "Quest City Capability Contract",
+  "description": "Canonical, versioned, language-independent and runtime-independent cross-runtime capability contract. Distinguishes Axis A (interaction/activity capabilities, authority: 07_08 section 9) from Axis B (device/runtime presentation capabilities, authority: quest-city-web packages/content-schema/schemas/capability-profile.schema.json). Defined by 02_36 section 4.",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "axisA", "axisB"],
+  "properties": {
+    "contractVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "axisA": {
+      "type": "object",
+      "description": "Interaction / Activity Capabilities. Baseline preserved verbatim from 07_08 v1.1 section 9.",
+      "additionalProperties": false,
+      "required": ["axisId", "values"],
+      "properties": {
+        "axisId": { "const": "AXIS_A_INTERACTION_ACTIVITY" },
+        "authorityDocument": { "const": "07_08" },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "TEXT_INPUT",
+              "NUMERIC_INPUT",
+              "OPTION_SELECTION",
+              "DRAG_DROP",
+              "ORDERING",
+              "MATCHING",
+              "GRAPH_PLOT",
+              "OBJECT_MANIPULATION_2D",
+              "OBJECT_MANIPULATION_3D",
+              "AUDIO_PLAYBACK",
+              "VOICE_INPUT",
+              "REALTIME_MULTIUSER",
+              "ANIMATED_SCENE",
+              "OFFLINE_BUFFERED_ACTIONS"
+            ]
+          }
+        }
+      }
+    },
+    "axisB": {
+      "type": "object",
+      "description": "Device / Runtime Presentation Capabilities. Mirrors quest-city-web capability-profile.schema.json by versioned reference, not by filesystem path (ADR-0005/ADR-0006).",
+      "additionalProperties": false,
+      "required": ["axisId", "referencedSchema"],
+      "properties": {
+        "axisId": { "const": "AXIS_B_DEVICE_RUNTIME_PRESENTATION" },
+        "referencedSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "path", "verifiedAtCommit"],
+          "properties": {
+            "repository": { "const": "quest-city-web" },
+            "path": { "const": "packages/content-schema/schemas/capability-profile.schema.json" },
+            "verifiedAtCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+          }
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["profileId", "input", "rendering", "reducedMotion", "viewportClass"]
+          }
+        }
+      }
+    },
+    "additionalAxesEvaluated": {
+      "type": "array",
+      "description": "Axes evaluated per 02_36 section 4.2 and explicitly NOT introduced as capability negotiation axes; they remain contract fields on Engine/Template entries instead.",
+      "items": {
+        "type": "string",
+        "enum": ["ACCESSIBILITY", "PERSISTENCE", "EVALUATION_SCORING", "EVIDENCE_CAPTURE"]
+      }
+    }
+  }
+}
