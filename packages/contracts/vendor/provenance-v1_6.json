@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-staff-dashboard-review",
+  "artifactVersion": "1.6.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "feature/web-m3a-staff-dashboard-contracts",
+  "sourceCommit": "b8d28266ce2646c1cebc76e2dfa5d949854e573a",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_6.yaml",
+  "sourceDocument": "02_35_Quest_City_Staff_Identity_Authorization_and_Dashboard_Review_Contract_v1_0",
+  "checksum": "sha256:2958abde4001f74f2222f4e716c41efccb5e2f050a397c4b3d89253ad40a0f73",
+  "syncedAt": "2026-08-07",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_5.yaml, all unmodified and independently tracked. Adds 18 staff-scoped paths (WEB-M3A, 02_35 v1.0 / 02_26 v1.8 §31): staff-auth session lifecycle, classes/roster (read-only), progress (read-only), review queue, attempt review detail (read-only), teacher feedback, recovery assignment. No existing path or schema from v1.2-v1.5 is touched. Do not edit vendor/quest-city-platform-openapi-v1_6.yaml directly.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_6.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_6.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

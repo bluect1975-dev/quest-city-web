@@ -14,6 +14,10 @@ function makeEnv(overrides: Partial<ApiEnv> = {}): ApiEnv {
     sessionCookieSecureOverrideInsecureLocal: false,
     webAuthTrustedOrigins: ["http://localhost:3000"],
     classCodeHashPepper: Buffer.alloc(32, 7),
+    staffSessionCookieName: "qc_staff_session",
+    staffSessionAbsoluteTtlSeconds: 43200,
+    staffSessionInactivityTtlSeconds: 3600,
+    staffAuthTrustedOrigins: ["http://localhost:3001"],
     ...overrides,
   };
 }

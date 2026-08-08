@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { scan } from "./check-i18n-strings.mjs";
+import { scan } from "./check-i18n-strings-core.mjs";
 
 let tempRoot;
 
@@ -85,6 +85,20 @@ describe("check-i18n-strings", () => {
     await writeFile(
       path.join(pageDir, "page.tsx"),
       `export default function Page() {\n  return <h1>{t(CATALOG, "home.title")}</h1>;\n}\n`,
+      "utf8",
+    );
+
+    const violations = await scan(tempRoot);
+    expect(violations).toEqual([]);
+  });
+
+  it("does not flag a TypeScript arrow-function Promise<T> return type as JSX text (WEB-M3B)", async () => {
+    tempRoot = await mkdtemp(path.join(tmpdir(), "qc-i18n-gate-"));
+    const libDir = path.join(tempRoot, "apps", "dashboard", "lib");
+    await mkdir(libDir, { recursive: true });
+    await writeFile(
+      path.join(libDir, "staff-auth-context.tsx"),
+      `interface Value {\n  logout: () => Promise<void>;\n}\n`,
       "utf8",
     );
 

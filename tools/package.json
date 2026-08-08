@@ -11,11 +11,13 @@
     "migrate": "node migrate.mjs",
     "seed": "tsx seed-pilot.ts",
     "seed:assignment": "tsx seed-assignment.ts",
+    "seed:staff": "tsx seed-staff.ts",
     "check:duplicates": "node check-duplicates.mjs",
     "check:filenames": "node check-filenames.mjs"
   },
   "dependencies": {
     "@quest-city-web/identity": "workspace:*",
+    "@quest-city-web/staff-identity": "workspace:*",
     "pg": "8.13.1"
   },
   "devDependencies": {

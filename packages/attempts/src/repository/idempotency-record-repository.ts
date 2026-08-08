@@ -26,24 +26,29 @@ interface IdempotencyRecordRow {
 }
 
 /**
- * Completion-scope idempotency only (`scope = 'attempt_completion'`) —
- * semantic actions dedup via semantic_action_log's own unique constraints,
- * never through this table (AGENTS.md v4.30, one mechanism per operation).
- * `begin()` is a single atomic `INSERT ... ON CONFLICT DO UPDATE ... WHERE`
- * statement — Postgres's own row-level locking makes concurrent callers on
- * the same key race safely; at most one gets NEW/REOPENED per generation.
+ * Generation-based optimistic-concurrency idempotency (07_15_01 v1.1 §10,
+ * §11-bis.6; extended to staff write scopes by 02_35 §14 / migration
+ * 0004). Semantic actions dedup via semantic_action_log's own unique
+ * constraints, never through this table (AGENTS.md v4.30, one mechanism
+ * per operation) — `scope` selects which of the CHECK-constrained
+ * `idempotency_record.scope` values this call belongs to, but the
+ * mechanism itself (single atomic `INSERT ... ON CONFLICT DO UPDATE ...
+ * WHERE`) is shared unmodified across every scope. Postgres's own
+ * row-level locking makes concurrent callers on the same key race safely;
+ * at most one gets NEW/REOPENED per generation.
  */
 export class IdempotencyRecordRepository {
   constructor(private readonly db: Queryable) {}
 
   async begin(input: {
     tenantId: string;
+    scope: string;
     scopeKey: string;
     requestHash: string;
   }): Promise<IdempotencyBeginOutcome> {
     const upsert = await this.db.query<IdempotencyRecordRow>(
       `INSERT INTO idempotency_record (tenant_id, scope, scope_key, request_hash, status, expires_at)
-       VALUES ($1, 'attempt_completion', $2, $3, 'PENDING', now() + interval '${DEFAULT_TTL_MINUTES} minutes')
+       VALUES ($1, $2, $3, $4, 'PENDING', now() + interval '${DEFAULT_TTL_MINUTES} minutes')
        ON CONFLICT (tenant_id, scope, scope_key) DO UPDATE
          SET status = 'PENDING', response_json = NULL, failure_retryable = NULL,
              generation = idempotency_record.generation + 1, updated_at = now(),
@@ -53,7 +58,7 @@ export class IdempotencyRecordRepository {
            AND idempotency_record.request_hash = EXCLUDED.request_hash
            AND idempotency_record.updated_at < now() - interval '${RETRY_WINDOW_SECONDS} seconds'
        RETURNING generation, (xmax = 0) AS inserted_fresh, status, response_json, request_hash, failure_retryable, created_at, updated_at, id`,
-      [input.tenantId, input.scopeKey, input.requestHash],
+      [input.tenantId, input.scope, input.scopeKey, input.requestHash],
     );
 
     const [row] = upsert.rows;
@@ -65,8 +70,8 @@ export class IdempotencyRecordRepository {
     // eligible) — classify the existing row to produce the exact outcome.
     const existing = await this.db.query<IdempotencyRecordRow>(
       `SELECT id, status, generation, response_json, request_hash, failure_retryable, created_at, updated_at, false AS inserted_fresh
-       FROM idempotency_record WHERE tenant_id = $1 AND scope = 'attempt_completion' AND scope_key = $2`,
-      [input.tenantId, input.scopeKey],
+       FROM idempotency_record WHERE tenant_id = $1 AND scope = $2 AND scope_key = $3`,
+      [input.tenantId, input.scope, input.scopeKey],
     );
     const [existingRow] = existing.rows;
     if (!existingRow) {
@@ -96,23 +101,25 @@ export class IdempotencyRecordRepository {
 
   async complete(input: {
     tenantId: string;
+    scope: string;
     scopeKey: string;
     expectedGeneration: number;
     response: unknown;
   }): Promise<IdempotencyFinishOutcome> {
     const result = await this.db.query(
       `UPDATE idempotency_record
-       SET status = 'COMPLETED', response_json = $4, failure_retryable = NULL, updated_at = now()
-       WHERE tenant_id = $1 AND scope = 'attempt_completion' AND scope_key = $2
-         AND status = 'PENDING' AND generation = $3
+       SET status = 'COMPLETED', response_json = $5, failure_retryable = NULL, updated_at = now()
+       WHERE tenant_id = $1 AND scope = $2 AND scope_key = $3
+         AND status = 'PENDING' AND generation = $4
        RETURNING id`,
-      [input.tenantId, input.scopeKey, input.expectedGeneration, JSON.stringify(input.response)],
+      [input.tenantId, input.scope, input.scopeKey, input.expectedGeneration, JSON.stringify(input.response)],
     );
     return result.rows.length > 0 ? { outcome: "COMMITTED" } : { outcome: "STALE_GENERATION" };
   }
 
   async fail(input: {
     tenantId: string;
+    scope: string;
     scopeKey: string;
     expectedGeneration: number;
     retryable: boolean;
@@ -120,11 +127,11 @@ export class IdempotencyRecordRepository {
   }): Promise<IdempotencyFinishOutcome> {
     const result = await this.db.query(
       `UPDATE idempotency_record
-       SET status = 'FAILED', response_json = $4, failure_retryable = $5, updated_at = now()
-       WHERE tenant_id = $1 AND scope = 'attempt_completion' AND scope_key = $2
-         AND status = 'PENDING' AND generation = $3
+       SET status = 'FAILED', response_json = $5, failure_retryable = $6, updated_at = now()
+       WHERE tenant_id = $1 AND scope = $2 AND scope_key = $3
+         AND status = 'PENDING' AND generation = $4
        RETURNING id`,
-      [input.tenantId, input.scopeKey, input.expectedGeneration, JSON.stringify(input.response), input.retryable],
+      [input.tenantId, input.scope, input.scopeKey, input.expectedGeneration, JSON.stringify(input.response), input.retryable],
     );
     return result.rows.length > 0 ? { outcome: "COMMITTED" } : { outcome: "STALE_GENERATION" };
   }

@@ -13,6 +13,8 @@ function scopeKeyFor(assignmentId: string, studentProfileId: string, idempotency
   return `${assignmentId}:${studentProfileId}:${idempotencyKey}`;
 }
 
+const SCOPE = "attempt_completion";
+
 /**
  * IdempotencyService: completion-scope idempotency with generation-based
  * optimistic concurrency (07_15_01 v1.1 §10, §11-bis.6). Wraps
@@ -31,6 +33,7 @@ export class IdempotencyService {
   }): Promise<IdempotencyBeginOutcome> {
     return this.repository.begin({
       tenantId: input.tenantId,
+      scope: SCOPE,
       scopeKey: scopeKeyFor(input.assignmentId, input.studentProfileId, input.idempotencyKey),
       requestHash: normalizedHash(input.payload),
     });
@@ -46,6 +49,7 @@ export class IdempotencyService {
   }): Promise<IdempotencyFinishOutcome> {
     return this.repository.complete({
       tenantId: input.tenantId,
+      scope: SCOPE,
       scopeKey: scopeKeyFor(input.assignmentId, input.studentProfileId, input.idempotencyKey),
       expectedGeneration: input.expectedGeneration,
       response: input.response,
@@ -63,6 +67,7 @@ export class IdempotencyService {
   }): Promise<IdempotencyFinishOutcome> {
     return this.repository.fail({
       tenantId: input.tenantId,
+      scope: SCOPE,
       scopeKey: scopeKeyFor(input.assignmentId, input.studentProfileId, input.idempotencyKey),
       expectedGeneration: input.expectedGeneration,
       retryable: input.retryable,

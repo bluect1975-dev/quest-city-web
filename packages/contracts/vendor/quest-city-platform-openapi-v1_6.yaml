@@ -1,0 +1,1289 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.6.0
+  description: >-
+    Quest City API contract additions for WEB-M3A (canonical governance and
+    contracts phase, 02_35 v1.0, 02_26 v1.8 §31): staff/teacher identity,
+    authentication, authorization, and staff-scoped read/write contracts for
+    classes/roster, progress, the dashboard review queue, teacher feedback,
+    and a narrowly-scoped recovery assignment path. v1.2.0 through v1.5.0
+    remain available unchanged as separate immutable artifacts; this file is
+    additive and does not remove or alter any prior path or schema.
+
+    This is a CONTRACTS-ONLY release. WEB-M3B (implementation in
+    quest-city-web) is NOT authorized by this artifact. No path in this file
+    is implemented anywhere at the time of writing.
+
+    Staff identity is a domain entirely separate from the Web student
+    identity of v1.3.0 (studentSessionCookie): distinct session cookie name,
+    distinct session table, distinct credential model (email/password vs.
+    class-code/PIN). A staff session is scoped to exactly one tenant for its
+    entire lifetime, resolved server-side at session creation, never by a
+    client-supplied header on a per-request basis.
+
+    Authorization: TEACHER is scoped to explicitly assigned classes only;
+    SCHOOL_ADMIN is scoped to its entire tenant, implicitly. No role has
+    cross-tenant access under any condition. No other roles are introduced.
+
+    review_queue_item and teacher_feedback both reference learning_attempt by
+    id; neither copies its data, and neither introduces a second attempt
+    ledger (decision D2, 07_15_01 §8, unchanged). teacher_feedback carries two
+    orthogonal status axes (publicationStatus, deliveryStatus) rather than a
+    single flat enum, to avoid losing information when a published-and-read
+    note is later revoked (02_29 §7, reorganized without dropping or renaming
+    any of its six original states).
+
+    The recovery-assignment endpoint creates a row in the EXISTING assignment
+    entity (WEB-M2) via two new additive columns (origin_type,
+    target_student_profile_id) — it is not a new assignment-like table, and
+    it is restricted to the single case of a recovery assignment derived from
+    a published teacher_feedback. Generic assignment authoring remains out of
+    scope and deferred (02_35 §11).
+
+    Privacy: freeText feedback is never exposed to the Roblox runtime in the
+    baseline. No payload destined for Roblox may contain a student's or a
+    staff member's name, surname, or email. Web feedback and any future
+    Roblox-side delivery must reference the same learningAttemptId. Roblox
+    delivery itself is NOT implemented by this contract — only its limits are
+    fixed (02_35 §10).
+
+    No new error domain is introduced: all new error codes below are
+    `domain: PLATFORM`, reusing the existing ErrorEnvelope shape
+    unchanged from v1.4.0/v1.5.0.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+security:
+- staffSessionCookie: []
+paths:
+  /staff-auth/session/start:
+    post:
+      summary: Authenticate a staff account with email and password, starting a
+        tenant-scoped staff session
+      operationId: startStaffSession
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffSessionStartRequest'
+      responses:
+        '200':
+          description: Session started. Sets the qc_staff_session HttpOnly/Secure/
+            SameSite=Lax cookie (distinct from qc_web_session) and returns a
+            one-time csrfToken in the body, held client-side in memory only
+            (02_35 §4.4).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffSessionStartResponse'
+        '401':
+          description: STAFF_AUTH_REQUIRED — invalid email or password. The
+            response never distinguishes an unknown email from a wrong
+            password (02_35 §4.6, anti-enumeration).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                domain: PLATFORM
+                code: STAFF_AUTH_REQUIRED
+                httpStatus: 401
+                message: Credenziali staff non valide.
+                correlationId: req_01hz80
+                retryable: false
+        '423':
+          description: STAFF_ACCOUNT_LOCKED — account temporarily locked after
+            repeated failed login attempts (02_35 §4.5).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /staff-auth/session/refresh:
+    post:
+      summary: Rotate the staff session token and CSRF token
+      operationId: refreshStaffSession
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      responses:
+        '200':
+          description: Session rotated; previous session revoked (ROTATED),
+            absolute TTL not extended (02_35 §4.4).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffSessionStartResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+  /staff-auth/logout:
+    post:
+      summary: Terminate the staff session. Idempotent.
+      operationId: staffLogout
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      responses:
+        '200':
+          description: Always returns loggedOut=true regardless of prior session
+            state (02_35 §4.4).
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - loggedOut
+                properties:
+                  loggedOut:
+                    type: boolean
+                    const: true
+  /me/staff-context:
+    get:
+      summary: Minimal profile of the authenticated staff session — tenant, role,
+        class scope
+      operationId: getStaffContext
+      security:
+      - staffSessionCookie: []
+      responses:
+        '200':
+          description: Staff context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffContextResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+  /classes:
+    get:
+      summary: List classes in scope for the authenticated staff session
+        (02_35 §5, §3.2)
+      operationId: listStaffClasses
+      security:
+      - staffSessionCookie: []
+      responses:
+        '200':
+          description: Classes in scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+  /classes/{classId}:
+    get:
+      summary: Get class detail. Read-only.
+      operationId: getStaffClass
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      responses:
+        '200':
+          description: Class detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /classes/{classId}/students:
+    get:
+      summary: Roster of the class. Read-only, no student access credentials
+        exposed (02_35 §5).
+      operationId: listClassStudents
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      responses:
+        '200':
+          description: Roster
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentRosterResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /classes/{classId}/students/{studentProfileId}:
+    get:
+      summary: Student detail in the context of this class. Read-only.
+      operationId: getClassStudent
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/StudentProfileId'
+      responses:
+        '200':
+          description: Student detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentDetailResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /classes/{classId}/progress:
+    get:
+      summary: Class-level aggregate progress. Diagnostic view over the single
+        learning_attempt ledger — never a per-runtime ledger (02_35 §6,
+        07_15_01 §7.1).
+      operationId: getClassProgress
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      responses:
+        '200':
+          description: Class progress aggregate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassProgressResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /classes/{classId}/students/{studentProfileId}/progress:
+    get:
+      summary: Single student's aggregate progress, staff-scoped equivalent of
+        GET /progress/summary (02_26 §18.4)
+      operationId: getStudentProgress
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/StudentProfileId'
+      responses:
+        '200':
+          description: Student progress aggregate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressSummaryResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /classes/{classId}/students/{studentProfileId}/attempts:
+    get:
+      summary: Attempt history for the student. runtimeChannel and
+        reconciliationStatus are diagnostic provenance only (07_15_01 §6.2).
+      operationId: getStudentAttempts
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/StudentProfileId'
+      responses:
+        '200':
+          description: Attempt history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptHistoryResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /review:
+    get:
+      summary: List review_queue_item in scope for the authenticated staff
+        session (02_35 §7)
+      operationId: listReviewQueue
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - name: classId
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ReviewQueueItemStatus'
+      - name: priority
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ReviewQueueItemPriority'
+      responses:
+        '200':
+          description: Review queue items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewQueueListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+  /review/{reviewItemId}/status:
+    post:
+      summary: Transition a review_queue_item's status (claim/resolve/dismiss/
+        release/reopen — 02_35 §7.2). Single parametric endpoint instead of
+        one per transition, to minimize the API surface.
+      operationId: transitionReviewItemStatus
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ReviewItemId'
+      - $ref: '#/components/parameters/IfMatch'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewQueueItemStatusTransitionRequest'
+      responses:
+        '200':
+          description: Transition applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewQueueItemResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          description: REVIEW_ITEM_NOT_FOUND — item does not exist or is not in
+            scope for this staff session (uniform response, 02_35 §13)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: VALIDATION_ERROR — requested transition not allowed from
+            the item's current status (02_35 §7.2)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '412':
+          $ref: '#/components/responses/EtagMismatch'
+  /attempts/{attemptId}/review:
+    get:
+      summary: Read-only attempt review detail (02_35 §8). Composed from
+        existing WEB-M2 entities (learning_attempt, semantic_action_log,
+        attempt_response) plus 07_15_01 §6.1 provenance fields. No UI is
+        defined by this payload.
+      operationId: getAttemptReviewDetail
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Attempt review detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptReviewDetailResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /attempts/{attemptId}/feedback:
+    post:
+      summary: Create a teacher_feedback in DRAFT for this attempt (02_35 §9)
+      operationId: createTeacherFeedback
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherFeedbackCreateRequest'
+      responses:
+        '201':
+          description: Draft feedback created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherFeedbackResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+  /feedback/{feedbackId}/publish:
+    post:
+      summary: DRAFT -> PUBLISHED. Implicitly resolves the linked
+        review_queue_item if present (02_35 §9.4).
+      operationId: publishTeacherFeedback
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/FeedbackId'
+      - $ref: '#/components/parameters/IfMatch'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Feedback published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherFeedbackResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+        '409':
+          description: FEEDBACK_NOT_PUBLISHABLE — publicationStatus is not DRAFT
+            (02_35 §13)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '412':
+          $ref: '#/components/responses/EtagMismatch'
+  /feedback/{feedbackId}/revoke:
+    post:
+      summary: PUBLISHED -> REVOKED. deliveryStatus is not reset retroactively
+        (02_35 §9.2).
+      operationId: revokeTeacherFeedback
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/FeedbackId'
+      - $ref: '#/components/parameters/IfMatch'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Feedback revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherFeedbackResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+        '409':
+          description: FEEDBACK_ALREADY_REVOKED — publicationStatus is already
+            REVOKED (02_35 §13)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '412':
+          $ref: '#/components/responses/EtagMismatch'
+  /attempts/{attemptId}/recovery-assignment:
+    post:
+      summary: Create a recovery assignment derived from a published
+        teacher_feedback (02_35 §11). Not generic assignment authoring — see
+        02_35 §11.1-11.2 for the AGENTS.md rule 16 boundary. Creates a row in
+        the existing assignment entity via the origin_type/
+        target_student_profile_id additive columns; no new assignment-like
+        table.
+      operationId: createRecoveryAssignment
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryAssignmentCreateRequest'
+      responses:
+        '201':
+          description: Recovery assignment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryAssignmentResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+        '409':
+          description: RECOVERY_ASSIGNMENT_SOURCE_NOT_PUBLISHED — the referenced
+            teacher_feedback is not publicationStatus=PUBLISHED (02_35 §11.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+components:
+  securitySchemes:
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: HttpOnly, Secure, SameSite=Lax opaque staff session token.
+        Entirely distinct cookie, table and credential model from
+        studentSessionCookie/qc_web_session (02_35 §2.1, §4.4). Never
+        accessible to client-side JavaScript. Scoped to exactly one tenant
+        for its entire lifetime.
+    staffCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Synchronizer-token CSRF protection, same mechanism as
+        csrfHeader (v1.3.0), issued and validated independently for staff
+        sessions.
+  parameters:
+    ClassId:
+      name: classId
+      in: path
+      required: true
+      schema:
+        type: string
+    StudentProfileId:
+      name: studentProfileId
+      in: path
+      required: true
+      schema:
+        type: string
+    ReviewItemId:
+      name: reviewItemId
+      in: path
+      required: true
+      schema:
+        type: string
+    FeedbackId:
+      name: feedbackId
+      in: path
+      required: true
+      schema:
+        type: string
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Optimistic concurrency token, matched against the resource's
+        current version (02_26 §8.2).
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required on every mutating endpoint in this file. Same
+        header name reused across this contract and v1.4.0/v1.5.0; scope is
+        always per-operation, never shared across different endpoints.
+  responses:
+    StaffUnauthorized:
+      description: STAFF_AUTH_REQUIRED — no valid staff session (PLATFORM domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ClassAccessDenied:
+      description: CLASS_ACCESS_DENIED — resource does not exist or is not in
+        scope for this staff session. Uniform response for both cases,
+        anti-enumeration (02_35 §5, §13). PLATFORM domain.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    EtagMismatch:
+      description: ETAG_MISMATCH — If-Match did not match the resource's current
+        version (02_26 §8.2). PLATFORM domain, existing code, not new.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain, RATE_LIMITED)
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - request_id
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+
+    StaffRole:
+      type: string
+      enum:
+      - TEACHER
+      - SCHOOL_ADMIN
+      description: Baseline roles only (02_35 §3.1). No other role is defined.
+
+    StaffSessionStartRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        tenantId:
+          type: string
+          description: Required only if the account has more than one active
+            staff_tenant_membership (02_35 §3.2).
+
+    StaffSessionStartResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - csrfToken
+          - tenantId
+          - role
+          properties:
+            csrfToken:
+              type: string
+            tenantId:
+              type: string
+            role:
+              $ref: '#/components/schemas/StaffRole'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StaffContextResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - staffAccountId
+          - tenantId
+          - role
+          properties:
+            staffAccountId:
+              type: string
+            tenantId:
+              type: string
+            role:
+              $ref: '#/components/schemas/StaffRole'
+            classScope:
+              type: array
+              items:
+                type: string
+              description: Explicit class id list for TEACHER. Omitted (or null)
+                for SCHOOL_ADMIN, whose scope is the entire tenant implicitly
+                (02_35 §3.2).
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ClassSummary:
+      type: object
+      required:
+      - classId
+      - name
+      properties:
+        classId:
+          type: string
+        name:
+          type: string
+
+    ClassListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ClassResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/ClassSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StudentRosterEntry:
+      type: object
+      required:
+      - studentProfileId
+      - accessAlias
+      properties:
+        studentProfileId:
+          type: string
+        accessAlias:
+          type: string
+        enrollmentStatus:
+          type: string
+
+    StudentRosterResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentRosterEntry'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StudentDetailResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - studentProfileId
+          properties:
+            studentProfileId:
+              type: string
+            accessAlias:
+              type: string
+            enrollmentStatus:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ClassProgressResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+          description: Class-level aggregate — diagnostic view over the single
+            learning_attempt ledger (02_35 §6). Never a per-runtime aggregate.
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ProgressSummaryResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - studentPublicId
+          - aggregate
+          properties:
+            studentPublicId:
+              type: string
+            aggregate:
+              type: object
+              additionalProperties: true
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AttemptRuntimeChannel:
+      type: string
+      enum:
+      - WEB
+      - ROBLOX
+      - UNKNOWN_LEGACY
+
+    CompletionStatus:
+      type: string
+      enum:
+      - ACCEPTED_NOT_CONSOLIDATED
+      - RECONCILIATION_REQUIRED
+      - CONSOLIDATED
+
+    AttemptState:
+      type: string
+      enum:
+      - CREATED
+      - IN_PROGRESS
+      - COMPLETION_SUBMITTED
+      - COMPLETED
+      - ABANDONED
+      - EXPIRED
+
+    AttemptHistoryEntry:
+      type: object
+      required:
+      - attemptId
+      - attemptState
+      - runtimeChannel
+      - startedAt
+      properties:
+        attemptId:
+          type: string
+        attemptState:
+          $ref: '#/components/schemas/AttemptState'
+        completionStatus:
+          oneOf:
+          - $ref: '#/components/schemas/CompletionStatus'
+          - type: 'null'
+        runtimeChannel:
+          $ref: '#/components/schemas/AttemptRuntimeChannel'
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+
+    AttemptHistoryResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttemptHistoryEntry'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ReviewQueueItemReason:
+      type: string
+      enum:
+      - INCORRECT_ATTEMPT
+      - OPEN_ANSWER
+      - PRIORITY_MISCONCEPTION
+      - HELP_REQUESTED
+      - MANUALLY_SELECTED
+      description: Verbatim from 02_29 §3 (02_35 §7.1).
+
+    ReviewQueueItemPriority:
+      type: string
+      enum:
+      - LOW
+      - MEDIUM
+      - HIGH
+
+    ReviewQueueItemStatus:
+      type: string
+      enum:
+      - OPEN
+      - IN_REVIEW
+      - RESOLVED
+      - DISMISSED
+      description: Lifecycle and allowed transitions fixed in 02_35 §7.2.
+
+    ReviewQueueItem:
+      type: object
+      required:
+      - id
+      - tenantId
+      - classId
+      - studentProfileId
+      - learningAttemptId
+      - reason
+      - priority
+      - status
+      - createdAt
+      - updatedAt
+      - version
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        classId:
+          type: string
+        studentProfileId:
+          type: string
+        learningAttemptId:
+          type: string
+          description: Reference only — never a copy of learning_attempt data
+            (02_35 §1 principle 6).
+        reason:
+          $ref: '#/components/schemas/ReviewQueueItemReason'
+        priority:
+          $ref: '#/components/schemas/ReviewQueueItemPriority'
+        status:
+          $ref: '#/components/schemas/ReviewQueueItemStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        reviewerStaffId:
+          oneOf:
+          - type: string
+          - type: 'null'
+        version:
+          type: integer
+
+    ReviewQueueListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewQueueItem'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ReviewQueueItemResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/ReviewQueueItem'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ReviewQueueItemStatusTransitionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - targetStatus
+      properties:
+        targetStatus:
+          $ref: '#/components/schemas/ReviewQueueItemStatus'
+
+    AttemptReviewDetailResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - attemptId
+          - studentAnswer
+          properties:
+            attemptId:
+              type: string
+            item:
+              type: object
+              additionalProperties: true
+              description: Reference to the content item — not a copy of
+                published content.
+            canonicalAnswer:
+              type: object
+              additionalProperties: true
+            studentAnswer:
+              type: object
+              additionalProperties: true
+            semanticActions:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+              description: From semantic_action_log (WEB-M2, existing).
+            hints:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            validatorOutcome:
+              type: object
+              additionalProperties: true
+            proposedAiFeedback:
+              oneOf:
+              - type: object
+                additionalProperties: true
+              - type: 'null'
+              description: Nullable — no AI evaluation service is confirmed
+                implemented at this date (02_35 §8.1).
+            previousAttempts:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            relatedCompetencies:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            runtimeChannel:
+              $ref: '#/components/schemas/AttemptRuntimeChannel'
+            reconciliationStatus:
+              oneOf:
+              - $ref: '#/components/schemas/CompletionStatus'
+              - type: 'null'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TeacherFeedbackPublicationStatus:
+      type: string
+      enum:
+      - DRAFT
+      - PUBLISHED
+      - REVOKED
+      description: Docente-controlled axis (02_35 §9.2).
+
+    TeacherFeedbackDeliveryStatus:
+      type: string
+      enum:
+      - NOT_APPLICABLE
+      - PENDING
+      - DELIVERED
+      - READ
+      - FAILED
+      description: System/runtime-controlled axis, independent of
+        publicationStatus (02_35 §9.2).
+
+    TeacherFeedbackCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - structuredFeedback
+      properties:
+        structuredFeedback:
+          type: object
+          additionalProperties: true
+        freeText:
+          type: string
+        originReviewQueueItemId:
+          type: string
+
+    TeacherFeedback:
+      type: object
+      required:
+      - id
+      - tenantId
+      - classId
+      - studentProfileId
+      - learningAttemptId
+      - authorStaffId
+      - structuredFeedback
+      - publicationStatus
+      - deliveryStatus
+      - createdAt
+      - updatedAt
+      - version
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        classId:
+          type: string
+        studentProfileId:
+          type: string
+        learningAttemptId:
+          type: string
+        authorStaffId:
+          type: string
+        structuredFeedback:
+          type: object
+          additionalProperties: true
+        freeText:
+          oneOf:
+          - type: string
+          - type: 'null'
+        publicationStatus:
+          $ref: '#/components/schemas/TeacherFeedbackPublicationStatus'
+        deliveryStatus:
+          $ref: '#/components/schemas/TeacherFeedbackDeliveryStatus'
+        originReviewQueueItemId:
+          oneOf:
+          - type: string
+          - type: 'null'
+        recoveryAssignmentId:
+          oneOf:
+          - type: string
+          - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        publishedAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        revokedAt:
+          oneOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        version:
+          type: integer
+
+    TeacherFeedbackResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/TeacherFeedback'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    RuntimeChannelInput:
+      type: string
+      enum:
+      - WEB
+      - ROBLOX
+
+    RecoveryAssignmentCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - originTeacherFeedbackId
+      - contentBundleId
+      - allowedRuntimeChannels
+      properties:
+        originTeacherFeedbackId:
+          type: string
+        contentBundleId:
+          type: string
+        allowedRuntimeChannels:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RuntimeChannelInput'
+
+    RecoveryAssignment:
+      type: object
+      required:
+      - assignmentId
+      - originTeacherFeedbackId
+      - studentProfileId
+      - contentBundleId
+      - status
+      - createdByStaffId
+      - createdAt
+      properties:
+        assignmentId:
+          type: string
+        originTeacherFeedbackId:
+          type: string
+        studentProfileId:
+          type: string
+        contentBundleId:
+          type: string
+        allowedRuntimeChannels:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeChannelInput'
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PUBLISHED
+          - ARCHIVED
+          description: Reuses the existing Assignment.status enum (OpenAPI
+            v1.4.0) — no new enum (02_35 §11.4).
+        createdByStaffId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    RecoveryAssignmentResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/RecoveryAssignment'
+        meta:
+          $ref: '#/components/schemas/Meta'

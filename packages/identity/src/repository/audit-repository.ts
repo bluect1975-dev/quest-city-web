@@ -7,7 +7,7 @@ import type { Queryable } from "./types";
  * for redaction before calling `record` (07_16 §17: "Non registrare
  * codici, password, token o dati anagrafici completi").
  */
-export type AuditActorType = "STUDENT" | "SYSTEM" | "ADMIN";
+export type AuditActorType = "STUDENT" | "SYSTEM" | "ADMIN" | "STAFF";
 export type AuditResult = "SUCCESS" | "FAILURE";
 
 export interface AuditEventInput {

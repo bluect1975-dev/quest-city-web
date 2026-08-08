@@ -81,9 +81,9 @@ if [ "$WITH_INTEGRATION" = true ]; then
 
   run_step "Docker compose build + up" docker compose -f infrastructure/deployment/docker-compose.yml up -d --build
   run_step "Wait for Postgres health" wait_for_postgres_health
-  run_step "Apply database migrations (0001-0003)" pnpm --filter @quest-city-web/tools run migrate
+  run_step "Apply database migrations (0001-0004)" pnpm --filter @quest-city-web/tools run migrate
   run_step "Wait for API health" wait_for_api_health
-  run_step "Integration tests (health-endpoints, identity-flow, identity-security, attempt-lifecycle)" pnpm run test:integration
+  run_step "Integration tests (health-endpoints, identity-flow, identity-security, attempt-lifecycle, staff-auth-flow, staff-review-feedback-flow)" pnpm run test:integration
   if [ "$FAILED" -ne 0 ]; then
     echo "==> Dumping container logs (a step above failed)"
     docker compose -f infrastructure/deployment/docker-compose.yml logs

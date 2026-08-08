@@ -15,5 +15,15 @@
   "RECONCILIATION_REQUIRED": "Il completamento è in fase di verifica.",
   "LEGACY_RUNTIME_UNKNOWN": "Non è possibile determinare la provenienza di questo tentativo.",
   "ATTEMPT_NOT_COMPLETABLE": "Questo tentativo non può essere completato nel suo stato attuale.",
+  "STAFF_AUTH_REQUIRED": "Devi accedere come staff per continuare.",
+  "STAFF_FORBIDDEN": "Non sei autorizzato a compiere questa azione.",
+  "CLASS_ACCESS_DENIED": "Questa risorsa non è disponibile o non è nel tuo ambito.",
+  "REVIEW_ITEM_NOT_FOUND": "Questo elemento della coda di revisione non è disponibile.",
+  "FEEDBACK_NOT_PUBLISHABLE": "Questo feedback non può essere pubblicato nel suo stato attuale.",
+  "FEEDBACK_ALREADY_REVOKED": "Questo feedback è già stato revocato o non è ancora pubblicato.",
+  "STAFF_ACCOUNT_LOCKED": "Account temporaneamente bloccato per troppi tentativi falliti.",
+  "RECOVERY_ASSIGNMENT_SOURCE_NOT_PUBLISHED": "Il feedback collegato deve essere pubblicato prima di creare un'assegnazione di recupero.",
+  "ETAG_MISMATCH": "Questo elemento è stato modificato da un'altra sessione. Ricarica e riprova.",
+  "IDEMPOTENCY_CONFLICT": "La richiesta è già stata inviata con dati diversi. Riprova con una nuova richiesta.",
   "UNKNOWN_ERROR": "Si è verificato un errore imprevisto. Riprova."
 }

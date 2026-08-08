@@ -74,6 +74,29 @@ export class SchoolEnrollmentRepository {
   }
 
   /**
+   * WEB-M3B (02_35 §5): full class roster for a staff-scoped read. The
+   * caller is responsible for never projecting `pinHash` into a staff-facing
+   * response (OpenAPI v1.6 `StudentRosterEntry` has no such field).
+   */
+  async findByClass(classId: string, tenantId: string): Promise<SchoolEnrollment[]> {
+    const result = await this.db.query<SchoolEnrollmentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM school_enrollment WHERE class_id = $1 AND tenant_id = $2 ORDER BY access_alias ASC`,
+      [classId, tenantId],
+    );
+    return result.rows.map(mapEnrollment);
+  }
+
+  /** WEB-M3B (02_35 §5): a specific student's enrollment within a specific class, for scope verification. */
+  async findByClassAndStudent(classId: string, studentProfileId: string, tenantId: string): Promise<SchoolEnrollment | null> {
+    const result = await this.db.query<SchoolEnrollmentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM school_enrollment WHERE class_id = $1 AND student_profile_id = $2 AND tenant_id = $3`,
+      [classId, studentProfileId, tenantId],
+    );
+    const [row] = result.rows;
+    return row ? mapEnrollment(row) : null;
+  }
+
+  /**
    * Activates an INVITED enrollment as a side effect of the first
    * successful `session/start` (02_26 §30.6 — no dedicated
    * `student-enrollments/accept` endpoint exists). No-op (returns the

@@ -2,7 +2,14 @@ import type { Queryable } from "./types";
 
 export type AssignmentStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type CompletionPolicy = "FIRST_VALID_COMPLETION";
-export type CreatedByActorType = "ADMIN_SEED_SCRIPT" | "SYSTEM";
+export type CreatedByActorType = "ADMIN_SEED_SCRIPT" | "SYSTEM" | "STAFF";
+/**
+ * WEB-M3B (02_35 §11.3, migration 0004): ADMIN_SEED is the pre-existing,
+ * unchanged behaviour (class-wide, targetStudentProfileId null).
+ * RECOVERY_FROM_REVIEW is the sole new, narrowly-scoped creation path —
+ * never generic assignment authoring.
+ */
+export type AssignmentOriginType = "ADMIN_SEED" | "RECOVERY_FROM_REVIEW";
 
 export interface Assignment {
   id: string;
@@ -19,6 +26,8 @@ export interface Assignment {
   contentBundleId: string;
   createdAt: Date;
   allowedRuntimeChannels: Array<"WEB" | "ROBLOX">;
+  originType: AssignmentOriginType;
+  targetStudentProfileId: string | null;
 }
 
 interface AssignmentRow {
@@ -35,10 +44,13 @@ interface AssignmentRow {
   completion_policy: CompletionPolicy;
   content_bundle_id: string;
   created_at: Date;
+  origin_type: AssignmentOriginType;
+  target_student_profile_id: string | null;
 }
 
 const SELECT_COLUMNS = `id, tenant_id, class_id, public_id, title, status, opens_at, due_at,
-       created_by_actor_type, created_by_actor_id, completion_policy, content_bundle_id, created_at`;
+       created_by_actor_type, created_by_actor_id, completion_policy, content_bundle_id, created_at,
+       origin_type, target_student_profile_id`;
 
 function mapRow(row: AssignmentRow, allowedRuntimeChannels: Array<"WEB" | "ROBLOX">): Assignment {
   return {
@@ -56,6 +68,8 @@ function mapRow(row: AssignmentRow, allowedRuntimeChannels: Array<"WEB" | "ROBLO
     contentBundleId: row.content_bundle_id,
     createdAt: row.created_at,
     allowedRuntimeChannels,
+    originType: row.origin_type,
+    targetStudentProfileId: row.target_student_profile_id,
   };
 }
 
@@ -108,12 +122,18 @@ export class AssignmentRepository {
     completionPolicy: CompletionPolicy;
     contentBundleId: string;
     allowedRuntimeChannels: Array<"WEB" | "ROBLOX">;
+    /** WEB-M3B (02_35 §11.3): defaults preserve the exact pre-existing ADMIN_SEED behaviour. */
+    originType?: AssignmentOriginType;
+    targetStudentProfileId?: string | null;
   }): Promise<Assignment> {
+    const originType = input.originType ?? "ADMIN_SEED";
+    const targetStudentProfileId = input.targetStudentProfileId ?? null;
     const result = await this.db.query<AssignmentRow>(
       `INSERT INTO assignment
          (tenant_id, class_id, public_id, title, status, opens_at, due_at,
-          created_by_actor_type, created_by_actor_id, completion_policy, content_bundle_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          created_by_actor_type, created_by_actor_id, completion_policy, content_bundle_id,
+          origin_type, target_student_profile_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING ${SELECT_COLUMNS}`,
       [
         input.tenantId,
@@ -127,6 +147,8 @@ export class AssignmentRepository {
         input.createdByActorId,
         input.completionPolicy,
         input.contentBundleId,
+        originType,
+        targetStudentProfileId,
       ],
     );
     const [row] = result.rows;

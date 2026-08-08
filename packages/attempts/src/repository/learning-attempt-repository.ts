@@ -145,6 +145,48 @@ export class LearningAttemptRepository {
     return { totalAttempts, byAttemptState, byCompletionStatus };
   }
 
+  /**
+   * WEB-M3B (02_35 §6): class-level aggregate across every student whose
+   * attempts belong to an assignment of this class — joined through
+   * `assignment.class_id`, since `learning_attempt` itself carries no
+   * `class_id` column. Same single unified ledger as `summarizeForStudent`
+   * (07_15_01 v1.1 §7.1); this is a wider staff-scoped read of the exact
+   * same rows, never a second ledger.
+   */
+  async summarizeForClass(tenantId: string, classId: string): Promise<ProgressSummary> {
+    const result = await this.db.query<{ attempt_state: AttemptState; completion_status: CompletionStatus | null; count: string }>(
+      `SELECT la.attempt_state, la.completion_status, count(*)::text AS count
+       FROM learning_attempt la
+       JOIN assignment a ON a.id = la.assignment_id AND a.tenant_id = la.tenant_id
+       WHERE la.tenant_id = $1 AND a.class_id = $2
+       GROUP BY la.attempt_state, la.completion_status`,
+      [tenantId, classId],
+    );
+    const byAttemptState: Record<string, number> = {};
+    const byCompletionStatus: Record<string, number> = {};
+    let totalAttempts = 0;
+    for (const row of result.rows) {
+      const n = Number(row.count);
+      totalAttempts += n;
+      byAttemptState[row.attempt_state] = (byAttemptState[row.attempt_state] ?? 0) + n;
+      if (row.completion_status) {
+        byCompletionStatus[row.completion_status] = (byCompletionStatus[row.completion_status] ?? 0) + n;
+      }
+    }
+    return { totalAttempts, byAttemptState, byCompletionStatus };
+  }
+
+  /** WEB-M3B (02_35 §6): full attempt history for one student, most recent first. */
+  async findByStudentProfile(tenantId: string, studentProfileId: string): Promise<LearningAttempt[]> {
+    const result = await this.db.query<LearningAttemptRow>(
+      `SELECT ${SELECT_COLUMNS} FROM learning_attempt
+       WHERE tenant_id = $1 AND student_profile_id = $2
+       ORDER BY started_at DESC`,
+      [tenantId, studentProfileId],
+    );
+    return result.rows.map(mapRow);
+  }
+
   async findByIdAndTenant(id: string, tenantId: string): Promise<LearningAttempt | null> {
     const result = await this.db.query<LearningAttemptRow>(
       `SELECT ${SELECT_COLUMNS} FROM learning_attempt WHERE id = $1 AND tenant_id = $2`,

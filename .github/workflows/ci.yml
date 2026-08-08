@@ -123,7 +123,7 @@ jobs:
           echo "Postgres did not become ready in time." >&2
           exit 1
 
-      - name: Apply database migrations (0001-0003)
+      - name: Apply database migrations (0001-0004)
         run: pnpm --filter @quest-city-web/tools run migrate
 
       - name: Wait for API ready
@@ -139,7 +139,7 @@ jobs:
           echo "API did not become ready in time." >&2
           exit 1
 
-      - name: Run integration tests (health-endpoints, identity-flow, identity-security, attempt-lifecycle)
+      - name: Run integration tests (health-endpoints, identity-flow, identity-security, attempt-lifecycle, staff-auth-flow, staff-review-feedback-flow)
         run: pnpm run test:integration
 
       - name: Dump container logs on failure

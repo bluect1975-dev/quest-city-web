@@ -7,9 +7,35 @@ apps/api/eslint.config.mjs, apps/dashboard/eslint.config.mjs, apps/student-web/e
 apps/api/next-env.d.ts, apps/dashboard/next-env.d.ts, apps/student-web/next-env.d.ts
 apps/api/tsconfig.json, apps/dashboard/tsconfig.json, apps/student-web/tsconfig.json
 apps/dashboard/next.config.ts, apps/student-web/next.config.ts
-packages/attempts/tsconfig.json, packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/i18n/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
-packages/attempts/vitest.config.ts, packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/i18n/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
-# packages/attempts/src/repository/types.ts intentionally mirrors
-# packages/identity/src/repository/types.ts's Queryable = Pool | PoolClient
-# alias (docs/adr/0003) — same per-package boilerplate rationale as above.
-packages/attempts/src/repository/types.ts, packages/identity/src/repository/types.ts
+# Pre-existing staleness corrected here (WEB-M3B): this used to be one
+# 10-member line mixing attempts/i18n in with the rest, but their
+# tsconfig.json/vitest.config.ts content has actually differed from the
+# others' for some time (attempts/i18n carry their own path-mapping
+# needs) — the two are genuinely separate byte-identical groups, not one.
+#
+# WEB-M3B-FIX (2026-08-08): re-verified every group below byte-per-byte
+# with sha256sum against a fresh `node tools/check-duplicates.mjs` run,
+# not by trusting the prior version of this file. `packages/staff-identity`
+# was previously misfiled into the 9-member group two lines down: its
+# tsconfig.json/vitest.config.ts are NOT byte-identical to that group
+# (verified, different hash) — they are byte-identical to the
+# attempts/i18n group instead (verified, same hash), so it moves here.
+packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
+packages/attempts/tsconfig.json, packages/i18n/tsconfig.json, packages/staff-identity/tsconfig.json
+packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
+packages/attempts/vitest.config.ts, packages/i18n/vitest.config.ts, packages/staff-identity/vitest.config.ts
+# WEB-M3B-FIX (2026-08-08): the entry that used to be here paired
+# packages/identity/src/repository/types.ts with
+# packages/staff-identity/src/repository/types.ts. Re-verified byte-per-byte
+# (sha256sum + xxd): identity's file ends with a bare LF, while attempts's
+# and staff-identity's both end with CRLF — identity is NOT byte-identical
+# to the other two and was never a real duplicate; it needs no allowlist
+# entry at all (the checker only flags groups of 2+ identical files).
+# attempts and staff-identity ARE byte-identical to each other (both
+# mirror the same Queryable = Pool | PoolClient alias, docs/adr/0003) —
+# that is the real group.
+packages/attempts/src/repository/types.ts, packages/staff-identity/src/repository/types.ts
+# Single-line `/// <reference types="@testing-library/jest-dom/vitest" />`
+# stub (WEB-M3B FVR), needed inside each package's own tsconfig `include`
+# scope — same per-package-boilerplate rationale as the rest of this file.
+apps/dashboard/vitest.d.ts, packages/ui/src/vitest.d.ts
