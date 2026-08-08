@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://questcity.example/schemas/engine-registry.schema.json",
+  "title": "Quest City Engine Registry Entry",
+  "description": "Canonical registry entry for a global reusable learning engine. Supersedes-by-extension schemas/reusable-learning-engine.schema.json (which remains the authority for the single-engine minimal contract referenced here via engineContractRef). Defined by 02_36 section 5.",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "canonicalEngineId",
+    "version",
+    "lifecycleStatus",
+    "capabilities",
+    "semanticActions",
+    "configurationSchemaRef",
+    "validatorRequirements",
+    "accessibilityRequirements",
+    "persistenceRequirements",
+    "scoringEvidenceRequirements",
+    "runtimeAdapters",
+    "publicationRequirements"
+  ],
+  "properties": {
+    "canonicalEngineId": {
+      "type": "string",
+      "pattern": "^ENG-[A-Z0-9-]+$",
+      "description": "Owned by 02_21."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "lifecycleStatus": {
+      "type": "string",
+      "enum": ["DRAFT", "ACTIVE", "DEPRECATED", "RETIRED"],
+      "description": "Distinct from attemptState/completionStatus (02_26 section 18.6) and from support-evaluation outcome (02_36 section 8)."
+    },
+    "engineContractRef": {
+      "type": "string",
+      "const": "schemas/reusable-learning-engine.schema.json",
+      "description": "Reference to the existing single-engine minimal contract."
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "optional"],
+      "properties": {
+        "required": { "type": "array", "items": { "type": "string" } },
+        "optional": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "semanticActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "SELECT_OPTION", "ENTER_VALUE", "PLACE_ITEM", "MOVE_ITEM",
+          "CONNECT_NODES", "ORDER_ITEMS", "REQUEST_HINT", "CONFIRM_SOLUTION",
+          "RESET_STAGE", "PAUSE_ACTIVITY", "RESUME_ACTIVITY"
+        ]
+      }
+    },
+    "templates": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "configurationSchemaRef": { "type": "string", "minLength": 1 },
+    "stateSchemaRef": { "type": "string" },
+    "validatorRequirements": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "accessibilityRequirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "object" }
+    },
+    "persistenceRequirements": {
+      "type": "object"
+    },
+    "scoringEvidenceRequirements": {
+      "type": "object"
+    },
+    "themeAdapterRef": { "type": "string" },
+    "runtimeAdapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["runtimeChannel", "runtimeAdapterId"],
+        "properties": {
+          "runtimeChannel": { "type": "string", "enum": ["WEB", "ROBLOX"] },
+          "runtimeAdapterId": { "type": "string", "minLength": 1 },
+          "minRuntimeVersion": { "type": "string" },
+          "maxTestedRuntimeVersion": { "type": "string" }
+        }
+      }
+    },
+    "publicationRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minLifecycleStatus": { "const": "ACTIVE" },
+        "requiresRealTestsPass": { "const": true }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceDocument": { "type": "string" },
+        "sourceDocumentVersion": { "type": "string" },
+        "registeredAtRegistryVersion": { "type": "string" }
+      }
+    }
+  }
+}

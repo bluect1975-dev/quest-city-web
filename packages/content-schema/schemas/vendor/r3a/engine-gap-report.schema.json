@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://questcity.example/schemas/engine-gap-report.schema.json",
+  "title": "Quest City Engine Gap Report",
+  "description": "Structured record produced when no existing engine/template can support an activity without a substantial pedagogical loss. Blocks publication of the affected activity only (02_36 section 9). Not an error envelope, not an attempt outcome (02_36 section 10).",
+  "schemaVersion": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "activityId",
+    "subject",
+    "pedagogicalObjective",
+    "requiredCapabilities",
+    "evaluatedEngines",
+    "evaluatedTemplates",
+    "incompatibilityReasons",
+    "pedagogicalImpact",
+    "recommendedResolution"
+  ],
+  "properties": {
+    "activityId": { "type": "string", "minLength": 1 },
+    "subject": { "type": "string" },
+    "curriculumRef": { "type": "string" },
+    "moduleRef": { "type": "string" },
+    "unitRef": { "type": "string" },
+    "pedagogicalObjective": { "type": "string", "minLength": 1 },
+    "requiredCapabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "evaluatedEngines": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ENG-[A-Z0-9-]+$" }
+    },
+    "evaluatedTemplates": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "incompatibilityReasons": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "pedagogicalImpact": { "type": "string", "minLength": 1 },
+    "recommendedResolution": {
+      "type": "string",
+      "enum": ["NEW_TEMPLATE", "NEW_ENGINE", "EXTEND_EXISTING_ENGINE", "NO_RESOLUTION_AVAILABLE"]
+    },
+    "proposedEngineId": {
+      "type": "string",
+      "pattern": "^ENG-[A-Z0-9-]+$",
+      "description": "Proposed, not assigned. Assignment happens only through the developer implementation gate (02_36 section 13.3)."
+    },
+    "proposedCapabilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requiredSemanticActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "validatorRequirements": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "accessibilityRequirements": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "inputModes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "persistenceRequirements": { "type": "object" },
+    "scoringRequirements": { "type": "object" },
+    "evidenceRequirements": { "type": "object" },
+    "suggestedTests": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "reportVersion": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" }
+  }
+}

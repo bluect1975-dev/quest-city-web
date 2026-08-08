@@ -291,6 +291,10 @@ importers:
         version: 3.0.4(@types/node@22.10.7)(jsdom@26.0.0)(tsx@4.23.7)
 
   packages/learning-engines:
+    dependencies:
+      '@quest-city-web/content-schema':
+        specifier: workspace:*
+        version: link:../content-schema
     devDependencies:
       eslint:
         specifier: 9.18.0

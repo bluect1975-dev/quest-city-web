@@ -1,0 +1,42 @@
+{
+  "artifactId": "qc-r3a-learning-engine-governance-contracts",
+  "artifactVersion": "1.0.0",
+  "schemaVersion": "json-schema-2020-12",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "945571b4ff5bedf9dcd7b9ca7c160b18e86a4125",
+  "sourcePath": "schemas/",
+  "sourceDocument": "02_36_Quest_City_Global_Learning_Engine_Governance_Registry_Capability_Contract_and_Publication_Gate_Specification_v1_0",
+  "compatibleRuntimes": ["WEB", "ROBLOX"],
+  "syncMethod": "manual-verified-copy",
+  "syncedAt": "2026-08-08",
+  "artifacts": [
+    {
+      "name": "capability-contract.schema.json",
+      "version": "1.0.0",
+      "checksum": "sha256:79ddaaedde09ff1ac0187450bcc2e77759b9bb5ac169a38057876cec55aa66fe"
+    },
+    {
+      "name": "engine-registry.schema.json",
+      "version": "1.0.0",
+      "checksum": "sha256:12e0e2efb0d96f49a35ceadd933deda3c2c8b312072014cfa29b552ceb8b4962"
+    },
+    {
+      "name": "template-contract.schema.json",
+      "version": "1.0.0",
+      "checksum": "sha256:8abbbc049ddb4a3cee21ea71d2b0300b83e1a22e3db2bca4e7d5deab15b3c84f"
+    },
+    {
+      "name": "engine-gap-report.schema.json",
+      "version": "1.0.0",
+      "checksum": "sha256:4a742be7abb6feed26f29eaf53d7dbc506b2d83daae7e4f511cd77fa896a1bec"
+    },
+    {
+      "name": "support-evaluation.schema.json",
+      "version": "1.0.0",
+      "checksum": "sha256:5a4ff1b36e27629b0126d0baebcef55de71a9f8f36f028dc4da54818a9fd9973"
+    }
+  ],
+  "note": "Vendored verbatim (byte-identical, verified SHA-256 per artifact) from quest-city-roblox schemas/*.schema.json at the cited commit, R3A canonical mainline integration. Not forked or modified. capability-contract.schema.json Axis A vocabulary must stay identical to 07_08 owned enum; Axis B mirrors quest-city-web's own packages/content-schema/schemas/capability-profile.schema.json by field-name reference (not filesystem import), consistent with the source document's own §4.1. If a Web runtime need cannot be expressed by these schemas without a semantic change, do not fork locally: raise BLOCKED_CONTRACT_GAP and return the requirement to quest-city-roblox.",
+  "resyncProcedure": "Re-read schemas/*.schema.json from quest-city-roblox main (or its successor), recompute sha256 with `sha256sum`, replace the five files under packages/content-schema/schemas/vendor/r3a/ together with this provenance.json, bump artifactVersion/checksum(s)/syncedAt/sourceCommit, and re-run the content-schema vitest suite before committing."
+}
