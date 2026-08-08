@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { scan } from "./check-i18n-strings.mjs";
+import { scan } from "./check-i18n-strings-core.mjs";
 
 let tempRoot;
 
