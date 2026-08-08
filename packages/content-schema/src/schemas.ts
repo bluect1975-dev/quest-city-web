@@ -9,6 +9,9 @@ import runtimeError from "../schemas/runtime-error.schema.json" with { type: "js
 import bundleEntry from "../schemas/bundle-entry.schema.json" with { type: "json" };
 import outcome from "../schemas/outcome.schema.json" with { type: "json" };
 import validatorFixture from "../schemas/validator-fixture.schema.json" with { type: "json" };
+import balanceMachineConfig from "../schemas/balance-machine-config.schema.json" with { type: "json" };
+import quickQuestionConfig from "../schemas/quick-question-config.schema.json" with { type: "json" };
+import dragDropConfig from "../schemas/drag-drop-config.schema.json" with { type: "json" };
 import r3aCapabilityContract from "../schemas/vendor/r3a/capability-contract.schema.json" with { type: "json" };
 import r3aEngineRegistry from "../schemas/vendor/r3a/engine-registry.schema.json" with { type: "json" };
 import r3aTemplateContract from "../schemas/vendor/r3a/template-contract.schema.json" with { type: "json" };
@@ -30,6 +33,10 @@ import r3aSupportEvaluation from "../schemas/vendor/r3a/support-evaluation.schem
  * `../schemas/vendor/r3a/provenance.json`. Never edited locally; a Web
  * runtime need that these schemas cannot express is a contract gap to
  * raise upstream, not to fork here.
+ *
+ * R3C.1 schemas (`balanceMachineConfig`, `quickQuestionConfig`,
+ * `dragDropConfig`): new, Web-owned configuration schemas for the 3 P0
+ * engines' `configurationSchemaRef` (`packages/learning-engines/src/engines/*`).
  */
 export const schemas = {
   webContentBundleManifest,
@@ -48,6 +55,9 @@ export const schemas = {
   r3aTemplateContract,
   r3aEngineGapReport,
   r3aSupportEvaluation,
+  balanceMachineConfig,
+  quickQuestionConfig,
+  dragDropConfig,
 } as const;
 
 export type SchemaName = keyof typeof schemas;

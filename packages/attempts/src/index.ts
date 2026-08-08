@@ -38,13 +38,7 @@ export {
 } from "./repository/idempotency-record-repository";
 
 export { IdempotencyService } from "./services/idempotency-service";
-export {
-  evaluateBalanceMachine,
-  BALANCE_MACHINE_VALIDATOR_REF,
-  BALANCE_MACHINE_VALIDATOR_VERSION,
-  BALANCE_MACHINE_ITEM_ID,
-  type BalanceMachineEvaluation,
-} from "./services/balance-machine-validator";
+export { resolveEngineDispatch, type ResolvedEngineDispatch } from "./services/engine-dispatch-resolution";
 export {
   checkFinalClientSequence,
   type FinalClientSequenceCheckResult,
