@@ -46,5 +46,23 @@
       "targetsLegend": "Destinazioni",
       "placeButtonFor": "Posiziona {item} in {target}"
     }
+  },
+  "sequence": {
+    "title": "Sequenza didattica",
+    "description": "Superficie minima per eseguire una sequenza multi-stage (R3C.2). Sequenza dimostrativa, non contenuto curriculare M06 reale.",
+    "stageProgress": "Stage {index} di {total}",
+    "stageTypeLabel": "Tipo di stage: {stageType}",
+    "nonInteractiveContinueButton": "Continua",
+    "unresolvedEngineMessage": "Impossibile avviare questo stage: nessun motore disponibile per questa configurazione.",
+    "hintButton": "Richiedi un aiuto",
+    "hintLevelLabel": "Livello aiuto: {level} di {max}",
+    "hintExhaustedLabel": "Hai raggiunto il livello massimo di aiuto disponibile.",
+    "remediationLabel": "Percorso di recupero attivato per questo stage.",
+    "checkpointLabel": "Checkpoint raggiunto.",
+    "retryLabel": "Risposta non corretta: puoi riprovare.",
+    "advanceButton": "Vai allo stage successivo",
+    "completedMessage": "Sequenza completata.",
+    "abandonedMessage": "Sequenza abbandonata.",
+    "attemptsForStageLabel": "Tentativi su questo stage: {count}"
   }
 }

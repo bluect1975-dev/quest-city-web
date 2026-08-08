@@ -17,6 +17,7 @@ import r3aEngineRegistry from "../schemas/vendor/r3a/engine-registry.schema.json
 import r3aTemplateContract from "../schemas/vendor/r3a/template-contract.schema.json" with { type: "json" };
 import r3aEngineGapReport from "../schemas/vendor/r3a/engine-gap-report.schema.json" with { type: "json" };
 import r3aSupportEvaluation from "../schemas/vendor/r3a/support-evaluation.schema.json" with { type: "json" };
+import r3c2StageOrchestrationContract from "../schemas/vendor/r3c2/stage-orchestration-contract.schema.json" with { type: "json" };
 
 /**
  * WEB-M2 schemas (schemaVersion 2.0.0): attemptContext, semanticAction,
@@ -37,6 +38,15 @@ import r3aSupportEvaluation from "../schemas/vendor/r3a/support-evaluation.schem
  * R3C.1 schemas (`balanceMachineConfig`, `quickQuestionConfig`,
  * `dragDropConfig`): new, Web-owned configuration schemas for the 3 P0
  * engines' `configurationSchemaRef` (`packages/learning-engines/src/engines/*`).
+ *
+ * R3C.2 schema (`r3c2StageOrchestrationContract`): vendored verbatim from
+ * quest-city-roblox `schemas/stage-orchestration-contract.schema.json` at
+ * commit `a77c1781...` (R3C.2A+B canonical mainline integration), checksum-
+ * verified — see `../schemas/vendor/r3c2/provenance.json`. Never edited
+ * locally. A `oneOf` of `SequenceDefinition` (authored content) and
+ * `SequenceRuntimeState` (mutable per-run state), discriminated by
+ * `contractType`. The orchestration layer it describes never resolves an
+ * engine itself and never duplicates attemptState/completionStatus.
  */
 export const schemas = {
   webContentBundleManifest,
@@ -55,6 +65,7 @@ export const schemas = {
   r3aTemplateContract,
   r3aEngineGapReport,
   r3aSupportEvaluation,
+  r3c2StageOrchestrationContract,
   balanceMachineConfig,
   quickQuestionConfig,
   dragDropConfig,
