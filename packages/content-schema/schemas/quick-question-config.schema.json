@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/quick-question-config.schema.json",
+  "title": "QuickQuestionConfig",
+  "description": "R3C.1. Configuration for ENG-QUICK / QC-WEB-ENGINE-QUICK-QUESTION (07_10 §7, ratified R3C.0A). mode OPTION_SELECTION (baseline) or ENTER_VALUE (simple numeric answer, NOT QC-WEB-ENGINE-NUMERIC-INPUT).",
+  "type": "object",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "required": ["mode", "options", "correctOptionId"],
+      "properties": {
+        "mode": { "const": "OPTION_SELECTION" },
+        "options": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["optionId"],
+            "properties": { "optionId": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "correctOptionId": { "type": "string", "minLength": 1 }
+      }
+    },
+    {
+      "additionalProperties": false,
+      "required": ["mode", "expectedValue", "tolerance"],
+      "properties": {
+        "mode": { "const": "ENTER_VALUE" },
+        "expectedValue": { "type": "number" },
+        "tolerance": { "type": "number", "minimum": 0 }
+      }
+    }
+  ]
+}

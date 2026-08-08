@@ -170,10 +170,15 @@ export async function POST(
       }
 
       // Real, deterministic outcome computation — AttemptConsolidationService
-      // derives it from `actions` via evaluateBalanceMachine(), the one
-      // real validator this repository implements (docs/adr/0003); the
-      // route never invents or accepts a client-proposed outcome (07_08 §8).
-      const result = await consolidation.consolidate({ attemptId, tenantId: identity.tenantId, actions });
+      // resolves the engine for `attempt.contentId` via the Engine Runtime
+      // Registry (R3C.1) and replays `actions` through it; the route never
+      // invents or accepts a client-proposed outcome (07_08 §8).
+      const result = await consolidation.consolidate({
+        attemptId,
+        tenantId: identity.tenantId,
+        contentId: attempt.contentId,
+        actions,
+      });
 
       const response = { attemptId, completionStatus: result.completionStatus, outcome: result.outcome };
       await idempotency.complete({

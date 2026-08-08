@@ -10,7 +10,17 @@ import {
   AttemptConsolidationService,
   CrossRuntimeReconciliationService,
 } from "@quest-city-web/attempts";
+import { createDefaultEngineRuntimeRegistry, type EngineRuntimeRegistry } from "@quest-city-web/learning-engines";
 import { loadEnv } from "./env";
+
+let engineRuntimeRegistry: EngineRuntimeRegistry | undefined;
+
+function getEngineRuntimeRegistry(): EngineRuntimeRegistry {
+  if (!engineRuntimeRegistry) {
+    engineRuntimeRegistry = createDefaultEngineRuntimeRegistry();
+  }
+  return engineRuntimeRegistry;
+}
 
 /**
  * Separate connection pool from `lib/db.ts` (health probe) and
@@ -57,7 +67,11 @@ export function getIdempotencyService(): IdempotencyService {
 }
 
 export function getAttemptConsolidationService(): AttemptConsolidationService {
-  return new AttemptConsolidationService(getLearningAttemptRepository(), getAttemptResponseRepository());
+  return new AttemptConsolidationService(
+    getLearningAttemptRepository(),
+    getAttemptResponseRepository(),
+    getEngineRuntimeRegistry(),
+  );
 }
 
 export function getCrossRuntimeReconciliationService(): CrossRuntimeReconciliationService {

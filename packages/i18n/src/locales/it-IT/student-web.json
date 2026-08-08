@@ -8,5 +8,43 @@
     "underConstructionBefore": "L'Esperienza Web Studente è in costruzione. Questo placeholder conferma che la rotta",
     "underConstructionAfter": "è attiva end-to-end (reverse proxy → app student-web).",
     "continueButton": "Continua (a breve)"
+  },
+  "engines": {
+    "index": {
+      "title": "Motori didattici disponibili",
+      "description": "Superficie minima per ospitare e testare i motori P0 (R3C.1). Le configurazioni mostrate sono esempi dimostrativi, non contenuto curriculare reale.",
+      "openButton": "Apri"
+    },
+    "common": {
+      "backLink": "Torna all'elenco",
+      "resetButton": "Ricomincia",
+      "confirmButton": "Conferma soluzione",
+      "keyboardHint": "Ogni azione è utilizzabile anche solo con la tastiera: seleziona un elemento, poi seleziona la destinazione.",
+      "resultCorrect": "Corretto",
+      "resultIncorrect": "Da rivedere",
+      "resultPending": "Non ancora confermato"
+    },
+    "balance": {
+      "name": "Bilancia (Balance Machine)",
+      "description": "Posiziona i pesi sui due piatti della bilancia in modo che siano in equilibrio.",
+      "leftSide": "Piatto sinistro",
+      "rightSide": "Piatto destro",
+      "tokenLabel": "Peso {weight}",
+      "placeLeftButton": "Posiziona a sinistra",
+      "placeRightButton": "Posiziona a destra"
+    },
+    "quick": {
+      "name": "Domanda rapida (Quick Question)",
+      "description": "Rispondi scegliendo un'opzione oppure inserendo un valore numerico.",
+      "optionsLegend": "Scegli una risposta",
+      "valueInputLabel": "Inserisci un valore numerico"
+    },
+    "drag": {
+      "name": "Trascina e rilascia (Drag and Drop)",
+      "description": "Associa ogni elemento alla destinazione corretta.",
+      "itemsLegend": "Elementi",
+      "targetsLegend": "Destinazioni",
+      "placeButtonFor": "Posiziona {item} in {target}"
+    }
   }
 }

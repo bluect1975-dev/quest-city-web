@@ -11,12 +11,15 @@ import {
   AttemptConsolidationService,
   CrossRuntimeReconciliationService,
   RuntimeCapabilityResolver,
-  BALANCE_MACHINE_VALIDATOR_VERSION,
   checkFinalClientSequence,
   CrossRuntimeError,
 } from "@quest-city-web/attempts";
+import { createDefaultEngineRuntimeRegistry } from "@quest-city-web/learning-engines";
 import { CrossRuntimeReconciliationFixtureDriver } from "@quest-city-web/test-fixtures/fixture-driver";
 import { resolvePresentationLocale } from "@quest-city-web/i18n";
+
+/** The one real content/engine mapping known to `resolveEngineDispatch` today (R3C.1). */
+const BALANCE_FIXTURE_CONTENT_ID = "fixture-balance-machine";
 
 /**
  * WEB-M2B integration tests against a real, dockerized PostgreSQL instance
@@ -193,8 +196,13 @@ describe("attempt lifecycle (07_15_01 v1.1 §11-bis)", () => {
     const actions = await semanticActions.findByAttempt(created.id, fx.tenantId);
 
     const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
-    const result = await consolidation.consolidate({ attemptId: created.id, tenantId: fx.tenantId, actions });
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
+    const result = await consolidation.consolidate({
+      attemptId: created.id,
+      tenantId: fx.tenantId,
+      contentId: BALANCE_FIXTURE_CONTENT_ID,
+      actions,
+    });
     expect(result.completionStatus).toBe("CONSOLIDATED");
     expect(result.outcome?.["score"]).toBe(1);
 
@@ -278,8 +286,13 @@ describe("AttemptConsolidationService — real, deterministic outcome computatio
     const actions = await semanticActions.findByAttempt(attemptId, fx.tenantId);
 
     const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
-    const result = await consolidation.consolidate({ attemptId, tenantId: fx.tenantId, actions });
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
+    const result = await consolidation.consolidate({
+      attemptId,
+      tenantId: fx.tenantId,
+      contentId: BALANCE_FIXTURE_CONTENT_ID,
+      actions,
+    });
 
     expect(result.completionStatus).toBe("CONSOLIDATED");
     expect(result.outcome?.["score"]).toBe(1);
@@ -289,19 +302,27 @@ describe("AttemptConsolidationService — real, deterministic outcome computatio
     const responses = await attemptResponses.findByAttempt(attemptId, fx.tenantId);
     expect(responses).toHaveLength(1);
     expect(responses[0]?.correctness).toBe("CORRECT");
-    expect(responses[0]?.validatorVersion).toBe(BALANCE_MACHINE_VALIDATOR_VERSION);
+    // "<runtimeAdapterId>@<engineVersion>" — the <id>@<version> reference
+    // convention (established R3C.0A) applied to validator_version.
+    expect(responses[0]?.validatorVersion).toBe("QC-WEB-ENGINE-BALANCE-MACHINE@1.0.0");
   });
 
   it("valid input, incorrect result: unbalanced weights -> score 0, INCORRECT recorded", async () => {
     const { fx, attempts, attemptId } = await createSubmittedAttempt("balance-incorrect");
     const semanticActions = new SemanticActionLogRepository(pool);
+    // Both known fixture tokens (w5, w5b — weight 5 each per
+    // engine-dispatch-resolution.ts's config) placed on the SAME side:
+    // 10 vs 0, unbalanced. The engine's config declares token weight
+    // server-side now (R3C.1) — a client can no longer self-report an
+    // arbitrary weight via payload, so this test exercises imbalance via
+    // placement rather than via a client-declared weight value.
     await semanticActions.insert({
       tenantId: fx.tenantId,
       attemptId,
-      actionId: "act-left-7",
+      actionId: "act-left-5",
       actionType: "PLACE_ITEM",
       targetRole: "weight-token",
-      payload: { tokenId: "w7", side: "left", weight: 7 },
+      payload: { tokenId: "w5", side: "left" },
       clientSequence: 0,
       runtimeChannel: "WEB",
       occurredAt: new Date(),
@@ -309,10 +330,10 @@ describe("AttemptConsolidationService — real, deterministic outcome computatio
     await semanticActions.insert({
       tenantId: fx.tenantId,
       attemptId,
-      actionId: "act-right-3",
+      actionId: "act-left-5b",
       actionType: "PLACE_ITEM",
       targetRole: "weight-token",
-      payload: { tokenId: "w3", side: "right", weight: 3 },
+      payload: { tokenId: "w5b", side: "left" },
       clientSequence: 1,
       runtimeChannel: "WEB",
       occurredAt: new Date(),
@@ -331,12 +352,38 @@ describe("AttemptConsolidationService — real, deterministic outcome computatio
     const actions = await semanticActions.findByAttempt(attemptId, fx.tenantId);
 
     const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
-    const result = await consolidation.consolidate({ attemptId, tenantId: fx.tenantId, actions });
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
+    const result = await consolidation.consolidate({
+      attemptId,
+      tenantId: fx.tenantId,
+      contentId: BALANCE_FIXTURE_CONTENT_ID,
+      actions,
+    });
 
     expect(result.outcome?.["score"]).toBe(0);
     const responses = await attemptResponses.findByAttempt(attemptId, fx.tenantId);
     expect(responses[0]?.correctness).toBe("INCORRECT");
+  });
+
+  it("unknown content/engine dispatch: an attempt whose contentId has no resolvable engine falls back to a schema-valid, score-less outcome (§41)", async () => {
+    const { fx, attempts, attemptId } = await createSubmittedAttempt("balance-unknown-adapter");
+    const semanticActions = new SemanticActionLogRepository(pool);
+    await placeBalancedBalanceMachineActions(semanticActions, fx.tenantId, attemptId);
+    const actions = await semanticActions.findByAttempt(attemptId, fx.tenantId);
+
+    const attemptResponses = new AttemptResponseRepository(pool);
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
+    const result = await consolidation.consolidate({
+      attemptId,
+      tenantId: fx.tenantId,
+      contentId: "some-content-with-no-known-engine-mapping",
+      actions,
+    });
+
+    expect(result.completionStatus).toBe("CONSOLIDATED");
+    expect(result.outcome).not.toHaveProperty("score");
+    const responses = await attemptResponses.findByAttempt(attemptId, fx.tenantId);
+    expect(responses).toHaveLength(0);
   });
 
   it("invalid/malformed input: an unrecognized action shape falls back to a schema-valid, score-less outcome (never fabricated)", async () => {
@@ -369,8 +416,13 @@ describe("AttemptConsolidationService — real, deterministic outcome computatio
     const actions = await semanticActions.findByAttempt(attemptId, fx.tenantId);
 
     const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
-    const result = await consolidation.consolidate({ attemptId, tenantId: fx.tenantId, actions });
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
+    const result = await consolidation.consolidate({
+      attemptId,
+      tenantId: fx.tenantId,
+      contentId: BALANCE_FIXTURE_CONTENT_ID,
+      actions,
+    });
 
     expect(result.completionStatus).toBe("CONSOLIDATED");
     expect(result.outcome?.["completionStatus"]).toBe("CONSOLIDATED");
@@ -386,10 +438,10 @@ describe("AttemptConsolidationService — real, deterministic outcome computatio
     const actions = await semanticActions.findByAttempt(attemptId, fx.tenantId);
 
     const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
     const [first, second] = await Promise.all([
-      consolidation.consolidate({ attemptId, tenantId: fx.tenantId, actions }),
-      consolidation.consolidate({ attemptId, tenantId: fx.tenantId, actions }),
+      consolidation.consolidate({ attemptId, tenantId: fx.tenantId, contentId: BALANCE_FIXTURE_CONTENT_ID, actions }),
+      consolidation.consolidate({ attemptId, tenantId: fx.tenantId, contentId: BALANCE_FIXTURE_CONTENT_ID, actions }),
     ]);
     const statuses = [first.completionStatus, second.completionStatus].sort();
     expect(statuses).toEqual(["CONSOLIDATED", "DUPLICATE"]);
@@ -495,8 +547,13 @@ describe("finalClientSequence guard (POST /attempts/{id}/complete, 02_26 v1.6 §
 
     await attempts.transitionToCompletionSubmitted(created.id, fx.tenantId, "ACCEPTED_NOT_CONSOLIDATED");
     const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
-    const result = await consolidation.consolidate({ attemptId: created.id, tenantId: fx.tenantId, actions });
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
+    const result = await consolidation.consolidate({
+      attemptId: created.id,
+      tenantId: fx.tenantId,
+      contentId: BALANCE_FIXTURE_CONTENT_ID,
+      actions,
+    });
 
     expect(result.completionStatus).toBe("CONSOLIDATED");
     const final = await attempts.findByIdAndTenant(created.id, fx.tenantId);
@@ -969,7 +1026,7 @@ describe("presentationLocale resolution against a real tenant row (WEB-I18N-FOUN
     const attempts = new LearningAttemptRepository(pool);
     const semanticActions = new SemanticActionLogRepository(pool);
     const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses);
+    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
 
     async function runToConsolidated(fx: Fixture, creationKey: string) {
       const created = await attempts.create({
@@ -990,7 +1047,12 @@ describe("presentationLocale resolution against a real tenant row (WEB-I18N-FOUN
       const actions = await semanticActions.findByAttempt(created.id, fx.tenantId);
       // consolidate() takes no locale input whatsoever -- this is the
       // structural guarantee, not merely an observed coincidence.
-      return consolidation.consolidate({ attemptId: created.id, tenantId: fx.tenantId, actions });
+      return consolidation.consolidate({
+        attemptId: created.id,
+        tenantId: fx.tenantId,
+        contentId: BALANCE_FIXTURE_CONTENT_ID,
+        actions,
+      });
     }
 
     const resultA = await runToConsolidated(fx, "locale-independence-a");

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.questcity.dev/web/balance-machine-config.schema.json",
+  "title": "BalanceMachineConfig",
+  "description": "R3C.1. Configuration for ENG-BALANCE / QC-WEB-ENGINE-BALANCE-MACHINE (07_10 §13, ratified R3C.0A). Weight is declared here (content-owned), never trusted from a client-submitted semantic action payload.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tokens"],
+  "properties": {
+    "tokens": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tokenId", "weight"],
+        "properties": {
+          "tokenId": { "type": "string", "minLength": 1 },
+          "weight": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    }
+  }
+}

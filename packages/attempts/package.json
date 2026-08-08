@@ -14,6 +14,7 @@
   "dependencies": {
     "@quest-city-web/content-runtime": "workspace:*",
     "@quest-city-web/content-schema": "workspace:*",
+    "@quest-city-web/learning-engines": "workspace:*",
     "pg": "8.13.1"
   },
   "devDependencies": {
