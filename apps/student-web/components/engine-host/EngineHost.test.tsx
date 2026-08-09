@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { EngineSemanticAction } from "@quest-city-web/learning-engines";
 import { EngineHost } from "./EngineHost";
-import { WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG, WEB_M4_BALANCE_MACHINE_SOLUTION } from "@quest-city-web/content-runtime";
+import {
+  WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG,
+  WEB_M4_BALANCE_MACHINE_SOLUTION,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
+} from "@quest-city-web/content-runtime";
 
 /**
  * WEB-M4 (07_25 v1.0 §7-E): `config` override lets `EngineHost` run
@@ -47,5 +52,36 @@ describe("EngineHost — WEB-M4 config override + onAction", () => {
     // Real, deterministic correctness: the WEB-M4 solution constants (15 =
     // 11 + 4, 03_14 §12 VS-A) actually balance through the real engine.
     expect(onEvaluated).toHaveBeenCalledWith(expect.objectContaining({ evaluated: true, correctness: "CORRECT" }));
+  });
+});
+
+/**
+ * M06 Web Full Vertical Slice Tranche 2 (`07_26 v1.0` §13): `initialActions`
+ * rehydrates `state` via `replayActions()` at mount instead of a bare
+ * `initState()` — proves a reload mid-`QUICK_QUESTION_SET` resumes at the
+ * correct item instead of silently resetting to the first one.
+ */
+describe("EngineHost — initialActions resume (Tranche 2, QUICK_QUESTION_SET)", () => {
+  it("with no initialActions, mounts fresh at the first item (unchanged default behaviour)", () => {
+    render(<EngineHost runtimeAdapterId="QC-WEB-ENGINE-QUICK-QUESTION" config={WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG} />);
+    expect(screen.getByText("Domanda 1 di 6")).toBeInTheDocument();
+  });
+
+  it("with prior actions for the first two items, mounts already resumed at the third item — no silent reset", () => {
+    const priorActions: EngineSemanticAction[] = [
+      { actionType: "SELECT_OPTION", targetRole: "option", payload: { optionId: "B" } },
+      { actionType: "CONFIRM_SOLUTION", targetRole: "confirm-button", payload: {} },
+      { actionType: "SELECT_OPTION", targetRole: "option", payload: { optionId: "D" } },
+      { actionType: "CONFIRM_SOLUTION", targetRole: "confirm-button", payload: {} },
+    ];
+    render(
+      <EngineHost
+        runtimeAdapterId="QC-WEB-ENGINE-QUICK-QUESTION"
+        config={WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG}
+        initialActions={priorActions}
+      />,
+    );
+    expect(screen.getByText("Domanda 3 di 6")).toBeInTheDocument();
+    expect(screen.queryByText("Domanda 1 di 6")).not.toBeInTheDocument();
   });
 });

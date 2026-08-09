@@ -36,6 +36,8 @@ export interface SequenceHostProps {
   stageConfigs?: Record<string, unknown>;
   /** WEB-M4: mirrors every locally-accepted semantic action for the current stage's `EngineHost`, e.g. to log it against a real attempt. */
   onAction?: (action: EngineSemanticAction) => void;
+  /** M06 Web Full Vertical Slice Tranche 2 (`07_26 v1.0` §13): forwarded verbatim to `EngineHost` so it can rehydrate mid-stage progress (e.g. `QUICK_QUESTION_SET`'s item index) from the current attempt's own action log after a reload. */
+  initialActions?: EngineSemanticAction[];
   /** WEB-M4: invoked exactly once, the first time `isSequenceComplete(state)` becomes true — e.g. to submit `POST /attempts/{id}/complete`. */
   onComplete?: () => void;
   /**
@@ -82,6 +84,7 @@ export function SequenceHost({
   descriptionKey = "sequence.description",
   stagePrompts,
   recapStageId,
+  initialActions,
 }: SequenceHostProps) {
   const runtimeRegistry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const [state, setState] = useState<SequenceRuntimeState | null>(null);
@@ -265,6 +268,7 @@ export function SequenceHost({
             config={stageConfigs?.[stage.stageId]}
             onEvaluated={handleEvaluated}
             {...(onAction ? { onAction } : {})}
+            {...(initialActions ? { initialActions } : {})}
           />
 
           {stageState && (

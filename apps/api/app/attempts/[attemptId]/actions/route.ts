@@ -10,6 +10,63 @@ import { loadEnv } from "../../../../lib/env";
 import type { ErrorEnvelope } from "@quest-city-web/attempts";
 
 /**
+ * `GET /attempts/{attemptId}/actions` (M06 Web Full Vertical Slice
+ * Tranche 2, `07_26 v1.0` §13). Student-scoped read of an attempt's own
+ * semantic action log, ordered by `clientSequence` — lets the client
+ * rehydrate `EngineHost`'s in-memory engine state via `replayActions()`
+ * after a reload instead of silently resetting to `initState()` (the
+ * QUICK_QUESTION_SET durable-resume requirement: "nessun reset
+ * silenzioso"). Session-cookie auth only (read-only, no CSRF — same
+ * pattern as `GET /attempts/{attemptId}`); ownership enforced by
+ * `attempt.studentProfileId === identity.studentProfileId`.
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ attemptId: string }> },
+): Promise<NextResponse> {
+  const correlationId = request.headers.get("x-correlation-id");
+  try {
+    const { attemptId } = await params;
+    const env = loadEnv();
+    const sessionToken = readSessionToken(request, env);
+    if (!sessionToken) {
+      throw new IdentityError("SESSION_EXPIRED");
+    }
+
+    const identity = await getSessionService().resolveInternalIdentity(sessionToken);
+    const attempts = getLearningAttemptRepository();
+    const actionLog = getSemanticActionLogRepository();
+
+    const attempt = await attempts.findByIdAndTenant(attemptId, identity.tenantId);
+    if (!attempt || attempt.studentProfileId !== identity.studentProfileId) {
+      return NextResponse.json(
+        { domain: "PLATFORM", code: "RESOURCE_NOT_FOUND", httpStatus: 404, message: "Attempt not found", correlationId: correlationId ?? "", retryable: false } satisfies ErrorEnvelope,
+        { status: 404 },
+      );
+    }
+
+    const actions = await actionLog.findByAttempt(attemptId, identity.tenantId);
+
+    return NextResponse.json(
+      {
+        data: {
+          actions: actions.map((action) => ({
+            actionType: action.actionType,
+            targetRole: action.targetRole,
+            payload: action.payload,
+            clientSequence: action.clientSequence,
+          })),
+        },
+        meta: { request_id: correlationId ?? undefined, api_version: "v1" },
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    return attemptErrorResponse(error, correlationId);
+  }
+}
+
+/**
  * `POST /attempts/{attemptId}/actions` (02_26 v1.6 §18.3). Dedup by
  * (attemptId, actionId) and (attemptId, clientSequence) — no
  * Idempotency-Key header on this endpoint (AGENTS.md v4.30, one
