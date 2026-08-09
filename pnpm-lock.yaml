@@ -130,6 +130,9 @@ importers:
 
   apps/student-web:
     dependencies:
+      '@quest-city-web/content-runtime':
+        specifier: workspace:*
+        version: link:../../packages/content-runtime
       '@quest-city-web/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -235,6 +238,9 @@ importers:
       '@quest-city-web/content-schema':
         specifier: workspace:*
         version: link:../content-schema
+      '@quest-city-web/learning-engines':
+        specifier: workspace:*
+        version: link:../learning-engines
     devDependencies:
       '@quest-city-web/test-fixtures':
         specifier: workspace:*

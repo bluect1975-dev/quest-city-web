@@ -61,6 +61,7 @@ export {
   type ReconciliationResolution,
   type EvaluateResult,
 } from "./services/cross-runtime-reconciliation-service";
+export { recordStageAttempt } from "./services/sequence-stage-attempt-integration";
 
 export {
   CrossRuntimeError,

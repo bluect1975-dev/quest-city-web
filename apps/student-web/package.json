@@ -2,7 +2,7 @@
   "name": "@quest-city-web/student-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Quest City Web Student Experience. WEB-M0 scope: accessible placeholder shell at /w. R3C.1 adds a minimal Engine Host under /w/engine for the 3 P0 Learning Engines (demonstration configuration only, no real M06 curriculum content) — no auth (07_16: none required at bootstrap).",
+  "description": "Quest City Web Student Experience. WEB-M0 scope: accessible placeholder shell at /w. R3C.1 adds a minimal Engine Host under /w/engine for the 3 P0 Learning Engines (demonstration configuration only, no real M06 curriculum content) — no auth (07_16: none required at bootstrap). R3C.2 adds a minimal Sequence Host under /w/sequence driving a demonstration multi-stage sequence through the Stage/Session Orchestrator.",
   "type": "module",
   "scripts": {
     "dev": "next dev --port ${STUDENT_WEB_PORT:-3000}",
@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@quest-city-web/content-runtime": "workspace:*",
     "@quest-city-web/i18n": "workspace:*",
     "@quest-city-web/learning-engines": "workspace:*",
     "@quest-city-web/theme-system": "workspace:*",

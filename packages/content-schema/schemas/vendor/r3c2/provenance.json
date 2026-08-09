@@ -1,0 +1,22 @@
+{
+  "artifactId": "qc-r3c2-stage-orchestration-contract",
+  "artifactVersion": "1.0.0",
+  "schemaVersion": "json-schema-2020-12",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "a77c1781184202d83eb65bfc19b7543f70fd6f9d",
+  "sourcePath": "schemas/",
+  "sourceDocument": "02_36_..._v1_3 section 20-bis (R3C.2A) / section 11-bis (R3C.2B)",
+  "compatibleRuntimes": ["WEB", "ROBLOX"],
+  "syncMethod": "manual-verified-copy",
+  "syncedAt": "2026-08-08",
+  "artifacts": [
+    {
+      "name": "stage-orchestration-contract.schema.json",
+      "version": "1.0.0",
+      "checksum": "sha256:c447e9ce671314b09cdf4d88fbc7a50588236dc075b2b1962e4734e89d3d568a"
+    }
+  ],
+  "note": "Vendored verbatim (byte-identical, verified SHA-256) from quest-city-roblox schemas/stage-orchestration-contract.schema.json at the cited commit, R3C.2A+B canonical mainline integration. Not forked or modified. Formalizes the GUIDED_PRACTICE_IS_ORCHESTRATION_LAYER decision (R3C.2A, 02_36 section 20-bis): GuidedPracticeEngine/MultiStageQuestEngine are ORCHESTRATION_LAYER_CANDIDATE, not ENGINE. The orchestration layer this schema describes never owns validator logic and never resolves an engine itself -- engine dispatch always delegates to the existing Engine Registry / Support Evaluator via EngineDispatchRef.resolutionMode (RUNTIME_ADAPTER_ID or SUPPORT_EVALUATOR). SequenceRuntimeState never duplicates attemptState/completionStatus (02_26 section 18.6); AttemptReference is a pure stageId+attemptId pointer. If a Web runtime need cannot be expressed by this schema without a semantic change, do not fork locally: raise BLOCKED_CONTRACT_GAP and return the requirement to quest-city-roblox.",
+  "resyncProcedure": "Re-read schemas/stage-orchestration-contract.schema.json from quest-city-roblox main (or its successor), recompute sha256 with `sha256sum`, replace the file under packages/content-schema/schemas/vendor/r3c2/ together with this provenance.json, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run the content-schema vitest suite before committing."
+}

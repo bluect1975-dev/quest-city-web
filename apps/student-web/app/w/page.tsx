@@ -40,6 +40,12 @@ export default function StudentWebHomePage() {
           ))}
         </ul>
       </section>
+
+      <section>
+        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.title")}</h2>
+        <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.description")}</p>
+        <Link href="/w/sequence">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.openButton")}</Link>
+      </section>
     </main>
   );
 }

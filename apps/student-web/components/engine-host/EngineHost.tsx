@@ -10,6 +10,7 @@ import {
   type BalanceMachineState,
   type DragDropConfig,
   type DragDropState,
+  type EngineEvaluationResult,
   type EngineSemanticAction,
   type QuickQuestionConfig,
   type QuickQuestionState,
@@ -37,6 +38,14 @@ const DEMO_CONFIGS: Record<string, unknown> = {
 
 export interface EngineHostProps {
   runtimeAdapterId: string;
+  /**
+   * R3C.2: invoked with the real `engine.evaluate()` result right after a
+   * confirmed evaluation, in addition to the host's own local result
+   * badge. Lets `SequenceHost` apply the current stage's `ProgressionRule`
+   * without this component knowing anything about sequences — the
+   * orchestrator never reaches into `EngineHost`'s internal state.
+   */
+  onEvaluated?: (result: EngineEvaluationResult) => void;
 }
 
 /**
@@ -48,7 +57,7 @@ export interface EngineHostProps {
  * for this phase, see §43). One host, one dispatch path, one result
  * renderer shared by all 3 engines rather than per-engine host logic.
  */
-export function EngineHost({ runtimeAdapterId }: EngineHostProps) {
+export function EngineHost({ runtimeAdapterId, onEvaluated }: EngineHostProps) {
   const registry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const engine = registry.getByRuntimeAdapterId(runtimeAdapterId);
   const demoConfig = DEMO_CONFIGS[runtimeAdapterId];
@@ -61,17 +70,26 @@ export function EngineHost({ runtimeAdapterId }: EngineHostProps) {
     );
   }
 
-  return <ResolvedEngineHost engine={engine} demoConfig={demoConfig} nameKey={ENGINE_NAME_KEYS[runtimeAdapterId] ?? "engines.index.title"} />;
+  return (
+    <ResolvedEngineHost
+      engine={engine}
+      demoConfig={demoConfig}
+      nameKey={ENGINE_NAME_KEYS[runtimeAdapterId] ?? "engines.index.title"}
+      {...(onEvaluated ? { onEvaluated } : {})}
+    />
+  );
 }
 
 function ResolvedEngineHost({
   engine,
   demoConfig,
   nameKey,
+  onEvaluated,
 }: {
   engine: NonNullable<ReturnType<ReturnType<typeof createDefaultEngineRuntimeRegistry>["getByRuntimeAdapterId"]>>;
   demoConfig: unknown;
   nameKey: string;
+  onEvaluated?: (result: EngineEvaluationResult) => void;
 }) {
   const configValidation = useMemo(() => engine.validateConfig(demoConfig), [engine, demoConfig]);
   const validConfig = configValidation.valid ? configValidation.config : undefined;
@@ -112,7 +130,9 @@ function ResolvedEngineHost({
     });
     if (outcome.accepted) {
       setState(outcome.state);
-      setResult(engine.evaluate(outcome.state, validConfig));
+      const evalResult = engine.evaluate(outcome.state, validConfig);
+      setResult(evalResult);
+      onEvaluated?.(evalResult);
     }
   }
 
