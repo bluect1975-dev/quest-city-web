@@ -63,6 +63,38 @@ wait_for_api_health() {
   done
 }
 
+# WEB-INFRA-HEALTH-02: student-web/dashboard now carry their own Docker
+# healthcheck (docker-compose.yml) and nginx itself only starts once both
+# report healthy, but this script talks to them exclusively through nginx
+# (HEALTH_BASE_URL) -- explicitly waiting here as well means a genuinely
+# deterministic gate for the integration test step itself, independent of
+# how nginx's own startup ordering behaves on a given Docker/Compose
+# version, with the same bounded-retry shape as wait_for_api_health (no
+# infinite retry, real exit code propagated to run_step).
+wait_for_student_web_health() {
+  local attempt=0
+  until curl -fsS "${HEALTH_BASE_URL}/w" >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 30 ]; then
+      echo "student-web did not become ready in time."
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+wait_for_dashboard_health() {
+  local attempt=0
+  until curl -fsS "${HEALTH_BASE_URL}/dashboard" >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 30 ]; then
+      echo "dashboard did not become ready in time."
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 if [ "$WITH_INTEGRATION" = true ]; then
   # Mirrors .github/workflows/ci.yml's `integration` job exactly, so this
   # is a genuine local reproduction of CI, not an approximation: an
@@ -83,6 +115,8 @@ if [ "$WITH_INTEGRATION" = true ]; then
   run_step "Wait for Postgres health" wait_for_postgres_health
   run_step "Apply database migrations (0001-0004)" pnpm --filter @quest-city-web/tools run migrate
   run_step "Wait for API health" wait_for_api_health
+  run_step "Wait for student-web health" wait_for_student_web_health
+  run_step "Wait for dashboard health" wait_for_dashboard_health
   run_step "Integration tests (health-endpoints, identity-flow, identity-security, attempt-lifecycle, staff-auth-flow, staff-review-feedback-flow)" pnpm run test:integration
   if [ "$FAILED" -ne 0 ]; then
     echo "==> Dumping container logs (a step above failed)"
