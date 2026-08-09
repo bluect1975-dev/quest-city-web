@@ -22,6 +22,12 @@ import {
   WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
   WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION,
   WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID,
+  WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE3_MICRO_LESSON_STAGE_PROMPTS,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_ACTIVITY_ID,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID,
   type SequenceDefinition,
 } from "@quest-city-web/content-runtime";
 import { SequenceHost } from "../../../../components/engine-host/SequenceHost";
@@ -108,6 +114,15 @@ const ACTIVITY_REGISTRY: Record<string, ActivityRegistryEntry> = {
     runtimeStatePrefix: "web-tranche2-runtime",
     titleKey: "quickQuestionSet.sequenceTitle",
     descriptionKey: "quickQuestionSet.sequenceDescription",
+  },
+  [WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID]: {
+    definition: WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION,
+    stageConfigs: { [WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID]: WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG },
+    activityId: WEB_TRANCHE3_PREREQUISITE_CHECK_ACTIVITY_ID,
+    runtimeStatePrefix: "web-tranche3-runtime",
+    titleKey: "prerequisiteCheckMicroLesson.sequenceTitle",
+    descriptionKey: "prerequisiteCheckMicroLesson.sequenceDescription",
+    stagePrompts: WEB_TRANCHE3_MICRO_LESSON_STAGE_PROMPTS,
   },
 };
 

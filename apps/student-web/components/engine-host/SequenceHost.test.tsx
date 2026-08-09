@@ -8,6 +8,10 @@ import {
   WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
   WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION,
   WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID,
+  WEB_TRANCHE3_MICRO_LESSON_STAGE_PROMPTS,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID,
 } from "@quest-city-web/content-runtime";
 
 /**
@@ -150,5 +154,82 @@ describe("SequenceHost — Tranche 2 Quick Question Set (real 6-item ITEM_SET, n
 
     expect(await screen.findByText("Sequenza completata.")).toBeInTheDocument();
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * M06 Web Full Vertical Slice Tranche 3 (`07_26 v1.0` §5/§13): real
+ * `PREREQUISITE_CHECK` (2-item `ITEM_SET`, reusing Tranche 2's engine
+ * extension) followed by 7 non-interactive `MICRO_LESSON` sub-stages —
+ * exercises the `stagePrompts` rendering extended to non-interactive
+ * stages (this tranche's own addition to `SequenceHost`) and the full
+ * step-reveal "Continua" progression through to sequence completion.
+ */
+const TR3_STAGE_CONFIGS = { [WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID]: WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG };
+
+describe("SequenceHost — Tranche 3 Prerequisite Check + Micro Lesson (real 2-item ITEM_SET + 7-step non-interactive reveal)", () => {
+  it("renders PREREQUISITE_CHECK's two items, then reveals every MICRO_LESSON step's real stagePrompts text via the non-interactive continue button, completing the sequence", async () => {
+    const onComplete = vi.fn();
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche3-runtime"
+        stageConfigs={TR3_STAGE_CONFIGS}
+        stagePrompts={WEB_TRANCHE3_MICRO_LESSON_STAGE_PROMPTS}
+        titleKey="prerequisiteCheckMicroLesson.sequenceTitle"
+        descriptionKey="prerequisiteCheckMicroLesson.sequenceDescription"
+        onComplete={onComplete}
+      />,
+    );
+
+    // PREREQUISITE_CHECK — I001 then I002, both correct.
+    expect(await screen.findByText("Domanda 1 di 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "x + 4 = 9" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+
+    await screen.findByText("Domanda 2 di 2");
+    fireEvent.click(screen.getByRole("button", { name: "4x + 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+
+    // MICRO_LESSON: equilibrium explanation, then the six worked-example steps, in order.
+    expect(await screen.findByText("Spiegazione visuale")).toBeInTheDocument();
+    expect(screen.getByText(/Bilancia visuale con x \+ 3/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+
+    const steps = ["2x + 3 = 11", "2x + 3 - 3 = 11 - 3", "2x = 8", "2x / 2 = 8 / 2", "x = 4", "Verifica: 2(4) + 3 = 11 → 8 + 3 = 11"];
+    for (const [index, stepText] of steps.entries()) {
+      await screen.findByText(stepText);
+      expect(screen.getByText("Esempio guidato")).toBeInTheDocument();
+      if (index < steps.length - 1) {
+        fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+      }
+    }
+
+    expect(onComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+    expect(await screen.findByText("Sequenza completata.")).toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not skip ahead: after PREREQUISITE_CHECK, only the equilibrium step is visible, not any worked-example step", async () => {
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche3-runtime-2"
+        stageConfigs={TR3_STAGE_CONFIGS}
+        stagePrompts={WEB_TRANCHE3_MICRO_LESSON_STAGE_PROMPTS}
+        titleKey="prerequisiteCheckMicroLesson.sequenceTitle"
+        descriptionKey="prerequisiteCheckMicroLesson.sequenceDescription"
+      />,
+    );
+    await screen.findByText("Domanda 1 di 2");
+    fireEvent.click(screen.getByRole("button", { name: "x + 4 = 9" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+    await screen.findByText("Domanda 2 di 2");
+    fireEvent.click(screen.getByRole("button", { name: "4x + 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+
+    expect(await screen.findByText("Spiegazione visuale")).toBeInTheDocument();
+    expect(screen.queryByText("2x + 3 = 11")).not.toBeInTheDocument();
   });
 });

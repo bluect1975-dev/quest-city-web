@@ -21,11 +21,13 @@ vi.mock("../../../lib/student-auth-context", () => ({
 const getWebM4Activity = vi.fn();
 const getWebTranche1Activity = vi.fn();
 const getWebTranche2Activity = vi.fn();
+const getWebTranche3Activity = vi.fn();
 
 vi.mock("../../../lib/student-api-client", () => ({
   getWebM4Activity: (...args: unknown[]) => getWebM4Activity(...args),
   getWebTranche1Activity: (...args: unknown[]) => getWebTranche1Activity(...args),
   getWebTranche2Activity: (...args: unknown[]) => getWebTranche2Activity(...args),
+  getWebTranche3Activity: (...args: unknown[]) => getWebTranche3Activity(...args),
 }));
 
 describe("StudentHomePage", () => {
@@ -36,11 +38,14 @@ describe("StudentHomePage", () => {
     getWebM4Activity.mockReset();
     getWebTranche1Activity.mockReset();
     getWebTranche2Activity.mockReset();
-    // Default: Tranche 1/2's own sections are exercised separately below; other
-    // tests only assert on the WEB-M4 section, so keep these calls pending/rejected
-    // to avoid extra identical "Inizia l'attività" links colliding with getByRole.
+    getWebTranche3Activity.mockReset();
+    // Default: Tranche 1/2/3's own sections are exercised separately below;
+    // other tests only assert on the WEB-M4 section, so keep these calls
+    // pending/rejected to avoid extra identical "Inizia l'attività" links
+    // colliding with getByRole.
     getWebTranche1Activity.mockRejectedValue(new Error("not stubbed for this test"));
     getWebTranche2Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    getWebTranche3Activity.mockRejectedValue(new Error("not stubbed for this test"));
   });
 
   it("redirects to /w/login when unauthenticated", () => {
@@ -83,5 +88,13 @@ describe("StudentHomePage", () => {
     render(<StudentHomePage />);
     const link = await screen.findByRole("link", { name: "Inizia l'attività" });
     expect(link).toHaveAttribute("href", "/w/activity/asn-tranche2-1");
+  });
+
+  it("shows a real entry-point link into /w/activity/:assignmentId once the Tranche 3 Prerequisite Check / Micro Lesson activity resolves", async () => {
+    getWebM4Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    getWebTranche3Activity.mockResolvedValue({ assignmentId: "asn-tranche3-1", activityId: "act-prerequisite-check", title: "Prima di iniziare" });
+    render(<StudentHomePage />);
+    const link = await screen.findByRole("link", { name: "Inizia l'attività" });
+    expect(link).toHaveAttribute("href", "/w/activity/asn-tranche3-1");
   });
 });
