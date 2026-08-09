@@ -63,6 +63,7 @@
     "advanceButton": "Vai allo stage successivo",
     "completedMessage": "Sequenza completata.",
     "abandonedMessage": "Sequenza abbandonata.",
-    "attemptsForStageLabel": "Tentativi su questo stage: {count}"
+    "attemptsForStageLabel": "Tentativi su questo stage: {count}",
+    "loadingMessage": "Caricamento della sequenza in corso..."
   }
 }
