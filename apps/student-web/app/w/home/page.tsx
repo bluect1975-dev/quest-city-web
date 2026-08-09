@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button, StatusMessage } from "@quest-city-web/ui";
 import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../lib/student-auth-context";
-import { getWebM4Activity, type WebM4Activity } from "../../../lib/student-api-client";
+import { getWebM4Activity, getWebTranche1Activity, type WebM4Activity } from "../../../lib/student-api-client";
 import { StudentApiError } from "../../../lib/student-api-error";
 
 const P0_ENGINES = [
@@ -26,6 +26,9 @@ export default function StudentHomePage() {
   const [activity, setActivity] = useState<WebM4Activity | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [loadingActivity, setLoadingActivity] = useState(true);
+  const [tranche1Activity, setTranche1Activity] = useState<WebM4Activity | null>(null);
+  const [tranche1ActivityError, setTranche1ActivityError] = useState<string | null>(null);
+  const [loadingTranche1Activity, setLoadingTranche1Activity] = useState(true);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -52,6 +55,31 @@ export default function StudentHomePage() {
       })
       .finally(() => {
         if (!cancelled) setLoadingActivity(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "authenticated" && status !== "authenticated-read-only") {
+      return;
+    }
+    let cancelled = false;
+    getWebTranche1Activity()
+      .then((result) => {
+        if (!cancelled) setTranche1Activity(result);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setTranche1ActivityError(
+          caught instanceof StudentApiError
+            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
+            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTranche1Activity(false);
       });
     return () => {
       cancelled = true;
@@ -86,6 +114,20 @@ export default function StudentHomePage() {
           <>
             <p>{activity.title}</p>
             <Link href={`/w/activity/${encodeURIComponent(activity.assignmentId)}`}>
+              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
+            </Link>
+          </>
+        )}
+      </section>
+
+      <section>
+        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
+        {loadingTranche1Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
+        {!loadingTranche1Activity && tranche1ActivityError && <StatusMessage kind="empty">{tranche1ActivityError}</StatusMessage>}
+        {!loadingTranche1Activity && !tranche1ActivityError && tranche1Activity && (
+          <>
+            <p>{tranche1Activity.title}</p>
+            <Link href={`/w/activity/${encodeURIComponent(tranche1Activity.assignmentId)}`}>
               <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
             </Link>
           </>

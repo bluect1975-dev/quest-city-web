@@ -19,9 +19,11 @@ vi.mock("../../../lib/student-auth-context", () => ({
 }));
 
 const getWebM4Activity = vi.fn();
+const getWebTranche1Activity = vi.fn();
 
 vi.mock("../../../lib/student-api-client", () => ({
   getWebM4Activity: (...args: unknown[]) => getWebM4Activity(...args),
+  getWebTranche1Activity: (...args: unknown[]) => getWebTranche1Activity(...args),
 }));
 
 describe("StudentHomePage", () => {
@@ -30,6 +32,11 @@ describe("StudentHomePage", () => {
     routerReplace.mockClear();
     logout.mockClear();
     getWebM4Activity.mockReset();
+    getWebTranche1Activity.mockReset();
+    // Default: Tranche 1's own section is exercised separately below; other
+    // tests only assert on the WEB-M4 section, so keep this call pending/rejected
+    // to avoid a second identical "Inizia l'attività" link colliding with getByRole.
+    getWebTranche1Activity.mockRejectedValue(new Error("not stubbed for this test"));
   });
 
   it("redirects to /w/login when unauthenticated", () => {
@@ -56,5 +63,13 @@ describe("StudentHomePage", () => {
     getWebM4Activity.mockRejectedValue(new StudentApiError("WEB_M4_ACTIVITY_NOT_AVAILABLE", "server text", 404));
     render(<StudentHomePage />);
     expect(await screen.findByText("L'attività non è ancora disponibile per la tua scuola.")).toBeInTheDocument();
+  });
+
+  it("shows a real entry-point link into /w/activity/:assignmentId once the Tranche 1 Guided Practice activity resolves", async () => {
+    getWebM4Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    getWebTranche1Activity.mockResolvedValue({ assignmentId: "asn-tranche1-1", activityId: "act-guided-practice", title: "Pratica guidata" });
+    render(<StudentHomePage />);
+    const link = await screen.findByRole("link", { name: "Inizia l'attività" });
+    expect(link).toHaveAttribute("href", "/w/activity/asn-tranche1-1");
   });
 });
