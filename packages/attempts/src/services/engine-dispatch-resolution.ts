@@ -19,6 +19,8 @@
  * no entry here and correctly falls through to the unknown-adapter,
  * score-less outcome path in `AttemptConsolidationService`.
  */
+import { WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG, WEB_M4_MAT_M06_CONTENT_BUNDLE_ID } from "@quest-city-web/content-runtime";
+
 export interface ResolvedEngineDispatch {
   runtimeAdapterId: string;
   config: unknown;
@@ -33,6 +35,15 @@ const KNOWN_CONTENT_DISPATCH: Record<string, ResolvedEngineDispatch> = {
         { tokenId: "w5b", weight: 5 },
       ],
     },
+  },
+  // WEB-M4 (07_25 v1.0 §9): the real content bundle's `content_bundle.id`
+  // (a fixed, seed-assigned UUID — see tools/seed-content-bundle.ts) is
+  // what `attempt.contentId` actually carries in production (launch-context
+  // sets `contentId: bundle.id`), so real dispatch must be keyed by that
+  // same id, not by an arbitrary content string.
+  [WEB_M4_MAT_M06_CONTENT_BUNDLE_ID]: {
+    runtimeAdapterId: "QC-WEB-ENGINE-BALANCE-MACHINE",
+    config: WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG,
   },
 };
 

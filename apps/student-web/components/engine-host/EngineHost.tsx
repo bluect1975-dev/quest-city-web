@@ -39,6 +39,13 @@ const DEMO_CONFIGS: Record<string, unknown> = {
 export interface EngineHostProps {
   runtimeAdapterId: string;
   /**
+   * WEB-M4 (07_25 v1.0 §7-E/§16): a real activity config, overriding the
+   * demonstration lookup below when present. `EngineHost` itself stays
+   * generic — it never knows whether a config is real M06 content or a
+   * demo fixture, only whether one was supplied.
+   */
+  config?: unknown;
+  /**
    * R3C.2: invoked with the real `engine.evaluate()` result right after a
    * confirmed evaluation, in addition to the host's own local result
    * badge. Lets `SequenceHost` apply the current stage's `ProgressionRule`
@@ -46,23 +53,31 @@ export interface EngineHostProps {
    * orchestrator never reaches into `EngineHost`'s internal state.
    */
   onEvaluated?: (result: EngineEvaluationResult) => void;
+  /**
+   * WEB-M4: invoked with every locally-accepted semantic action, in
+   * addition to the client-side simulation already driving the UI. Lets a
+   * real attempt lifecycle (POST /attempts/{id}/actions) mirror each
+   * action without this component knowing anything about attempts — the
+   * same "notify, don't own" pattern as `onEvaluated`.
+   */
+  onAction?: (action: EngineSemanticAction) => void;
 }
 
 /**
  * Minimal Engine Host (R3C.1 §43-44): resolves an engine by
  * `runtimeAdapterId` from the same `EngineRuntimeRegistry` the server uses,
  * dispatches semantic actions through `engine.applyAction`, and shows
- * `engine.evaluate`'s result — entirely client-side against a
- * demonstration configuration (no attempt/API wiring; that is out of scope
- * for this phase, see §43). One host, one dispatch path, one result
- * renderer shared by all 3 engines rather than per-engine host logic.
+ * `engine.evaluate`'s result — client-side against either a demonstration
+ * configuration or (WEB-M4) a real activity `config` override. One host,
+ * one dispatch path, one result renderer shared by all 3 engines rather
+ * than per-engine host logic.
  */
-export function EngineHost({ runtimeAdapterId, onEvaluated }: EngineHostProps) {
+export function EngineHost({ runtimeAdapterId, config, onEvaluated, onAction }: EngineHostProps) {
   const registry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const engine = registry.getByRuntimeAdapterId(runtimeAdapterId);
-  const demoConfig = DEMO_CONFIGS[runtimeAdapterId];
+  const resolvedConfig = config ?? DEMO_CONFIGS[runtimeAdapterId];
 
-  if (!engine || demoConfig === undefined) {
+  if (!engine || resolvedConfig === undefined) {
     return (
       <StatusMessage kind="error">
         {t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.title")}: {runtimeAdapterId}
@@ -73,9 +88,10 @@ export function EngineHost({ runtimeAdapterId, onEvaluated }: EngineHostProps) {
   return (
     <ResolvedEngineHost
       engine={engine}
-      demoConfig={demoConfig}
+      demoConfig={resolvedConfig}
       nameKey={ENGINE_NAME_KEYS[runtimeAdapterId] ?? "engines.index.title"}
       {...(onEvaluated ? { onEvaluated } : {})}
+      {...(onAction ? { onAction } : {})}
     />
   );
 }
@@ -85,11 +101,13 @@ function ResolvedEngineHost({
   demoConfig,
   nameKey,
   onEvaluated,
+  onAction,
 }: {
   engine: NonNullable<ReturnType<ReturnType<typeof createDefaultEngineRuntimeRegistry>["getByRuntimeAdapterId"]>>;
   demoConfig: unknown;
   nameKey: string;
   onEvaluated?: (result: EngineEvaluationResult) => void;
+  onAction?: (action: EngineSemanticAction) => void;
 }) {
   const configValidation = useMemo(() => engine.validateConfig(demoConfig), [engine, demoConfig]);
   const validConfig = configValidation.valid ? configValidation.config : undefined;
@@ -111,6 +129,7 @@ function ResolvedEngineHost({
     if (outcome.accepted) {
       setState(outcome.state);
       setResult(null);
+      onAction?.(action);
     }
   }
 
@@ -123,13 +142,15 @@ function ResolvedEngineHost({
   // state rather than relying on a second render.
   function confirmAndEvaluate() {
     if (!validConfig) return;
-    const outcome = engine.applyAction(state, validConfig, {
+    const confirmAction: EngineSemanticAction = {
       actionType: "CONFIRM_SOLUTION",
       targetRole: "confirm-button",
       payload: {},
-    });
+    };
+    const outcome = engine.applyAction(state, validConfig, confirmAction);
     if (outcome.accepted) {
       setState(outcome.state);
+      onAction?.(confirmAction);
       const evalResult = engine.evaluate(outcome.state, validConfig);
       setResult(evalResult);
       onEvaluated?.(evalResult);

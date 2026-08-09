@@ -25,5 +25,6 @@
   "RECOVERY_ASSIGNMENT_SOURCE_NOT_PUBLISHED": "Il feedback collegato deve essere pubblicato prima di creare un'assegnazione di recupero.",
   "ETAG_MISMATCH": "Questo elemento è stato modificato da un'altra sessione. Ricarica e riprova.",
   "IDEMPOTENCY_CONFLICT": "La richiesta è già stata inviata con dati diversi. Riprova con una nuova richiesta.",
+  "WEB_M4_ACTIVITY_NOT_AVAILABLE": "L'attività non è ancora disponibile per la tua scuola.",
   "UNKNOWN_ERROR": "Si è verificato un errore imprevisto. Riprova."
 }

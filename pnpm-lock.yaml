@@ -481,6 +481,9 @@ importers:
 
   tools:
     dependencies:
+      '@quest-city-web/content-runtime':
+        specifier: workspace:*
+        version: link:../packages/content-runtime
       '@quest-city-web/identity':
         specifier: workspace:*
         version: link:../packages/identity
