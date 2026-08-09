@@ -19,7 +19,12 @@
  * no entry here and correctly falls through to the unknown-adapter,
  * score-less outcome path in `AttemptConsolidationService`.
  */
-import { WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG, WEB_M4_MAT_M06_CONTENT_BUNDLE_ID } from "@quest-city-web/content-runtime";
+import {
+  WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG,
+  WEB_M4_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
+} from "@quest-city-web/content-runtime";
 
 export interface ResolvedEngineDispatch {
   runtimeAdapterId: string;
@@ -44,6 +49,17 @@ const KNOWN_CONTENT_DISPATCH: Record<string, ResolvedEngineDispatch> = {
   [WEB_M4_MAT_M06_CONTENT_BUNDLE_ID]: {
     runtimeAdapterId: "QC-WEB-ENGINE-BALANCE-MACHINE",
     config: WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG,
+  },
+  // M06 Web Full Vertical Slice Tranche 1 (07_26 v1.0 §14): the
+  // GUIDED_PRACTICE stage's real content bundle — same rationale as
+  // WEB-M4's entry above, keyed by the same fixed content_bundle.id
+  // (tools/seed-tranche1-content-bundle.ts) attempt.contentId actually
+  // carries. This dispatch only ever concerns the sequence's single
+  // interactive stage (GUIDED_PRACTICE) — REFLECTION_AND_RESULT is
+  // presentation-only and creates no attempt of its own.
+  [WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID]: {
+    runtimeAdapterId: "QC-WEB-ENGINE-QUICK-QUESTION",
+    config: WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
   },
 };
 

@@ -11,6 +11,13 @@ import {
   WEB_M4_ACTIVITY_STAGE_ID,
   WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG,
   WEB_M4_MAT_M06_ACTIVITY_ID,
+  WEB_M4_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE1_GUIDED_PRACTICE_ACTIVITY_ID,
+  WEB_TRANCHE1_GUIDED_PRACTICE_SEQUENCE_DEFINITION,
+  WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID,
+  WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
+  type SequenceDefinition,
 } from "@quest-city-web/content-runtime";
 import { SequenceHost } from "../../../../components/engine-host/SequenceHost";
 import { useStudentAuth } from "../../../../lib/student-auth-context";
@@ -19,7 +26,7 @@ import { StudentApiError } from "../../../../lib/student-api-error";
 
 /** Stable per (student session, assignment) creation key — a reload replays it, resuming the same attempt instead of creating a new one. */
 function getOrCreateLaunchIdempotencyKey(assignmentId: string): string {
-  const storageKey = `qc_web_m4_launch_idem_${assignmentId}`;
+  const storageKey = `qc_web_activity_launch_idem_${assignmentId}`;
   const existing = window.sessionStorage.getItem(storageKey);
   if (existing) return existing;
   const fresh = crypto.randomUUID();
@@ -38,30 +45,77 @@ function getOrCreateLaunchIdempotencyKey(assignmentId: string): string {
  * the reload the same way the launch idempotency key above already does.
  */
 function readNextClientSequence(attemptId: string): number {
-  const storageKey = `qc_web_m4_client_sequence_${attemptId}`;
+  const storageKey = `qc_web_activity_client_sequence_${attemptId}`;
   const stored = window.sessionStorage.getItem(storageKey);
   const next = stored ? Number(stored) + 1 : 0;
   window.sessionStorage.setItem(storageKey, String(next));
   return next;
 }
 
-const STAGE_CONFIGS: Record<string, unknown> = { [WEB_M4_ACTIVITY_STAGE_ID]: WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG };
+/**
+ * One real activity/assignment per real `content_bundle.id` (fixed,
+ * seed-time constants — never the assignment's DB row id, which is
+ * per-tenant and unknown at build time). `launch-context`'s response
+ * already resolves and returns `bundle.contentBundleId` (`packages/
+ * content-runtime`'s "renders no engine/orchestrator without a real
+ * bundle" precedent) — this registry is the one place `/w/activity/
+ * :activityId` decides which real `SequenceDefinition`/engine configs to
+ * drive, keyed on that same id, so WEB-M4's own entry is untouched
+ * (same definition/config/keys as before Tranche 1) and Tranche 1 only
+ * adds a second entry.
+ */
+interface ActivityRegistryEntry {
+  definition: SequenceDefinition;
+  stageConfigs: Record<string, unknown>;
+  activityId: string;
+  runtimeStatePrefix: string;
+  titleKey: string;
+  descriptionKey: string;
+  stagePrompts?: Record<string, { titleKey: string; bodyKey: string }>;
+  recapStageId?: string;
+}
+
+const ACTIVITY_REGISTRY: Record<string, ActivityRegistryEntry> = {
+  [WEB_M4_MAT_M06_CONTENT_BUNDLE_ID]: {
+    definition: WEB_M4_ACTIVITY_SEQUENCE_DEFINITION,
+    stageConfigs: { [WEB_M4_ACTIVITY_STAGE_ID]: WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG },
+    activityId: WEB_M4_MAT_M06_ACTIVITY_ID,
+    runtimeStatePrefix: "web-m4-runtime",
+    titleKey: "activity.sequenceTitle",
+    descriptionKey: "activity.sequenceDescription",
+  },
+  [WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID]: {
+    definition: WEB_TRANCHE1_GUIDED_PRACTICE_SEQUENCE_DEFINITION,
+    stageConfigs: { [WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID]: WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG },
+    activityId: WEB_TRANCHE1_GUIDED_PRACTICE_ACTIVITY_ID,
+    runtimeStatePrefix: "web-tranche1-runtime",
+    titleKey: "guidedPractice.sequenceTitle",
+    descriptionKey: "guidedPractice.sequenceDescription",
+    recapStageId: WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID,
+    stagePrompts: {
+      [WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID]: { titleKey: "guidedPractice.promptTitle", bodyKey: "guidedPractice.promptEquation" },
+    },
+  },
+};
 
 /**
- * `/w/activity/:activityId` (WEB-M4, 07_25 v1.0 §7-D/§15). `:activityId`
- * is the assignment's `id` — the same identifier already returned as
+ * `/w/activity/:activityId` (WEB-M4, 07_25 v1.0 §7-D/§15; extended M06 Web
+ * Full Vertical Slice Tranche 1, `07_26 v1.0` §14). `:activityId` is the
+ * assignment's `id` — the same identifier already returned as
  * `assignmentId` by `GET /assignments/{assignmentId}` and consumed by
  * `POST /assignments/{assignmentId}/launch-context` (implementation
  * decision, 07_25 §20 leaves this mapping to implementation time; no
  * separate public/internal split exists for assignments in this codebase
  * — see `apps/api/app/assignments/[assignmentId]/route.ts`).
  *
- * Flow: launch-context creates/resumes the real attempt -> `SequenceHost`
- * (single real stage, `WEB_M4_ACTIVITY_SEQUENCE_DEFINITION`) drives the
- * real `EngineHost` against the real config, durably resuming via R3C.3 ->
+ * Flow: launch-context creates/resumes the real attempt -> the returned
+ * `bundle.contentBundleId` resolves which real `SequenceDefinition` this
+ * assignment is (`ACTIVITY_REGISTRY`) -> `SequenceHost` drives the real
+ * `EngineHost` against the real config, durably resuming via R3C.3 ->
  * every locally-accepted semantic action is mirrored to
- * `POST /attempts/{attemptId}/actions` -> on sequence completion,
- * `POST /attempts/{attemptId}/complete` -> redirect to `/w/result/:attemptId`.
+ * `POST /attempts/{attemptId}/actions` -> on sequence completion (both
+ * stages for Tranche 1's activity), `POST /attempts/{attemptId}/complete`
+ * -> redirect to `/w/result/:attemptId`.
  */
 export default function ActivityPage() {
   const params = useParams<{ activityId: string }>();
@@ -70,6 +124,7 @@ export default function ActivityPage() {
   const router = useRouter();
 
   const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [registryEntry, setRegistryEntry] = useState<ActivityRegistryEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastClientSequenceRef = useRef<number | null>(null);
   const completingRef = useRef(false);
@@ -89,7 +144,14 @@ export default function ActivityPage() {
     const idempotencyKey = getOrCreateLaunchIdempotencyKey(assignmentId);
     launchActivity(assignmentId, csrfToken, idempotencyKey)
       .then((result) => {
-        if (!cancelled) setAttemptId(result.attempt.attemptId);
+        if (cancelled) return;
+        const entry = ACTIVITY_REGISTRY[result.bundle.contentBundleId];
+        if (!entry) {
+          setError(t(STUDENT_WEB_CATALOG_IT_IT, "activity.unknownContentBundle"));
+          return;
+        }
+        setRegistryEntry(entry);
+        setAttemptId(result.attempt.attemptId);
       })
       .catch((caught) => {
         if (cancelled) return;
@@ -105,14 +167,14 @@ export default function ActivityPage() {
   }, [status, csrfToken, assignmentId]);
 
   function handleAction(action: EngineSemanticAction) {
-    if (!attemptId || !csrfToken) return;
+    if (!attemptId || !csrfToken || !registryEntry) return;
     const clientSequence = readNextClientSequence(attemptId);
     lastClientSequenceRef.current = clientSequence;
     const submitted = submitAction(
       {
         actionId: crypto.randomUUID(),
         attemptId,
-        activityId: WEB_M4_MAT_M06_ACTIVITY_ID,
+        activityId: registryEntry.activityId,
         actionType: action.actionType,
         ...(action.targetRole ? { targetRole: action.targetRole } : {}),
         payload: action.payload,
@@ -170,7 +232,7 @@ export default function ActivityPage() {
     );
   }
 
-  if (error && !attemptId) {
+  if (error && (!attemptId || !registryEntry)) {
     return (
       <main>
         <StatusMessage kind="error">{error}</StatusMessage>
@@ -179,7 +241,7 @@ export default function ActivityPage() {
     );
   }
 
-  if (!attemptId) {
+  if (!attemptId || !registryEntry) {
     return (
       <main>
         <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "activity.launching")}</StatusMessage>
@@ -191,13 +253,15 @@ export default function ActivityPage() {
     <main>
       {error && <StatusMessage kind="error">{error}</StatusMessage>}
       <SequenceHost
-        definition={WEB_M4_ACTIVITY_SEQUENCE_DEFINITION}
-        runtimeStateId={`web-m4-runtime-${attemptId}`}
-        stageConfigs={STAGE_CONFIGS}
+        definition={registryEntry.definition}
+        runtimeStateId={`${registryEntry.runtimeStatePrefix}-${attemptId}`}
+        stageConfigs={registryEntry.stageConfigs}
         onAction={handleAction}
         onComplete={handleComplete}
-        titleKey="activity.sequenceTitle"
-        descriptionKey="activity.sequenceDescription"
+        titleKey={registryEntry.titleKey}
+        descriptionKey={registryEntry.descriptionKey}
+        {...(registryEntry.stagePrompts ? { stagePrompts: registryEntry.stagePrompts } : {})}
+        {...(registryEntry.recapStageId ? { recapStageId: registryEntry.recapStageId } : {})}
       />
     </main>
   );

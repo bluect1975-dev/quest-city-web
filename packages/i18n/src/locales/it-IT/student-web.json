@@ -68,7 +68,15 @@
     "launching": "Avvio dell'attività in corso...",
     "readOnlySessionBlocked": "Per svolgere questa attività devi accedere di nuovo.",
     "sequenceTitle": "Balance Machine",
-    "sequenceDescription": "Metti in equilibrio la bilancia per completare l'attività."
+    "sequenceDescription": "Metti in equilibrio la bilancia per completare l'attività.",
+    "unknownContentBundle": "Contenuto non riconosciuto per questa assegnazione."
+  },
+  "guidedPractice": {
+    "sequenceTitle": "Pratica guidata: equazioni di primo grado",
+    "sequenceDescription": "Risolvi l'equazione con l'aiuto degli indizi, poi rivedi il tuo risultato.",
+    "promptTitle": "Risolvi l'equazione",
+    "promptEquation": "x + 5 = 12",
+    "promptInstruction": "Trova il valore di x e inserisci il risultato."
   },
   "result": {
     "title": "Risultato",
@@ -96,6 +104,9 @@
     "completedMessage": "Sequenza completata.",
     "abandonedMessage": "Sequenza abbandonata.",
     "attemptsForStageLabel": "Tentativi su questo stage: {count}",
-    "loadingMessage": "Caricamento della sequenza in corso..."
+    "loadingMessage": "Caricamento della sequenza in corso...",
+    "hintContentLabel": "Aiuto: {text}",
+    "recapTitle": "Riepilogo della pratica",
+    "recapNotAttemptedMessage": "Nessun dato ancora disponibile per questo stage."
   }
 }

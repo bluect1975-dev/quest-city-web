@@ -47,6 +47,10 @@ export interface SequenceHostProps {
    */
   titleKey?: string;
   descriptionKey?: string;
+  /** Optional per-stage prompt copy (title + body i18n keys), rendered above the interactive `EngineHost` — e.g. displaying the equation an ENG-QUICK stage asks the student to solve, since neither the engine config nor `EngineHost` itself render freeform activity text. */
+  stagePrompts?: Record<string, { titleKey: string; bodyKey: string }>;
+  /** When set and the current stage is non-interactive, renders a recap of the named prior stage's runtime stats (hints used, attempts, checkpoint) above the continue button — e.g. a `REFLECTION_AND_RESULT` stage recapping the preceding `GUIDED_PRACTICE` stage. */
+  recapStageId?: string;
 }
 
 /**
@@ -76,6 +80,8 @@ export function SequenceHost({
   onComplete,
   titleKey = "sequence.title",
   descriptionKey = "sequence.description",
+  stagePrompts,
+  recapStageId,
 }: SequenceHostProps) {
   const runtimeRegistry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const [state, setState] = useState<SequenceRuntimeState | null>(null);
@@ -212,9 +218,33 @@ export function SequenceHost({
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageTypeLabel", { params: { stageType: stage.stageType } })}</p>
 
       {!stage.isInteractive && (
-        <Button type="button" onClick={handleContinue}>
-          {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.nonInteractiveContinueButton")}
-        </Button>
+        <>
+          {recapStageId && (
+            <div>
+              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h3>
+              {(() => {
+                const recapState = state.stageStates.find((s) => s.stageId === recapStageId);
+                if (!recapState) {
+                  return <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapNotAttemptedMessage")}</StatusMessage>;
+                }
+                const recapStageDefinition = definition.stages.find((s) => s.stageId === recapStageId);
+                const maxHintLevel = recapStageDefinition?.hintPolicy?.maxHintLevel ?? recapState.hintLevel;
+                return (
+                  <>
+                    <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.attemptsForStageLabel", { params: { count: recapState.attemptsForStage } })}</p>
+                    <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.hintLevelLabel", { params: { level: recapState.hintLevel, max: maxHintLevel } })}</p>
+                    {recapState.checkpointReached && (
+                      <StatusBadge tone="success">{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.checkpointLabel")}</StatusBadge>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+          <Button type="button" onClick={handleContinue}>
+            {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.nonInteractiveContinueButton")}
+          </Button>
+        </>
       )}
 
       {stage.isInteractive && dispatch && !dispatch.resolved && (
@@ -223,6 +253,12 @@ export function SequenceHost({
 
       {stage.isInteractive && dispatch?.resolved && (
         <>
+          {stagePrompts?.[stage.stageId] && (
+            <div>
+              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h3>
+              <p>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.bodyKey)}</p>
+            </div>
+          )}
           <EngineHost
             key={stage.stageId}
             runtimeAdapterId={dispatch.engine.runtimeAdapterId}
@@ -245,6 +281,16 @@ export function SequenceHost({
                   params: { level: stageState.hintLevel, max: stage.hintPolicy.maxHintLevel },
                 })}
               </p>
+              {stageState.hintLevel > 0 &&
+                (() => {
+                  const currentHint = stage.hintPolicy?.levels?.find((l) => l.level === stageState.hintLevel);
+                  if (!currentHint) return null;
+                  return (
+                    <StatusMessage kind="empty">
+                      {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.hintContentLabel", { params: { text: currentHint.description } })}
+                    </StatusMessage>
+                  );
+                })()}
               {stageState.hintLevel >= stage.hintPolicy.maxHintLevel && (
                 <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.hintExhaustedLabel")}</StatusMessage>
               )}
