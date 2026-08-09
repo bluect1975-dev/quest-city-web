@@ -36,8 +36,17 @@ export {
   type IdempotencyBeginOutcome,
   type IdempotencyFinishOutcome,
 } from "./repository/idempotency-record-repository";
+export {
+  SequenceRuntimeStateRepository,
+  SequenceRuntimeStateAlreadyExistsError,
+  type PersistedSequenceRuntimeState,
+} from "./repository/sequence-runtime-state-repository";
 
 export { IdempotencyService } from "./services/idempotency-service";
+export {
+  DurableSequenceRuntimeStateStore,
+  SequenceRuntimeStateVersionConflictError,
+} from "./services/durable-sequence-runtime-state-store";
 export { resolveEngineDispatch, type ResolvedEngineDispatch } from "./services/engine-dispatch-resolution";
 export {
   checkFinalClientSequence,

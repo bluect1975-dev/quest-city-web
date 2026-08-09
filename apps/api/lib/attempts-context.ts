@@ -9,6 +9,8 @@ import {
   IdempotencyService,
   AttemptConsolidationService,
   CrossRuntimeReconciliationService,
+  SequenceRuntimeStateRepository,
+  DurableSequenceRuntimeStateStore,
 } from "@quest-city-web/attempts";
 import { createDefaultEngineRuntimeRegistry, type EngineRuntimeRegistry } from "@quest-city-web/learning-engines";
 import { loadEnv } from "./env";
@@ -76,4 +78,18 @@ export function getAttemptConsolidationService(): AttemptConsolidationService {
 
 export function getCrossRuntimeReconciliationService(): CrossRuntimeReconciliationService {
   return new CrossRuntimeReconciliationService(getLearningAttemptRepository());
+}
+
+export function getSequenceRuntimeStateRepository(): SequenceRuntimeStateRepository {
+  return new SequenceRuntimeStateRepository(getAttemptsPool());
+}
+
+/** R3C.3: one instance per request, bound to the caller's server-resolved identity — see the class's own doc comment for why this must never be shared across requests. */
+export function getDurableSequenceRuntimeStateStore(
+  tenantId: string,
+  studentProfileId: string,
+  enrollmentId: string,
+  sequenceId: string,
+): DurableSequenceRuntimeStateStore {
+  return new DurableSequenceRuntimeStateStore(getSequenceRuntimeStateRepository(), tenantId, studentProfileId, enrollmentId, sequenceId);
 }

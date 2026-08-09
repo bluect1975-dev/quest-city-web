@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@quest-city-web/attempts": "workspace:*",
+    "@quest-city-web/content-runtime": "workspace:*",
     "@quest-city-web/i18n": "workspace:*",
     "@quest-city-web/identity": "workspace:*",
     "@quest-city-web/learning-engines": "workspace:*",

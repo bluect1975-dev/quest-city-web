@@ -121,6 +121,11 @@ demonstration sequence end to end and to back the `SequenceHost` UI's local sess
 added; migrations remain at `0001`–`0004`, unchanged.** A real persistent implementation is future work, to be
 authorized and scoped once a Web document assigns it a concrete storage decision.
 
+> **Superseded by R3C.3** (`docs/implementation/web-r3c3-durable-sequence-state-persistence.md`): the real,
+> durable Postgres-backed implementation described as future work above now exists — migration `0005`,
+> `SequenceRuntimeStateRepository`/`DurableSequenceRuntimeStateStore` (`packages/attempts`). This section is left
+> unmodified as an accurate record of the R3C.2-era decision; see the R3C.3 doc for the current state.
+
 ## Test strategy
 
 Unit tests: `stage-orchestrator.test.ts` (26 tests) covers contract parsing, initialize/enter-stage, both dispatch

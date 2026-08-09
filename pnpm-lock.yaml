@@ -445,6 +445,9 @@ importers:
       '@quest-city-web/attempts':
         specifier: workspace:*
         version: link:../../packages/attempts
+      '@quest-city-web/content-runtime':
+        specifier: workspace:*
+        version: link:../../packages/content-runtime
       '@quest-city-web/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

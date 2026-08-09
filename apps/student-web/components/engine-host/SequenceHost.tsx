@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
@@ -17,6 +17,13 @@ import {
   type SequenceRuntimeState,
 } from "@quest-city-web/content-runtime";
 import { EngineHost } from "./EngineHost";
+import {
+  createSequenceRuntimeState,
+  loadSequenceRuntimeState,
+  saveSequenceRuntimeState,
+  SequenceRuntimeStateClientError,
+} from "../../lib/sequence-runtime-state-client";
+import { getStoredCsrfToken } from "../../lib/session-client";
 
 export interface SequenceHostProps {
   definition: SequenceDefinition;
@@ -24,19 +31,96 @@ export interface SequenceHostProps {
 }
 
 /**
- * Minimal Stage/Session sequence UI (R3C.2 §16): wraps the existing,
- * unmodified per-engine `EngineHost` for each interactive stage and drives
- * the orchestrator (`@quest-city-web/content-runtime`) around it — stage
- * navigation, hint level/count, remediation state, checkpoint, and overall
- * progression/completion. Not the final WEB-M4 UI: no persistence wiring
- * (state lives in local `useState`; see `InMemorySequenceRuntimeStateStore`
- * for the persistence-agnostic seam this could be backed by), no attempt
- * creation (that is `packages/attempts`' `recordStageAttempt`, wired at the
- * API layer, out of this client component's scope).
+ * Minimal Stage/Session sequence UI (R3C.2 §16, durable wiring added
+ * R3C.3 §18): wraps the existing, unmodified per-engine `EngineHost` for
+ * each interactive stage and drives the orchestrator
+ * (`@quest-city-web/content-runtime`) around it — stage navigation, hint
+ * level/count, remediation state, checkpoint, and overall progression/
+ * completion. `useState` is still the single render-time source of truth
+ * (every mutation goes through it, exactly as before); on mount it loads
+ * from `sequence-runtime-state-client` (backed by `sequence_runtime_state`
+ * via the API) when a CSRF token is present (`session-client`, i.e. an
+ * authenticated session exists), and every subsequent mutation persists
+ * the resulting state back — the demo no longer depends exclusively on
+ * in-memory state whenever a real session is available. No login UI
+ * exists yet in `apps/student-web` (out of scope, §18 "NON costruire
+ * ancora WEB-M4 UI finale"): with no stored CSRF token this component
+ * falls back to the exact prior pure-`useState`, non-persistent behaviour.
+ * Attempt creation remains out of scope (`packages/attempts`'
+ * `recordStageAttempt`, wired at the API layer).
  */
 export function SequenceHost({ definition, runtimeStateId }: SequenceHostProps) {
   const runtimeRegistry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
-  const [state, setState] = useState<SequenceRuntimeState>(() => initializeSequence(definition, runtimeStateId));
+  const [state, setState] = useState<SequenceRuntimeState | null>(null);
+  const versionRef = useRef<number | undefined>(undefined);
+  const durableRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      const csrfToken = getStoredCsrfToken();
+      if (!csrfToken) {
+        if (!cancelled) setState(initializeSequence(definition, runtimeStateId));
+        return;
+      }
+      try {
+        const loaded = await loadSequenceRuntimeState(definition.sequenceId);
+        if (cancelled) return;
+        if (loaded.found) {
+          durableRef.current = true;
+          versionRef.current = loaded.version;
+          setState(loaded.state);
+          return;
+        }
+        const fresh = initializeSequence(definition, crypto.randomUUID());
+        const created = await createSequenceRuntimeState(definition.sequenceId, fresh, csrfToken);
+        if (cancelled) return;
+        durableRef.current = true;
+        versionRef.current = created.version;
+        setState(created.state);
+      } catch {
+        // Durable load/create failed (session expired, network, ...) — fall
+        // back to in-memory rather than blocking the demo on a persistence error.
+        if (!cancelled) setState(initializeSequence(definition, runtimeStateId));
+      }
+    }
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally mount-only: `definition`/`runtimeStateId` are stable for the lifetime of this component instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function persist(nextState: SequenceRuntimeState) {
+    if (!durableRef.current || versionRef.current === undefined) return;
+    const csrfToken = getStoredCsrfToken();
+    if (!csrfToken) return;
+    try {
+      const saved = await saveSequenceRuntimeState(definition.sequenceId, nextState, versionRef.current, csrfToken);
+      versionRef.current = saved.version;
+    } catch (error) {
+      if (error instanceof SequenceRuntimeStateClientError && error.code === "SEQUENCE_RUNTIME_STATE_VERSION_CONFLICT") {
+        // Another write landed first (§11 idempotency/concurrency) — adopt
+        // the authoritative server state rather than retrying this write blindly.
+        try {
+          const reloaded = await loadSequenceRuntimeState(definition.sequenceId);
+          if (reloaded.found) {
+            versionRef.current = reloaded.version;
+            setState(reloaded.state);
+          }
+        } catch {
+          // Leave local state as-is; the next successful persist re-syncs.
+        }
+      }
+    }
+  }
+
+  if (state === null) {
+    return <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.loadingMessage")}</StatusMessage>;
+  }
 
   const stages = [...definition.stages].sort((a, b) => a.order - b.order);
   const stage = resolveCurrentStage(definition, state);
@@ -44,19 +128,22 @@ export function SequenceHost({ definition, runtimeStateId }: SequenceHostProps) 
   const stageIndex = stages.findIndex((s) => s.stageId === stage.stageId);
 
   function handleEvaluated(result: EngineEvaluationResult) {
-    const outcome = receiveEngineResult(definition, state, result);
-    setState(outcome.state);
-    if (outcome.outcome === "ADVANCED") {
-      setState(advanceStage(definition, outcome.state));
-    }
+    const outcome = receiveEngineResult(definition, state!, result);
+    const nextState = outcome.outcome === "ADVANCED" ? advanceStage(definition, outcome.state) : outcome.state;
+    setState(nextState);
+    void persist(nextState);
   }
 
   function handleContinue() {
-    setState(advanceStage(definition, state));
+    const nextState = advanceStage(definition, state!);
+    setState(nextState);
+    void persist(nextState);
   }
 
   function handleRequestHint() {
-    setState(requestHint(definition, state));
+    const nextState = requestHint(definition, state!);
+    setState(nextState);
+    void persist(nextState);
   }
 
   if (isSequenceComplete(state)) {
