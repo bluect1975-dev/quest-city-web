@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
-import { createDefaultEngineRuntimeRegistry, type EngineEvaluationResult } from "@quest-city-web/learning-engines";
+import {
+  createDefaultEngineRuntimeRegistry,
+  type EngineEvaluationResult,
+  type EngineSemanticAction,
+} from "@quest-city-web/learning-engines";
 import {
   advanceStage,
   initializeSequence,
@@ -28,6 +32,21 @@ import { getStoredCsrfToken } from "../../lib/session-client";
 export interface SequenceHostProps {
   definition: SequenceDefinition;
   runtimeStateId: string;
+  /** WEB-M4: real per-stage engine configs, keyed by `stageId` — overrides the demo config lookup in `EngineHost` when present for the current stage. */
+  stageConfigs?: Record<string, unknown>;
+  /** WEB-M4: mirrors every locally-accepted semantic action for the current stage's `EngineHost`, e.g. to log it against a real attempt. */
+  onAction?: (action: EngineSemanticAction) => void;
+  /** WEB-M4: invoked exactly once, the first time `isSequenceComplete(state)` becomes true — e.g. to submit `POST /attempts/{id}/complete`. */
+  onComplete?: () => void;
+  /**
+   * WEB-M4: overrides the title/description i18n keys, defaulting to the
+   * original `"sequence.title"`/`"sequence.description"` (which read
+   * "Sequenza dimostrativa, non contenuto curriculare M06 reale" — correct
+   * for `/w/sequence`'s demo, but false for a real activity). Real callers
+   * must supply their own copy rather than inherit the demo's disclaimer.
+   */
+  titleKey?: string;
+  descriptionKey?: string;
 }
 
 /**
@@ -49,11 +68,27 @@ export interface SequenceHostProps {
  * Attempt creation remains out of scope (`packages/attempts`'
  * `recordStageAttempt`, wired at the API layer).
  */
-export function SequenceHost({ definition, runtimeStateId }: SequenceHostProps) {
+export function SequenceHost({
+  definition,
+  runtimeStateId,
+  stageConfigs,
+  onAction,
+  onComplete,
+  titleKey = "sequence.title",
+  descriptionKey = "sequence.description",
+}: SequenceHostProps) {
   const runtimeRegistry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const [state, setState] = useState<SequenceRuntimeState | null>(null);
   const versionRef = useRef<number | undefined>(undefined);
   const durableRef = useRef(false);
+  const completeNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    if (state && isSequenceComplete(state) && !completeNotifiedRef.current) {
+      completeNotifiedRef.current = true;
+      onComplete?.();
+    }
+  }, [state, onComplete]);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,8 +204,8 @@ export function SequenceHost({ definition, runtimeStateId }: SequenceHostProps) 
       <p>
         <Link href="/w">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.backLink")}</Link>
       </p>
-      <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.title")}</h2>
-      <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.description")}</p>
+      <h2>{t(STUDENT_WEB_CATALOG_IT_IT, titleKey)}</h2>
+      <p>{t(STUDENT_WEB_CATALOG_IT_IT, descriptionKey)}</p>
       <StatusMessage kind="empty">
         {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageProgress", { params: { index: stageIndex + 1, total: stages.length } })}
       </StatusMessage>
@@ -188,7 +223,13 @@ export function SequenceHost({ definition, runtimeStateId }: SequenceHostProps) 
 
       {stage.isInteractive && dispatch?.resolved && (
         <>
-          <EngineHost key={stage.stageId} runtimeAdapterId={dispatch.engine.runtimeAdapterId} onEvaluated={handleEvaluated} />
+          <EngineHost
+            key={stage.stageId}
+            runtimeAdapterId={dispatch.engine.runtimeAdapterId}
+            config={stageConfigs?.[stage.stageId]}
+            onEvaluated={handleEvaluated}
+            {...(onAction ? { onAction } : {})}
+          />
 
           {stageState && (
             <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.attemptsForStageLabel", { params: { count: stageState.attemptsForStage } })}</p>

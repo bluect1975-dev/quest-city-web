@@ -40,7 +40,10 @@ export interface BundleEntry {
   required: boolean;
 }
 
-const SERVABLE_BUNDLE_TYPES = new Set(["RUNTIME_FIXTURE_BUNDLE"]);
+// WEB-M4 (07_25 v1.0 §16): real content must NOT be typed
+// RUNTIME_FIXTURE_BUNDLE — ACTIVITY_BUNDLE is added here as the first real
+// (non-fixture) servable type, alongside the pre-existing fixture-only gate.
+const SERVABLE_BUNDLE_TYPES = new Set(["RUNTIME_FIXTURE_BUNDLE", "ACTIVITY_BUNDLE"]);
 
 export function loadBundleManifest(manifest: unknown): BundleLoadResult {
   const result = validateAgainst("webContentBundleManifest", manifest);

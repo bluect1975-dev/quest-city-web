@@ -7,7 +7,13 @@
     "title": "Quest City",
     "underConstructionBefore": "L'Esperienza Web Studente è in costruzione. Questo placeholder conferma che la rotta",
     "underConstructionAfter": "è attiva end-to-end (reverse proxy → app student-web).",
-    "continueButton": "Continua (a breve)"
+    "continueButton": "Continua (a breve)",
+    "welcomeTitle": "Ciao, {alias}",
+    "readOnlySessionWarning": "La tua sessione è di sola lettura. Accedi di nuovo per continuare un'attività.",
+    "activitySectionTitle": "La tua attività",
+    "activityLoading": "Caricamento dell'attività in corso...",
+    "startActivityButton": "Inizia l'attività",
+    "logoutButton": "Esci"
   },
   "engines": {
     "index": {
@@ -46,6 +52,32 @@
       "targetsLegend": "Destinazioni",
       "placeButtonFor": "Posiziona {item} in {target}"
     }
+  },
+  "login": {
+    "title": "Accedi",
+    "description": "Inserisci il codice della tua classe, il tuo alias e il tuo PIN.",
+    "classCodeLabel": "Codice classe",
+    "accessAliasLabel": "Il tuo nome (alias)",
+    "pinLabel": "PIN",
+    "pinHint": "Il PIN che ti ha dato il tuo insegnante (6-8 cifre).",
+    "submit": "Accedi",
+    "submitting": "Accesso in corso..."
+  },
+  "activity": {
+    "loading": "Caricamento in corso...",
+    "launching": "Avvio dell'attività in corso...",
+    "readOnlySessionBlocked": "Per svolgere questa attività devi accedere di nuovo.",
+    "sequenceTitle": "Balance Machine",
+    "sequenceDescription": "Metti in equilibrio la bilancia per completare l'attività."
+  },
+  "result": {
+    "title": "Risultato",
+    "loading": "Caricamento del risultato in corso...",
+    "attemptStateLabel": "Stato del tentativo: {state}",
+    "pendingConsolidation": "Il risultato è in fase di verifica.",
+    "startedAtLabel": "Iniziato il {date}",
+    "completedAtLabel": "Completato il {date}",
+    "homeButton": "Torna alla home"
   },
   "sequence": {
     "title": "Sequenza didattica",

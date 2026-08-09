@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { QC_THEME_CORE } from "@quest-city-web/theme-system";
 import { DEFAULT_LOCALE, STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
+import { StudentAuthProvider } from "../lib/student-auth-context";
 
 /**
  * `lang` and metadata are sourced from the locale model (DEFAULT_LOCALE),
@@ -17,7 +18,9 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang={DEFAULT_LOCALE} data-theme={QC_THEME_CORE.themeId}>
-      <body>{children}</body>
+      <body>
+        <StudentAuthProvider>{children}</StudentAuthProvider>
+      </body>
     </html>
   );
 }
