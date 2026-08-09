@@ -6,6 +6,7 @@ import { Button, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import {
   createDefaultEngineRuntimeRegistry,
+  replayActions,
   type BalanceMachineConfig,
   type BalanceMachineState,
   type DragDropConfig,
@@ -61,6 +62,18 @@ export interface EngineHostProps {
    * same "notify, don't own" pattern as `onEvaluated`.
    */
   onAction?: (action: EngineSemanticAction) => void;
+  /**
+   * M06 Web Full Vertical Slice Tranche 2 (`07_26 v1.0` §13): the current
+   * attempt's own already-submitted semantic actions (ordered by
+   * `clientSequence`), replayed once at mount to rehydrate `state` instead
+   * of a bare `engine.initState()` — resumes a multi-item interaction
+   * (e.g. `QUICK_QUESTION_SET`'s `ITEM_SET`) at the correct item after a
+   * reload rather than silently resetting to the first one. Omitted or
+   * empty behaves exactly like the previous bare `initState()` (`replayActions`
+   * over an empty list returns the same state) — WEB-M4/Tranche 1 callers
+   * that never pass this prop are unaffected.
+   */
+  initialActions?: EngineSemanticAction[];
 }
 
 /**
@@ -72,7 +85,7 @@ export interface EngineHostProps {
  * one dispatch path, one result renderer shared by all 3 engines rather
  * than per-engine host logic.
  */
-export function EngineHost({ runtimeAdapterId, config, onEvaluated, onAction }: EngineHostProps) {
+export function EngineHost({ runtimeAdapterId, config, onEvaluated, onAction, initialActions }: EngineHostProps) {
   const registry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const engine = registry.getByRuntimeAdapterId(runtimeAdapterId);
   const resolvedConfig = config ?? DEMO_CONFIGS[runtimeAdapterId];
@@ -92,6 +105,7 @@ export function EngineHost({ runtimeAdapterId, config, onEvaluated, onAction }: 
       nameKey={ENGINE_NAME_KEYS[runtimeAdapterId] ?? "engines.index.title"}
       {...(onEvaluated ? { onEvaluated } : {})}
       {...(onAction ? { onAction } : {})}
+      {...(initialActions ? { initialActions } : {})}
     />
   );
 }
@@ -102,17 +116,21 @@ function ResolvedEngineHost({
   nameKey,
   onEvaluated,
   onAction,
+  initialActions,
 }: {
   engine: NonNullable<ReturnType<ReturnType<typeof createDefaultEngineRuntimeRegistry>["getByRuntimeAdapterId"]>>;
   demoConfig: unknown;
   nameKey: string;
   onEvaluated?: (result: EngineEvaluationResult) => void;
   onAction?: (action: EngineSemanticAction) => void;
+  initialActions?: EngineSemanticAction[];
 }) {
   const configValidation = useMemo(() => engine.validateConfig(demoConfig), [engine, demoConfig]);
   const validConfig = configValidation.valid ? configValidation.config : undefined;
 
-  const [state, setState] = useState(() => (validConfig !== undefined ? engine.initState(validConfig) : undefined));
+  const [state, setState] = useState(() =>
+    validConfig !== undefined ? replayActions(engine, validConfig, initialActions ?? []).state : undefined,
+  );
   const [result, setResult] = useState<ReturnType<typeof engine.evaluate> | null>(null);
 
   if (!validConfig || state === undefined) {
@@ -153,7 +171,17 @@ function ResolvedEngineHost({
       onAction?.(confirmAction);
       const evalResult = engine.evaluate(outcome.state, validConfig);
       setResult(evalResult);
-      onEvaluated?.(evalResult);
+      // Only a real evaluation is forwarded to the orchestrator (R3C.2
+      // §16 boundary: the orchestrator reacts to a completed evaluation,
+      // never to engine-internal progress). A multi-item ITEM_SET's
+      // CONFIRM_SOLUTION legitimately produces `evaluated: false`
+      // ("SET_IN_PROGRESS") for every item but the last — forwarding that
+      // unconditionally would let `ON_ENGINE_EVALUATION_ANY` complete the
+      // stage after the very first item, since it advances on any
+      // orchestrator-received result regardless of `evaluated`.
+      if (evalResult.evaluated) {
+        onEvaluated?.(evalResult);
+      }
     }
   }
 

@@ -43,7 +43,9 @@
       "name": "Domanda rapida (Quick Question)",
       "description": "Rispondi scegliendo un'opzione oppure inserendo un valore numerico.",
       "optionsLegend": "Scegli una risposta",
-      "valueInputLabel": "Inserisci un valore numerico"
+      "valueInputLabel": "Inserisci un valore numerico",
+      "itemSetProgress": "Domanda {current} di {total}",
+      "itemSetComplete": "Hai risposto a tutte le domande."
     },
     "drag": {
       "name": "Trascina e rilascia (Drag and Drop)",
@@ -77,6 +79,10 @@
     "promptTitle": "Risolvi l'equazione",
     "promptEquation": "x + 5 = 12",
     "promptInstruction": "Trova il valore di x e inserisci il risultato."
+  },
+  "quickQuestionSet": {
+    "sequenceTitle": "Domande rapide: equazioni di primo grado",
+    "sequenceDescription": "Rispondi a una serie di domande rapide sulle equazioni. Ogni risposta ha un feedback immediato, senza penalità per il primo errore."
   },
   "result": {
     "title": "Risultato",

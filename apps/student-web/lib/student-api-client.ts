@@ -122,6 +122,14 @@ export async function getWebTranche1Activity(): Promise<WebTranche1Activity> {
   return envelope.data;
 }
 
+/** M06 Web Full Vertical Slice Tranche 2 (`07_26 v1.0` §16) — same shape as `WebM4Activity`, resolved from the third real assignment. */
+export type WebTranche2Activity = WebM4Activity;
+
+export async function getWebTranche2Activity(): Promise<WebTranche2Activity> {
+  const envelope = await request<Envelope<WebTranche2Activity>>("/me/web-tranche2-activity");
+  return envelope.data;
+}
+
 export interface LaunchContextResult {
   attempt: {
     attemptId: string;
@@ -211,4 +219,23 @@ export interface AttemptDetail {
 export async function getAttempt(attemptId: string): Promise<AttemptDetail> {
   const envelope = await request<Envelope<AttemptDetail>>(`/attempts/${encodeURIComponent(attemptId)}`);
   return envelope.data;
+}
+
+export interface AttemptActionRecord {
+  actionType: string;
+  targetRole: string | null;
+  payload: Record<string, unknown>;
+  clientSequence: number;
+}
+
+/**
+ * M06 Web Full Vertical Slice Tranche 2 (`07_26 v1.0` §13): the attempt's
+ * own semantic action log, ordered by `clientSequence` — lets the activity
+ * page rehydrate `EngineHost`'s in-memory state via `replayActions()`
+ * after a reload instead of silently resetting to the first item of a
+ * `QUICK_QUESTION_SET`.
+ */
+export async function getAttemptActions(attemptId: string): Promise<AttemptActionRecord[]> {
+  const envelope = await request<Envelope<{ actions: AttemptActionRecord[] }>>(`/attempts/${encodeURIComponent(attemptId)}/actions`);
+  return envelope.data.actions;
 }

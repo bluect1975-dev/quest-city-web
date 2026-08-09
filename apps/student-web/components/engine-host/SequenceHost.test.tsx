@@ -5,6 +5,9 @@ import {
   WEB_TRANCHE1_GUIDED_PRACTICE_SEQUENCE_DEFINITION,
   WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID,
   WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID,
 } from "@quest-city-web/content-runtime";
 
 /**
@@ -76,6 +79,75 @@ describe("SequenceHost — Tranche 1 Guided Practice + Reflection/Result", () =>
 
     expect(onComplete).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+    expect(await screen.findByText("Sequenza completata.")).toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * M06 Web Full Vertical Slice Tranche 2 (`07_26 v1.0` §16): the real
+ * QUICK_QUESTION_SET stage, driven end-to-end through the actual
+ * `SequenceHost` -> `EngineHost` pipeline (not a hand-built orchestrator
+ * state, unlike the content-runtime unit tests) — this is the regression
+ * guard for the bug the browser walkthrough caught: `EngineHost` used to
+ * forward every `engine.evaluate()` result to the orchestrator
+ * unconditionally, including `evaluated: false` ("SET_IN_PROGRESS") — with
+ * `ON_ENGINE_EVALUATION_ANY`, that completed the stage after the very
+ * first item instead of after all 6.
+ */
+const TR2_STAGE_CONFIGS = { [WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID]: WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG };
+
+describe("SequenceHost — Tranche 2 Quick Question Set (real 6-item ITEM_SET, no premature completion)", () => {
+  it("does not complete the sequence after only the first item is confirmed", async () => {
+    const onComplete = vi.fn();
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche2-runtime"
+        stageConfigs={TR2_STAGE_CONFIGS}
+        titleKey="quickQuestionSet.sequenceTitle"
+        descriptionKey="quickQuestionSet.sequenceDescription"
+        onComplete={onComplete}
+      />,
+    );
+    expect(await screen.findByText("Domanda 1 di 6")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sottraggo 5 a entrambi i membri" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+
+    // Item 2 renders — the stage/sequence is still in progress, not completed.
+    expect(await screen.findByText("Domanda 2 di 6")).toBeInTheDocument();
+    expect(screen.queryByText("Sequenza completata.")).not.toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("completes the sequence only after all 6 items are confirmed", async () => {
+    const onComplete = vi.fn();
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche2-runtime-2"
+        stageConfigs={TR2_STAGE_CONFIGS}
+        titleKey="quickQuestionSet.sequenceTitle"
+        descriptionKey="quickQuestionSet.sequenceDescription"
+        onComplete={onComplete}
+      />,
+    );
+    await screen.findByText("Domanda 1 di 6");
+    fireEvent.click(screen.getByRole("button", { name: "Sottraggo 5 a entrambi i membri" })); // I003 correct
+    fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+
+    await screen.findByText("Domanda 2 di 6");
+    fireEvent.click(screen.getByRole("button", { name: "Divido entrambi i membri per 3" })); // I004 correct
+    fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+
+    const numericAnswers = [13, 6, 4, 5]; // I006, I007, I009, I010 — all correct
+    for (const [index, value] of numericAnswers.entries()) {
+      await screen.findByText(`Domanda ${index + 3} di 6`);
+      const input = screen.getByRole("spinbutton") as HTMLInputElement;
+      fireEvent.change(input, { target: { value: String(value) } });
+      fireEvent.click(screen.getByRole("button", { name: "Conferma soluzione" }));
+    }
+
     expect(await screen.findByText("Sequenza completata.")).toBeInTheDocument();
     expect(onComplete).toHaveBeenCalledTimes(1);
   });

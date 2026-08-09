@@ -17,11 +17,16 @@ import {
   WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID,
   WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID,
   WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
+  WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_ACTIVITY_ID,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID,
   type SequenceDefinition,
 } from "@quest-city-web/content-runtime";
 import { SequenceHost } from "../../../../components/engine-host/SequenceHost";
 import { useStudentAuth } from "../../../../lib/student-auth-context";
-import { completeAttempt, launchActivity, submitAction } from "../../../../lib/student-api-client";
+import { completeAttempt, getAttemptActions, launchActivity, submitAction } from "../../../../lib/student-api-client";
 import { StudentApiError } from "../../../../lib/student-api-error";
 
 /** Stable per (student session, assignment) creation key — a reload replays it, resuming the same attempt instead of creating a new one. */
@@ -96,6 +101,14 @@ const ACTIVITY_REGISTRY: Record<string, ActivityRegistryEntry> = {
       [WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID]: { titleKey: "guidedPractice.promptTitle", bodyKey: "guidedPractice.promptEquation" },
     },
   },
+  [WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID]: {
+    definition: WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION,
+    stageConfigs: { [WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID]: WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG },
+    activityId: WEB_TRANCHE2_QUICK_QUESTION_SET_ACTIVITY_ID,
+    runtimeStatePrefix: "web-tranche2-runtime",
+    titleKey: "quickQuestionSet.sequenceTitle",
+    descriptionKey: "quickQuestionSet.sequenceDescription",
+  },
 };
 
 /**
@@ -125,6 +138,7 @@ export default function ActivityPage() {
 
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [registryEntry, setRegistryEntry] = useState<ActivityRegistryEntry | null>(null);
+  const [initialActions, setInitialActions] = useState<EngineSemanticAction[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastClientSequenceRef = useRef<number | null>(null);
   const completingRef = useRef(false);
@@ -143,7 +157,7 @@ export default function ActivityPage() {
     let cancelled = false;
     const idempotencyKey = getOrCreateLaunchIdempotencyKey(assignmentId);
     launchActivity(assignmentId, csrfToken, idempotencyKey)
-      .then((result) => {
+      .then(async (result) => {
         if (cancelled) return;
         const entry = ACTIVITY_REGISTRY[result.bundle.contentBundleId];
         if (!entry) {
@@ -151,6 +165,12 @@ export default function ActivityPage() {
           return;
         }
         setRegistryEntry(entry);
+        // Fetched before setAttemptId (which gates SequenceHost's render) so
+        // EngineHost mounts with the real prior actions already in hand —
+        // resuming mid-interaction rather than a reset-then-replay flash.
+        const priorActions = await getAttemptActions(result.attempt.attemptId);
+        if (cancelled) return;
+        setInitialActions(priorActions.map((action) => ({ ...action })) as EngineSemanticAction[]);
         setAttemptId(result.attempt.attemptId);
       })
       .catch((caught) => {
@@ -241,7 +261,7 @@ export default function ActivityPage() {
     );
   }
 
-  if (!attemptId || !registryEntry) {
+  if (!attemptId || !registryEntry || !initialActions) {
     return (
       <main>
         <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "activity.launching")}</StatusMessage>
@@ -255,6 +275,7 @@ export default function ActivityPage() {
       <SequenceHost
         definition={registryEntry.definition}
         runtimeStateId={`${registryEntry.runtimeStatePrefix}-${attemptId}`}
+        initialActions={initialActions}
         stageConfigs={registryEntry.stageConfigs}
         onAction={handleAction}
         onComplete={handleComplete}

@@ -24,6 +24,8 @@ import {
   WEB_M4_MAT_M06_CONTENT_BUNDLE_ID,
   WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID,
   WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
+  WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
 } from "@quest-city-web/content-runtime";
 
 export interface ResolvedEngineDispatch {
@@ -60,6 +62,17 @@ const KNOWN_CONTENT_DISPATCH: Record<string, ResolvedEngineDispatch> = {
   [WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID]: {
     runtimeAdapterId: "QC-WEB-ENGINE-QUICK-QUESTION",
     config: WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
+  },
+  // M06 Web Full Vertical Slice Tranche 2 (07_26 v1.0 §16): the
+  // QUICK_QUESTION_SET stage's real content bundle — same rationale as
+  // WEB-M4/Tranche 1's entries above, keyed by the same fixed
+  // content_bundle.id (tools/seed-tranche2-content-bundle.ts)
+  // attempt.contentId actually carries. The config's `ITEM_SET` mode
+  // carries all 6 items; the engine itself aggregates them into one
+  // evaluation cycle, so one attempt/one dispatch entry is enough here too.
+  [WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID]: {
+    runtimeAdapterId: "QC-WEB-ENGINE-QUICK-QUESTION",
+    config: WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
   },
 };
 

@@ -38,6 +38,25 @@ describe("engine configuration <-> content-schema conformance", () => {
     expect(validateAgainst("quickQuestionConfig", config).valid).toBe(true);
   });
 
+  it("QuickQuestionConfig (ITEM_SET, Tranche 2) conforms to quick-question-config.schema.json", () => {
+    const config = {
+      mode: "ITEM_SET",
+      items: [
+        {
+          itemId: "i1",
+          mode: "OPTION_SELECTION",
+          prompt: "Which one?",
+          options: [{ optionId: "a", text: "A" }, { optionId: "b", text: "B" }],
+          correctOptionId: "b",
+          feedback: { correctFeedbackText: "Bravo", misconceptions: [{ matchChoiceId: "a", code: "M1", feedbackText: "..." }] },
+        },
+        { itemId: "i2", mode: "ENTER_VALUE", prompt: "Solve: x = 5", expectedValue: 5, tolerance: 0, feedback: { solutionExplanation: "..." } },
+      ],
+    };
+    expect(validateQuickQuestionConfig(config).valid).toBe(true);
+    expect(validateAgainst("quickQuestionConfig", config).valid).toBe(true);
+  });
+
   it("DragDropConfig conforms to drag-drop-config.schema.json", () => {
     const config = {
       items: [{ itemId: "i1" }],
