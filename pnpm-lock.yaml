@@ -490,6 +490,9 @@ importers:
       '@quest-city-web/staff-identity':
         specifier: workspace:*
         version: link:../packages/staff-identity
+      '@quest-city-web/theme-system':
+        specifier: workspace:*
+        version: link:../packages/theme-system
       pg:
         specifier: 8.13.1
         version: 8.13.1

@@ -12,6 +12,7 @@ import {
   SequenceRuntimeStateRepository,
   DurableSequenceRuntimeStateStore,
 } from "@quest-city-web/attempts";
+import { AuditRepository } from "@quest-city-web/identity";
 import { createDefaultEngineRuntimeRegistry, type EngineRuntimeRegistry } from "@quest-city-web/learning-engines";
 import { loadEnv } from "./env";
 
@@ -82,6 +83,18 @@ export function getCrossRuntimeReconciliationService(): CrossRuntimeReconciliati
 
 export function getSequenceRuntimeStateRepository(): SequenceRuntimeStateRepository {
   return new SequenceRuntimeStateRepository(getAttemptsPool());
+}
+
+/**
+ * M06 Non-Interactive Attempt Lifecycle (07_15_01 v1.3 §11-bis.2-bis): the
+ * orchestration-stage-entry route audits its `CREATED -> IN_PROGRESS`
+ * transition via the same single `audit_event` table every other actor
+ * writes to (`packages/identity`, no second/parallel log) — reusing the
+ * attempts pool rather than staff-identity's, since this is student
+ * attempt traffic.
+ */
+export function getAuditRepository(): AuditRepository {
+  return new AuditRepository(getAttemptsPool());
 }
 
 /** R3C.3: one instance per request, bound to the caller's server-resolved identity — see the class's own doc comment for why this must never be shared across requests. */

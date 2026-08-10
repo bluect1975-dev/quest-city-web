@@ -12,6 +12,7 @@ import {
   getWebTranche2Activity,
   getWebTranche3Activity,
   getWebTranche4Activity,
+  getWebTranche5Activity,
   type WebM4Activity,
 } from "../../../lib/student-api-client";
 import { StudentApiError } from "../../../lib/student-api-error";
@@ -45,6 +46,9 @@ export default function StudentHomePage() {
   const [tranche4Activity, setTranche4Activity] = useState<WebM4Activity | null>(null);
   const [tranche4ActivityError, setTranche4ActivityError] = useState<string | null>(null);
   const [loadingTranche4Activity, setLoadingTranche4Activity] = useState(true);
+  const [tranche5Activity, setTranche5Activity] = useState<WebM4Activity | null>(null);
+  const [tranche5ActivityError, setTranche5ActivityError] = useState<string | null>(null);
+  const [loadingTranche5Activity, setLoadingTranche5Activity] = useState(true);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -177,6 +181,31 @@ export default function StudentHomePage() {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (status !== "authenticated" && status !== "authenticated-read-only") {
+      return;
+    }
+    let cancelled = false;
+    getWebTranche5Activity()
+      .then((result) => {
+        if (!cancelled) setTranche5Activity(result);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setTranche5ActivityError(
+          caught instanceof StudentApiError
+            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
+            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTranche5Activity(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
   async function handleLogout() {
     await logout();
     router.replace("/w/login");
@@ -261,6 +290,20 @@ export default function StudentHomePage() {
           <>
             <p>{tranche4Activity.title}</p>
             <Link href={`/w/activity/${encodeURIComponent(tranche4Activity.assignmentId)}`}>
+              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
+            </Link>
+          </>
+        )}
+      </section>
+
+      <section>
+        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
+        {loadingTranche5Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
+        {!loadingTranche5Activity && tranche5ActivityError && <StatusMessage kind="empty">{tranche5ActivityError}</StatusMessage>}
+        {!loadingTranche5Activity && !tranche5ActivityError && tranche5Activity && (
+          <>
+            <p>{tranche5Activity.title}</p>
+            <Link href={`/w/activity/${encodeURIComponent(tranche5Activity.assignmentId)}`}>
               <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
             </Link>
           </>

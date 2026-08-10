@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { SequenceHost } from "./SequenceHost";
+import { setStoredCsrfToken } from "../../lib/session-client";
+import { notifyOrchestrationStageEntry } from "../../lib/student-api-client";
 import {
   WEB_TRANCHE1_GUIDED_PRACTICE_SEQUENCE_DEFINITION,
   WEB_TRANCHE1_GUIDED_PRACTICE_STAGE_ID,
@@ -12,7 +14,14 @@ import {
   WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
   WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION,
   WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID,
+  WEB_TRANCHE5_INTRO_HOOK_CONTENT,
+  WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION,
+  WEB_TRANCHE5_INTRO_HOOK_STAGE_ID,
 } from "@quest-city-web/content-runtime";
+
+vi.mock("../../lib/student-api-client", () => ({
+  notifyOrchestrationStageEntry: vi.fn().mockResolvedValue({ attemptId: "attempt-test-1", attemptState: "IN_PROGRESS" }),
+}));
 
 /**
  * M06 Web Full Vertical Slice Tranche 1 (`07_26 v1.0` §14): exercises
@@ -231,5 +240,154 @@ describe("SequenceHost — Tranche 3 Prerequisite Check + Micro Lesson (real 2-i
 
     expect(await screen.findByText("Spiegazione visuale")).toBeInTheDocument();
     expect(screen.queryByText("2x + 3 = 11")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * M06 Web Full Vertical Slice Tranche 5 (`07_26 v1.1` §13/§17): `INTRO_HOOK`
+ * — non-interactive, no engine, real scene rendered via `stageScenes`.
+ */
+describe("SequenceHost — Tranche 5 INTRO_HOOK", () => {
+  afterEach(() => {
+    window.sessionStorage.clear();
+    vi.mocked(notifyOrchestrationStageEntry).mockClear();
+  });
+
+  it("renders the objective chip / mentor dialogue prompt and the Mission Plaza scene, then completes the orchestration-level sequence on Continua", async () => {
+    const onComplete = vi.fn();
+    const onAction = vi.fn();
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-runtime"
+        stageConfigs={{}}
+        stagePrompts={{
+          [WEB_TRANCHE5_INTRO_HOOK_STAGE_ID]: { titleKey: "introHook.promptTitle", bodyKey: "introHook.promptBody" },
+        }}
+        stageScenes={{ [WEB_TRANCHE5_INTRO_HOOK_STAGE_ID]: [...WEB_TRANCHE5_INTRO_HOOK_CONTENT.semanticRoles] }}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+        onComplete={onComplete}
+        onAction={onAction}
+      />,
+    );
+
+    expect(await screen.findByText("Mantieni uguali i due membri")).toBeInTheDocument();
+    expect(
+      screen.getByText("La Balance Machine confronta due lati. Se cambiamo un lato, dobbiamo fare lo stesso sull'altro."),
+    ).toBeInTheDocument();
+    expect(screen.getByAltText("Piazza della missione, accademia, sfondo statico")).toBeInTheDocument();
+    expect(screen.getByAltText("Ritratto del mentore, in posa di attesa")).toBeInTheDocument();
+
+    expect(onComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+    expect(await screen.findByText("Sequenza completata.")).toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    // M06 Non-Interactive Attempt Lifecycle (07_15_01 v1.3 §11-bis.2-bis):
+    // a wholly non-interactive stage never dispatches to an EngineHost and
+    // so still logs no semantic action on Continua — onAction correctly
+    // never fires here. The attempt's CREATED -> IN_PROGRESS transition no
+    // longer depends on this click at all (no attemptId prop is passed in
+    // this test, so notifyOrchestrationStageEntry never fires either) —
+    // see the dedicated describe block below for that trigger.
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it("renders no scene at all when stageScenes is not supplied (regression guard for every pre-Tranche-5 sequence)", async () => {
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-runtime-no-scene"
+        stageConfigs={{}}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+      />,
+    );
+    await screen.findByText("Stage 1 di 1");
+    expect(screen.queryByAltText("Piazza della missione, accademia, sfondo statico")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * M06 Non-Interactive Attempt Lifecycle (`07_15_01 v1.3` §11-bis.2-bis):
+ * `SequenceHost` notifies the new orchestration-stage-entry trigger on
+ * entering INTRO_HOOK's single, non-interactive, engine-less stage — never
+ * a semantic action, never dependent on the "Continua" click.
+ */
+describe("SequenceHost — orchestration-stage-entry trigger (INTRO_HOOK)", () => {
+  afterEach(() => {
+    window.sessionStorage.clear();
+    vi.mocked(notifyOrchestrationStageEntry).mockClear();
+  });
+
+  it("notifies orchestration-stage-entry once, on mount, when attemptId and a CSRF token are both present", async () => {
+    setStoredCsrfToken("test-csrf-token");
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-orchestration-trigger"
+        attemptId="attempt-test-1"
+        stageConfigs={{}}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+      />,
+    );
+    await screen.findByText("Stage 1 di 1");
+    expect(notifyOrchestrationStageEntry).toHaveBeenCalledTimes(1);
+    expect(notifyOrchestrationStageEntry).toHaveBeenCalledWith("attempt-test-1", "test-csrf-token");
+
+    // Re-render (e.g. a hint/progress re-render) never re-fires it for the
+    // same stage — the ref guard keyed by stageId is a de-dupe against
+    // redundant network calls, not a correctness requirement (the server
+    // side is idempotent regardless).
+    fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+    await screen.findByText("Sequenza completata.");
+    expect(notifyOrchestrationStageEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("never notifies when attemptId is absent (the unauthenticated /w/sequence demo)", async () => {
+    setStoredCsrfToken("test-csrf-token");
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-orchestration-trigger-no-attempt"
+        stageConfigs={{}}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+      />,
+    );
+    await screen.findByText("Stage 1 di 1");
+    expect(notifyOrchestrationStageEntry).not.toHaveBeenCalled();
+  });
+
+  it("never notifies when no CSRF token is stored (unauthenticated session)", async () => {
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-orchestration-trigger-no-csrf"
+        attemptId="attempt-test-2"
+        stageConfigs={{}}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+      />,
+    );
+    await screen.findByText("Stage 1 di 1");
+    expect(notifyOrchestrationStageEntry).not.toHaveBeenCalled();
+  });
+
+  it("never notifies for an interactive stage (Tranche 1 GUIDED_PRACTICE, real engine dispatch)", async () => {
+    setStoredCsrfToken("test-csrf-token");
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE1_GUIDED_PRACTICE_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche1-orchestration-trigger-guard"
+        attemptId="attempt-test-3"
+        stageConfigs={STAGE_CONFIGS}
+        titleKey="guidedPractice.sequenceTitle"
+        descriptionKey="guidedPractice.sequenceDescription"
+      />,
+    );
+    await screen.findByText("Domanda rapida (Quick Question)");
+    expect(notifyOrchestrationStageEntry).not.toHaveBeenCalled();
   });
 });

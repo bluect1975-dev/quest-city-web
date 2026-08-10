@@ -21,6 +21,7 @@ import {
   type SequenceRuntimeState,
 } from "@quest-city-web/content-runtime";
 import { EngineHost } from "./EngineHost";
+import { ScenePresentation } from "../scene/ScenePresentation";
 import {
   createSequenceRuntimeState,
   loadSequenceRuntimeState,
@@ -28,10 +29,24 @@ import {
   SequenceRuntimeStateClientError,
 } from "../../lib/sequence-runtime-state-client";
 import { getStoredCsrfToken } from "../../lib/session-client";
+import { notifyOrchestrationStageEntry } from "../../lib/student-api-client";
 
 export interface SequenceHostProps {
   definition: SequenceDefinition;
   runtimeStateId: string;
+  /**
+   * M06 Non-Interactive Attempt Lifecycle (`07_15_01 v1.3` §11-bis.2-bis):
+   * the real attempt id backing this sequence, when known (the caller
+   * resolves it via `launchActivity`, same as `onAction`/`onComplete`
+   * already assume). When present, `SequenceHost` notifies
+   * `POST /attempts/{attemptId}/orchestration-stage-entry` on entering any
+   * stage that is `isInteractive: false` with no `engineDispatchRef` — the
+   * orchestration-layer-owned trigger that lets such an attempt (e.g.
+   * INTRO_HOOK) leave `CREATED` even though it never dispatches a Learning
+   * Engine and so never submits a semantic action. Absent for the
+   * unauthenticated `/w/sequence` demo, which has no real attempt at all.
+   */
+  attemptId?: string;
   /** WEB-M4: real per-stage engine configs, keyed by `stageId` — overrides the demo config lookup in `EngineHost` when present for the current stage. */
   stageConfigs?: Record<string, unknown>;
   /** WEB-M4: mirrors every locally-accepted semantic action for the current stage's `EngineHost`, e.g. to log it against a real attempt. */
@@ -62,6 +77,17 @@ export interface SequenceHostProps {
   stagePrompts?: Record<string, { titleKey: string; bodyKey: string }>;
   /** When set and the current stage is non-interactive, renders a recap of the named prior stage's runtime stats (hints used, attempts, checkpoint) above the continue button — e.g. a `REFLECTION_AND_RESULT` stage recapping the preceding `GUIDED_PRACTICE` stage. */
   recapStageId?: string;
+  /**
+   * M06 Web Full Vertical Slice Tranche 5 (`07_26 v1.1` §13/§17): optional
+   * per-stage semantic roles (`07_08` §4), keyed by `stageId`. When the
+   * current stage declares roles here, `ScenePresentation` resolves and
+   * renders them above the stage prompt — real assets when published for
+   * the active theme, the always-available `QC-THEME-CORE` fallback
+   * otherwise. Absent for stages that declare no presentation dependency
+   * (every stage before Tranche 5, and any future stage that stays
+   * text-only).
+   */
+  stageScenes?: Record<string, string[]>;
 }
 
 /**
@@ -86,6 +112,7 @@ export interface SequenceHostProps {
 export function SequenceHost({
   definition,
   runtimeStateId,
+  attemptId,
   stageConfigs,
   onAction,
   onComplete,
@@ -94,12 +121,14 @@ export function SequenceHost({
   stagePrompts,
   recapStageId,
   initialActions,
+  stageScenes,
 }: SequenceHostProps) {
   const runtimeRegistry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const [state, setState] = useState<SequenceRuntimeState | null>(null);
   const versionRef = useRef<number | undefined>(undefined);
   const durableRef = useRef(false);
   const completeNotifiedRef = useRef(false);
+  const notifiedStageEntryRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (state && isSequenceComplete(state) && !completeNotifiedRef.current) {
@@ -107,6 +136,23 @@ export function SequenceHost({
       onComplete?.();
     }
   }, [state, onComplete]);
+
+  useEffect(() => {
+    if (!attemptId || !state) return;
+    const currentStage = resolveCurrentStage(definition, state);
+    if (currentStage.isInteractive || currentStage.engineDispatchRef) return;
+    if (notifiedStageEntryRef.current.has(currentStage.stageId)) return;
+    notifiedStageEntryRef.current.add(currentStage.stageId);
+    const csrfToken = getStoredCsrfToken();
+    if (!csrfToken) return;
+    void notifyOrchestrationStageEntry(attemptId, csrfToken).catch(() => {
+      // Non-fatal and safe to retry: the server-side transition is
+      // idempotent, and clearing the guard lets the next render (e.g. a
+      // manual reload) attempt the notification again rather than
+      // stranding this attempt in CREATED after a transient failure.
+      notifiedStageEntryRef.current.delete(currentStage.stageId);
+    });
+  }, [attemptId, state, definition]);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,6 +234,16 @@ export function SequenceHost({
   }
 
   function handleContinue() {
+    // M06 Non-Interactive Attempt Lifecycle (07_15_01 v1.3 §11-bis.2-bis,
+    // resolving the formerly-BLOCKED_CONTRACT_GAP left by the M06 Web
+    // Tranche 5 closure audit): a wholly non-interactive stage (e.g.
+    // INTRO_HOOK) never dispatches to an EngineHost and so never submits a
+    // semantic action here — but the attempt no longer depends on this
+    // click to leave CREATED. The `notifyOrchestrationStageEntry` effect
+    // above already transitions it to IN_PROGRESS as soon as this stage is
+    // entered (on mount/resume), via a distinct orchestration-layer-owned
+    // trigger, never a fabricated semantic action. This handler only
+    // advances the SequenceRuntimeState itself, exactly as before.
     const nextState = advanceStage(definition, state!);
     setState(nextState);
     void persist(nextState);
@@ -228,6 +284,8 @@ export function SequenceHost({
         {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageProgress", { params: { index: stageIndex + 1, total: stages.length } })}
       </StatusMessage>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageTypeLabel", { params: { stageType: stage.stageType } })}</p>
+
+      {stageScenes?.[stage.stageId] && <ScenePresentation semanticRoles={stageScenes[stage.stageId]!} />}
 
       {!stage.isInteractive && (
         <>

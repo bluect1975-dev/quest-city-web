@@ -48,6 +48,7 @@ export {
   SequenceRuntimeStateVersionConflictError,
 } from "./services/durable-sequence-runtime-state-store";
 export { resolveEngineDispatch, type ResolvedEngineDispatch } from "./services/engine-dispatch-resolution";
+export { isWhollyNonInteractiveContentBundle } from "./services/orchestration-stage-entry-resolution";
 export {
   checkFinalClientSequence,
   type FinalClientSequenceCheckResult,

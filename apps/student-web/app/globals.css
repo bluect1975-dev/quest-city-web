@@ -1,0 +1,84 @@
+/*
+ * M06 Web Full Vertical Slice Tranche 5 (07_26 v1.1 §13/§17): theme-level
+ * presentation styling. This is the "theme/CSS level" reduced motion the
+ * canonical authority distinguishes from the per-engine capability flag
+ * (07_26 v1.0 §8: "oggi implementato solo come flag di capability
+ * dell'engine, non a livello di tema" — this file is what closes that gap),
+ * plus responsive rules (07_15 §10: portrait/landscape/resize/no overflow).
+ */
+
+.scenePresentation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  max-width: 100%;
+}
+
+.sceneAsset {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sceneAssetBackground {
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+}
+
+.sceneAssetCharacter {
+  width: 96px;
+  height: auto;
+  max-width: 30vw;
+}
+
+/* Missing-asset / QC-THEME-CORE fallback panel (07_14 §18, 07_15 §16 "asset mancante" / "fallback statico") — always renders, never blocks the stage. */
+.sceneAssetFallback {
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  background: var(--qc-theme-core-background, #ffffff);
+  color: var(--qc-theme-core-foreground, #111111);
+  border: 1px dashed currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+
+/* Theme-level reduced motion (07_14 §11): ambient loops/camera movement/parallax removed site-wide, not just per engine. Nothing in this stylesheet currently animates a scene asset — this rule is the standing guarantee that if one ever does, it is disabled here first. */
+@media (prefers-reduced-motion: reduce) {
+  .scenePresentation,
+  .sceneAsset,
+  .sceneAssetBackground,
+  .sceneAssetCharacter {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Responsive: narrow/portrait viewports stack the scene and keep the character clear of overflow (07_15 §10). */
+@media (max-width: 480px) {
+  .scenePresentation {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sceneAssetCharacter {
+    width: 72px;
+    align-self: center;
+  }
+}
+
+/* Landscape, short viewport (virtual keyboard open, small device rotated): cap background height so it never pushes interactive controls off-screen. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .sceneAssetBackground,
+  .sceneAssetFallback {
+    max-width: 320px;
+  }
+}
