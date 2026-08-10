@@ -103,6 +103,12 @@
     "promptTitle": "x + 3 = 7",
     "promptInstruction": "Trascina l'operazione −3 sul membro sinistro e sul membro destro dell'equazione, poi conferma per verificare che x = 4."
   },
+  "introHook": {
+    "sequenceTitle": "Equilibrio: capire un'equazione",
+    "sequenceDescription": "Arrivo alla Balance Machine e primo aggancio narrativo, prima di iniziare la lezione.",
+    "promptTitle": "Mantieni uguali i due membri",
+    "promptBody": "La Balance Machine confronta due lati. Se cambiamo un lato, dobbiamo fare lo stesso sull'altro."
+  },
   "result": {
     "title": "Risultato",
     "loading": "Caricamento del risultato in corso...",

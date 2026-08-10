@@ -21,6 +21,7 @@ import {
   type SequenceRuntimeState,
 } from "@quest-city-web/content-runtime";
 import { EngineHost } from "./EngineHost";
+import { ScenePresentation } from "../scene/ScenePresentation";
 import {
   createSequenceRuntimeState,
   loadSequenceRuntimeState,
@@ -62,6 +63,17 @@ export interface SequenceHostProps {
   stagePrompts?: Record<string, { titleKey: string; bodyKey: string }>;
   /** When set and the current stage is non-interactive, renders a recap of the named prior stage's runtime stats (hints used, attempts, checkpoint) above the continue button — e.g. a `REFLECTION_AND_RESULT` stage recapping the preceding `GUIDED_PRACTICE` stage. */
   recapStageId?: string;
+  /**
+   * M06 Web Full Vertical Slice Tranche 5 (`07_26 v1.1` §13/§17): optional
+   * per-stage semantic roles (`07_08` §4), keyed by `stageId`. When the
+   * current stage declares roles here, `ScenePresentation` resolves and
+   * renders them above the stage prompt — real assets when published for
+   * the active theme, the always-available `QC-THEME-CORE` fallback
+   * otherwise. Absent for stages that declare no presentation dependency
+   * (every stage before Tranche 5, and any future stage that stays
+   * text-only).
+   */
+  stageScenes?: Record<string, string[]>;
 }
 
 /**
@@ -94,6 +106,7 @@ export function SequenceHost({
   stagePrompts,
   recapStageId,
   initialActions,
+  stageScenes,
 }: SequenceHostProps) {
   const runtimeRegistry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const [state, setState] = useState<SequenceRuntimeState | null>(null);
@@ -188,6 +201,17 @@ export function SequenceHost({
   }
 
   function handleContinue() {
+    // A non-interactive stage never dispatches to an EngineHost, so without
+    // this call a wholly non-interactive sequence (e.g. Tranche 5's
+    // single-stage INTRO_HOOK) never logs a single semantic action —
+    // leaving the attempt stuck at CREATED, which `POST /attempts/{id}/
+    // complete` rejects as ATTEMPT_NOT_COMPLETABLE (07_15_01 v1.1 §11-bis.2
+    // requires CREATED -> IN_PROGRESS first, a transition the API only
+    // performs as a side effect of a real logged action). CONFIRM_SOLUTION
+    // is the existing canonical actionType (07_08 §6) for "the learner
+    // confirms and moves on" — already used by interactive engines for the
+    // same intent.
+    onAction?.({ actionType: "CONFIRM_SOLUTION", targetRole: null, payload: { stageId: stage.stageId, interactive: false } });
     const nextState = advanceStage(definition, state!);
     setState(nextState);
     void persist(nextState);
@@ -228,6 +252,8 @@ export function SequenceHost({
         {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageProgress", { params: { index: stageIndex + 1, total: stages.length } })}
       </StatusMessage>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageTypeLabel", { params: { stageType: stage.stageType } })}</p>
+
+      {stageScenes?.[stage.stageId] && <ScenePresentation semanticRoles={stageScenes[stage.stageId]!} />}
 
       {!stage.isInteractive && (
         <>

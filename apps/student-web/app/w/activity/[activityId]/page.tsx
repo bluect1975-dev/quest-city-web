@@ -33,6 +33,11 @@ import {
   WEB_TRANCHE4_INTERACTIVE_EXERCISE_SEQUENCE_DEFINITION,
   WEB_TRANCHE4_INTERACTIVE_EXERCISE_STAGE_ID,
   WEB_TRANCHE4_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE5_INTRO_HOOK_ACTIVITY_ID,
+  WEB_TRANCHE5_INTRO_HOOK_CONTENT,
+  WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION,
+  WEB_TRANCHE5_INTRO_HOOK_STAGE_ID,
+  WEB_TRANCHE5_MAT_M06_CONTENT_BUNDLE_ID,
   type SequenceDefinition,
 } from "@quest-city-web/content-runtime";
 import { SequenceHost } from "../../../../components/engine-host/SequenceHost";
@@ -89,6 +94,8 @@ interface ActivityRegistryEntry {
   descriptionKey: string;
   stagePrompts?: Record<string, { titleKey: string; bodyKey: string }>;
   recapStageId?: string;
+  /** M06 Web Full Vertical Slice Tranche 5 (`07_26 v1.1` §13): per-stage semantic roles forwarded to `SequenceHost`'s `stageScenes`. */
+  stageScenes?: Record<string, string[]>;
 }
 
 const ACTIVITY_REGISTRY: Record<string, ActivityRegistryEntry> = {
@@ -138,6 +145,20 @@ const ACTIVITY_REGISTRY: Record<string, ActivityRegistryEntry> = {
     descriptionKey: "interactiveExercise.sequenceDescription",
     stagePrompts: {
       [WEB_TRANCHE4_INTERACTIVE_EXERCISE_STAGE_ID]: { titleKey: "interactiveExercise.promptTitle", bodyKey: "interactiveExercise.promptInstruction" },
+    },
+  },
+  [WEB_TRANCHE5_MAT_M06_CONTENT_BUNDLE_ID]: {
+    definition: WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION,
+    stageConfigs: {},
+    activityId: WEB_TRANCHE5_INTRO_HOOK_ACTIVITY_ID,
+    runtimeStatePrefix: "web-tranche5-runtime",
+    titleKey: "introHook.sequenceTitle",
+    descriptionKey: "introHook.sequenceDescription",
+    stagePrompts: {
+      [WEB_TRANCHE5_INTRO_HOOK_STAGE_ID]: { titleKey: "introHook.promptTitle", bodyKey: "introHook.promptBody" },
+    },
+    stageScenes: {
+      [WEB_TRANCHE5_INTRO_HOOK_STAGE_ID]: [...WEB_TRANCHE5_INTRO_HOOK_CONTENT.semanticRoles],
     },
   },
 };
@@ -314,6 +335,7 @@ export default function ActivityPage() {
         descriptionKey={registryEntry.descriptionKey}
         {...(registryEntry.stagePrompts ? { stagePrompts: registryEntry.stagePrompts } : {})}
         {...(registryEntry.recapStageId ? { recapStageId: registryEntry.recapStageId } : {})}
+        {...(registryEntry.stageScenes ? { stageScenes: registryEntry.stageScenes } : {})}
       />
     </main>
   );

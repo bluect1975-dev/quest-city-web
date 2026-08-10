@@ -23,6 +23,7 @@ const getWebTranche1Activity = vi.fn();
 const getWebTranche2Activity = vi.fn();
 const getWebTranche3Activity = vi.fn();
 const getWebTranche4Activity = vi.fn();
+const getWebTranche5Activity = vi.fn();
 
 vi.mock("../../../lib/student-api-client", () => ({
   getWebM4Activity: (...args: unknown[]) => getWebM4Activity(...args),
@@ -30,6 +31,7 @@ vi.mock("../../../lib/student-api-client", () => ({
   getWebTranche2Activity: (...args: unknown[]) => getWebTranche2Activity(...args),
   getWebTranche3Activity: (...args: unknown[]) => getWebTranche3Activity(...args),
   getWebTranche4Activity: (...args: unknown[]) => getWebTranche4Activity(...args),
+  getWebTranche5Activity: (...args: unknown[]) => getWebTranche5Activity(...args),
 }));
 
 describe("StudentHomePage", () => {
@@ -42,7 +44,8 @@ describe("StudentHomePage", () => {
     getWebTranche2Activity.mockReset();
     getWebTranche3Activity.mockReset();
     getWebTranche4Activity.mockReset();
-    // Default: Tranche 1/2/3/4's own sections are exercised separately below;
+    getWebTranche5Activity.mockReset();
+    // Default: Tranche 1/2/3/4/5's own sections are exercised separately below;
     // other tests only assert on the WEB-M4 section, so keep these calls
     // pending/rejected to avoid extra identical "Inizia l'attività" links
     // colliding with getByRole.
@@ -50,6 +53,7 @@ describe("StudentHomePage", () => {
     getWebTranche2Activity.mockRejectedValue(new Error("not stubbed for this test"));
     getWebTranche3Activity.mockRejectedValue(new Error("not stubbed for this test"));
     getWebTranche4Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    getWebTranche5Activity.mockRejectedValue(new Error("not stubbed for this test"));
   });
 
   it("redirects to /w/login when unauthenticated", () => {
@@ -108,5 +112,13 @@ describe("StudentHomePage", () => {
     render(<StudentHomePage />);
     const link = await screen.findByRole("link", { name: "Inizia l'attività" });
     expect(link).toHaveAttribute("href", "/w/activity/asn-tranche4-1");
+  });
+
+  it("shows a real entry-point link into /w/activity/:assignmentId once the Tranche 5 Intro Hook activity resolves", async () => {
+    getWebM4Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    getWebTranche5Activity.mockResolvedValue({ assignmentId: "asn-tranche5-1", activityId: "act-intro-hook", title: "Equilibrio: capire un'equazione" });
+    render(<StudentHomePage />);
+    const link = await screen.findByRole("link", { name: "Inizia l'attività" });
+    expect(link).toHaveAttribute("href", "/w/activity/asn-tranche5-1");
   });
 });

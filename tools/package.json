@@ -16,7 +16,9 @@
     "seed:tranche2-content-bundle": "tsx seed-tranche2-content-bundle.ts",
     "seed:tranche3-content-bundle": "tsx seed-tranche3-content-bundle.ts",
     "seed:tranche4-content-bundle": "tsx seed-tranche4-content-bundle.ts",
+    "seed:tranche5-content-bundle": "tsx seed-tranche5-content-bundle.ts",
     "seed:staff": "tsx seed-staff.ts",
+    "generate:theme-assets": "tsx generate-theme-assets.ts",
     "check:duplicates": "node check-duplicates.mjs",
     "check:filenames": "node check-filenames.mjs"
   },
@@ -24,6 +26,7 @@
     "@quest-city-web/content-runtime": "workspace:*",
     "@quest-city-web/identity": "workspace:*",
     "@quest-city-web/staff-identity": "workspace:*",
+    "@quest-city-web/theme-system": "workspace:*",
     "pg": "8.13.1"
   },
   "devDependencies": {

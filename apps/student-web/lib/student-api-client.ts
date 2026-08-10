@@ -146,6 +146,14 @@ export async function getWebTranche4Activity(): Promise<WebTranche4Activity> {
   return envelope.data;
 }
 
+/** M06 Web Full Vertical Slice Tranche 5 (`07_26 v1.1` §13/§17) — same shape as `WebM4Activity`, resolved from the sixth real assignment. */
+export type WebTranche5Activity = WebM4Activity;
+
+export async function getWebTranche5Activity(): Promise<WebTranche5Activity> {
+  const envelope = await request<Envelope<WebTranche5Activity>>("/me/web-tranche5-activity");
+  return envelope.data;
+}
+
 export interface LaunchContextResult {
   attempt: {
     attemptId: string;

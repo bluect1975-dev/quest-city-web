@@ -1,0 +1,16 @@
+<svg viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Piazza della missione, accademia">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dfeeff"/>
+      <stop offset="1" stop-color="#f7fbff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="640" height="240" fill="url(#sky)"/>
+  <circle cx="540" cy="70" r="34" fill="#ffd166"/>
+  <rect x="0" y="240" width="640" height="120" fill="#cbd5c0"/>
+  <rect x="90" y="150" width="24" height="110" fill="#e6ded0"/>
+  <rect x="80" y="130" width="44" height="20" fill="#d8cfbd"/>
+  <rect x="520" y="150" width="24" height="110" fill="#e6ded0"/>
+  <rect x="510" y="130" width="44" height="20" fill="#d8cfbd"/>
+  <path d="M 220 260 Q 320 190 420 260 L 420 260 L 220 260 Z" fill="#eef2e6"/>
+</svg>

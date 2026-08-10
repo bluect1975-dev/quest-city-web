@@ -12,6 +12,9 @@ import {
   WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
   WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION,
   WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID,
+  WEB_TRANCHE5_INTRO_HOOK_CONTENT,
+  WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION,
+  WEB_TRANCHE5_INTRO_HOOK_STAGE_ID,
 } from "@quest-city-web/content-runtime";
 
 /**
@@ -231,5 +234,66 @@ describe("SequenceHost — Tranche 3 Prerequisite Check + Micro Lesson (real 2-i
 
     expect(await screen.findByText("Spiegazione visuale")).toBeInTheDocument();
     expect(screen.queryByText("2x + 3 = 11")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * M06 Web Full Vertical Slice Tranche 5 (`07_26 v1.1` §13/§17): `INTRO_HOOK`
+ * — non-interactive, no engine, real scene rendered via `stageScenes`.
+ */
+describe("SequenceHost — Tranche 5 INTRO_HOOK", () => {
+  it("renders the objective chip / mentor dialogue prompt and the Mission Plaza scene, then completes on Continua", async () => {
+    const onComplete = vi.fn();
+    const onAction = vi.fn();
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-runtime"
+        stageConfigs={{}}
+        stagePrompts={{
+          [WEB_TRANCHE5_INTRO_HOOK_STAGE_ID]: { titleKey: "introHook.promptTitle", bodyKey: "introHook.promptBody" },
+        }}
+        stageScenes={{ [WEB_TRANCHE5_INTRO_HOOK_STAGE_ID]: [...WEB_TRANCHE5_INTRO_HOOK_CONTENT.semanticRoles] }}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+        onComplete={onComplete}
+        onAction={onAction}
+      />,
+    );
+
+    expect(await screen.findByText("Mantieni uguali i due membri")).toBeInTheDocument();
+    expect(
+      screen.getByText("La Balance Machine confronta due lati. Se cambiamo un lato, dobbiamo fare lo stesso sull'altro."),
+    ).toBeInTheDocument();
+    expect(screen.getByAltText("Piazza della missione, accademia, sfondo statico")).toBeInTheDocument();
+    expect(screen.getByAltText("Ritratto del mentore, in posa di attesa")).toBeInTheDocument();
+
+    expect(onComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continua" }));
+    expect(await screen.findByText("Sequenza completata.")).toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    // A wholly non-interactive sequence never dispatches to an EngineHost —
+    // without this real CONFIRM_SOLUTION action, the attempt never leaves
+    // CREATED and POST /attempts/{id}/complete rejects it as
+    // ATTEMPT_NOT_COMPLETABLE (found via a live browser walkthrough).
+    expect(onAction).toHaveBeenCalledWith({
+      actionType: "CONFIRM_SOLUTION",
+      targetRole: null,
+      payload: { stageId: WEB_TRANCHE5_INTRO_HOOK_STAGE_ID, interactive: false },
+    });
+  });
+
+  it("renders no scene at all when stageScenes is not supplied (regression guard for every pre-Tranche-5 sequence)", async () => {
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-runtime-no-scene"
+        stageConfigs={{}}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+      />,
+    );
+    await screen.findByText("Stage 1 di 1");
+    expect(screen.queryByAltText("Piazza della missione, accademia, sfondo statico")).not.toBeInTheDocument();
   });
 });
