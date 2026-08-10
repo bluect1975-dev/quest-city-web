@@ -209,20 +209,52 @@ export async function submitAction(action: SemanticActionInput, csrfToken: strin
   });
 }
 
+export interface OrchestrationStageEntryResult {
+  attemptId: string;
+  attemptState: string;
+}
+
+/**
+ * M06 Non-Interactive Attempt Lifecycle (`07_15_01 v1.3` §11-bis.2-bis).
+ * NOT a semantic action — never routed through `submitAction`/
+ * `POST /attempts/{attemptId}/actions`. Called by `SequenceHost` on
+ * entering a stage that is `isInteractive: false` with no
+ * `engineDispatchRef`, so an attempt on a wholly non-interactive content
+ * bundle (e.g. INTRO_HOOK) can leave `CREATED` even though it never
+ * dispatches a Learning Engine. Safe to call more than once for the same
+ * attempt — idempotent server-side.
+ */
+export async function notifyOrchestrationStageEntry(attemptId: string, csrfToken: string): Promise<OrchestrationStageEntryResult> {
+  const envelope = await request<Envelope<OrchestrationStageEntryResult>>(
+    `/attempts/${encodeURIComponent(attemptId)}/orchestration-stage-entry`,
+    { method: "POST", csrfToken },
+  );
+  return envelope.data;
+}
+
 export interface CompleteAttemptResult {
   attemptId: string;
   completionStatus: string;
   outcome?: Record<string, unknown>;
 }
 
+/**
+ * `finalClientSequence` is omitted from the request body entirely when
+ * `undefined` — never coerced to `0` — because `checkFinalClientSequence`
+ * (`02_26` §18.5) treats any numeric claim as "an action with this
+ * clientSequence must already be persisted"; `0` would falsely claim a
+ * first action exists for an attempt that never submitted one (e.g.
+ * INTRO_HOOK, `07_15_01 v1.3` §11-bis.2-bis), which the server correctly
+ * rejects as `MISSING_ACTION`.
+ */
 export async function completeAttempt(
   attemptId: string,
-  finalClientSequence: number,
+  finalClientSequence: number | undefined,
   csrfToken: string,
 ): Promise<CompleteAttemptResult> {
   const envelope = await request<Envelope<CompleteAttemptResult>>(`/attempts/${encodeURIComponent(attemptId)}/complete`, {
     method: "POST",
-    body: { finalClientSequence },
+    body: finalClientSequence === undefined ? {} : { finalClientSequence },
     csrfToken,
     idempotencyKey: generateIdempotencyKey(),
   });

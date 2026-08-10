@@ -275,7 +275,9 @@ export default function ActivityPage() {
     completingRef.current = true;
     try {
       await Promise.all(pendingActionsRef.current);
-      await completeAttempt(attemptId, lastClientSequenceRef.current ?? 0, csrfToken);
+      // undefined (never 0) when no action was ever submitted for this
+      // attempt (e.g. INTRO_HOOK) — see completeAttempt's own doc comment.
+      await completeAttempt(attemptId, lastClientSequenceRef.current ?? undefined, csrfToken);
       router.push(`/w/result/${encodeURIComponent(attemptId)}`);
     } catch (caught) {
       completingRef.current = false;
@@ -327,6 +329,7 @@ export default function ActivityPage() {
       <SequenceHost
         definition={registryEntry.definition}
         runtimeStateId={`${registryEntry.runtimeStatePrefix}-${attemptId}`}
+        attemptId={attemptId}
         initialActions={initialActions}
         stageConfigs={registryEntry.stageConfigs}
         onAction={handleAction}

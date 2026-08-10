@@ -29,10 +29,24 @@ import {
   SequenceRuntimeStateClientError,
 } from "../../lib/sequence-runtime-state-client";
 import { getStoredCsrfToken } from "../../lib/session-client";
+import { notifyOrchestrationStageEntry } from "../../lib/student-api-client";
 
 export interface SequenceHostProps {
   definition: SequenceDefinition;
   runtimeStateId: string;
+  /**
+   * M06 Non-Interactive Attempt Lifecycle (`07_15_01 v1.3` §11-bis.2-bis):
+   * the real attempt id backing this sequence, when known (the caller
+   * resolves it via `launchActivity`, same as `onAction`/`onComplete`
+   * already assume). When present, `SequenceHost` notifies
+   * `POST /attempts/{attemptId}/orchestration-stage-entry` on entering any
+   * stage that is `isInteractive: false` with no `engineDispatchRef` — the
+   * orchestration-layer-owned trigger that lets such an attempt (e.g.
+   * INTRO_HOOK) leave `CREATED` even though it never dispatches a Learning
+   * Engine and so never submits a semantic action. Absent for the
+   * unauthenticated `/w/sequence` demo, which has no real attempt at all.
+   */
+  attemptId?: string;
   /** WEB-M4: real per-stage engine configs, keyed by `stageId` — overrides the demo config lookup in `EngineHost` when present for the current stage. */
   stageConfigs?: Record<string, unknown>;
   /** WEB-M4: mirrors every locally-accepted semantic action for the current stage's `EngineHost`, e.g. to log it against a real attempt. */
@@ -98,6 +112,7 @@ export interface SequenceHostProps {
 export function SequenceHost({
   definition,
   runtimeStateId,
+  attemptId,
   stageConfigs,
   onAction,
   onComplete,
@@ -113,6 +128,7 @@ export function SequenceHost({
   const versionRef = useRef<number | undefined>(undefined);
   const durableRef = useRef(false);
   const completeNotifiedRef = useRef(false);
+  const notifiedStageEntryRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (state && isSequenceComplete(state) && !completeNotifiedRef.current) {
@@ -120,6 +136,23 @@ export function SequenceHost({
       onComplete?.();
     }
   }, [state, onComplete]);
+
+  useEffect(() => {
+    if (!attemptId || !state) return;
+    const currentStage = resolveCurrentStage(definition, state);
+    if (currentStage.isInteractive || currentStage.engineDispatchRef) return;
+    if (notifiedStageEntryRef.current.has(currentStage.stageId)) return;
+    notifiedStageEntryRef.current.add(currentStage.stageId);
+    const csrfToken = getStoredCsrfToken();
+    if (!csrfToken) return;
+    void notifyOrchestrationStageEntry(attemptId, csrfToken).catch(() => {
+      // Non-fatal and safe to retry: the server-side transition is
+      // idempotent, and clearing the guard lets the next render (e.g. a
+      // manual reload) attempt the notification again rather than
+      // stranding this attempt in CREATED after a transient failure.
+      notifiedStageEntryRef.current.delete(currentStage.stageId);
+    });
+  }, [attemptId, state, definition]);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,28 +234,16 @@ export function SequenceHost({
   }
 
   function handleContinue() {
-    // KNOWN CANONICAL GAP (M06 Web Tranche 5 closure audit, BLOCKED_CONTRACT_GAP):
-    // a wholly non-interactive stage (e.g. INTRO_HOOK) never dispatches to
-    // an EngineHost, so this path logs no semantic action at all — the
-    // underlying `learning_attempt` never leaves `CREATED`, and
-    // `POST /attempts/{id}/complete` will reject it as
-    // ATTEMPT_NOT_COMPLETABLE (07_15_01 v1.2 §11-bis.2: CREATED ->
-    // IN_PROGRESS happens ONLY via "almeno una semantic action inviata").
-    // A prior fix here submitted a synthetic CONFIRM_SOLUTION action to
-    // force that transition; audited against canon and reverted, because
-    // `07_13` §10 (correction R3C.2A) scopes every semantic action —
-    // CONFIRM_SOLUTION included — as an action "verso il Learning Engine
-    // di uno stage", and `07_26 v1.1` §17.2 states INTRO_HOOK explicitly
-    // involves "nessuna semantic action di dominio". `02_36` §20-bis.10
-    // separately rejected ADVANCE_STAGE as a semantic action for the same
-    // reason (a stage transition is an orchestration-layer event, not an
-    // engine-directed input) and §20-bis.8 confirms the orchestration
-    // layer does not own `attemptState`. No canonical document defines an
-    // alternative, authorized path out of CREATED for an engine-less
-    // stage — this is a real gap, not a solved problem: do not invent one
-    // here (no fabricated action type, no direct DB/API workaround).
-    // SequenceRuntimeState (orchestration-level) still advances/completes
-    // normally below; only the attempt-lifecycle completion is blocked.
+    // M06 Non-Interactive Attempt Lifecycle (07_15_01 v1.3 §11-bis.2-bis,
+    // resolving the formerly-BLOCKED_CONTRACT_GAP left by the M06 Web
+    // Tranche 5 closure audit): a wholly non-interactive stage (e.g.
+    // INTRO_HOOK) never dispatches to an EngineHost and so never submits a
+    // semantic action here — but the attempt no longer depends on this
+    // click to leave CREATED. The `notifyOrchestrationStageEntry` effect
+    // above already transitions it to IN_PROGRESS as soon as this stage is
+    // entered (on mount/resume), via a distinct orchestration-layer-owned
+    // trigger, never a fabricated semantic action. This handler only
+    // advances the SequenceRuntimeState itself, exactly as before.
     const nextState = advanceStage(definition, state!);
     setState(nextState);
     void persist(nextState);
