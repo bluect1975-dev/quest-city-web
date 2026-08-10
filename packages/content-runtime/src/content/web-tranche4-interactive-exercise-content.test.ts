@@ -111,4 +111,29 @@ describe("M06 Web Full Vertical Slice Tranche 4 real content (07_26 v1.0 §5/§6
     expect(outcome.outcome).not.toBe("ADVANCED");
     expect(isSequenceComplete(outcome.state)).toBe(false);
   });
+
+  it("maxAttemptsBeforeRemediation: 5 is a technical, non-pedagogical default with no observable effect — this stage declares no remediationPolicy, so receiveEngineResult() never returns REMEDIATION_TRIGGERED no matter how many incorrect attempts are made (stage-orchestrator.ts §281-296 requires stage.remediationPolicy to be truthy, which this stage never sets)", () => {
+    const definition = WEB_TRANCHE4_INTERACTIVE_EXERCISE_SEQUENCE_DEFINITION;
+    const stage = definition.stages[0]!;
+    expect(stage.progressionRule?.maxAttemptsBeforeRemediation).toBe(5);
+    expect(stage.remediationPolicy).toBeUndefined();
+
+    let state = initializeSequence(definition, "test-runtime-state-tr4-max-attempts");
+    const incorrectResult = {
+      evaluated: true as const,
+      correctness: "INCORRECT" as const,
+      score: 0,
+      evidence: { placements: {}, matchedCount: 0, totalRequired: 2 },
+    };
+
+    for (let attempt = 1; attempt <= 8; attempt += 1) {
+      const outcome = receiveEngineResult(definition, state, incorrectResult);
+      expect(outcome.outcome).toBe("RETRY");
+      state = outcome.state;
+      const stageState = state.stageStates.find((s) => s.stageId === stage.stageId)!;
+      expect(stageState.attemptsForStage).toBe(attempt);
+      expect(stageState.remediationTriggered).toBeUndefined();
+    }
+    expect(isSequenceComplete(state)).toBe(false);
+  });
 });
