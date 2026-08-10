@@ -311,6 +311,14 @@ export default function StudentHomePage() {
       </section>
 
       <section>
+        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceSectionTitle")}</h2>
+        <p>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceDescription")}</p>
+        <Link href="/w/full-sequence">
+          <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startFullSequenceButton")}</Button>
+        </Link>
+      </section>
+
+      <section>
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.title")}</h2>
         <p>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.description")}</p>
         <ul>

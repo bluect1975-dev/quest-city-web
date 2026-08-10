@@ -17,14 +17,24 @@
  * backs the sequence containing the interactive stage the attempt was
  * actually created for (never safe for this trigger).
  */
-import { WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION, WEB_TRANCHE5_MAT_M06_CONTENT_BUNDLE_ID, type SequenceDefinition } from "@quest-city-web/content-runtime";
+import {
+  WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION,
+  WEB_TRANCHE5_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE6_REFLECTION_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE6_REFLECTION_SEQUENCE_DEFINITION,
+  type SequenceDefinition,
+} from "@quest-city-web/content-runtime";
 
 const KNOWN_NON_INTERACTIVE_SEQUENCES: Record<string, SequenceDefinition> = {
   // M06 Web Full Vertical Slice Tranche 5 (07_26 v1.1 §17.2): INTRO_HOOK is
   // a single-stage, non-interactive, engine-less sequence that is the
-  // entire assignment — the first (and, as of this revision, only) real
-  // content bundle eligible for this trigger.
+  // entire assignment.
   [WEB_TRANCHE5_MAT_M06_CONTENT_BUNDLE_ID]: WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION,
+  // M06 Web Full Vertical Slice Tranche 6 (07_26 v1.1 §17.4): the Full M06
+  // Sequence's standalone REFLECTION_AND_RESULT group — same rationale as
+  // INTRO_HOOK above (a wholly non-interactive, engine-less, single-stage
+  // content bundle needs this trigger to leave CREATED at all).
+  [WEB_TRANCHE6_REFLECTION_MAT_M06_CONTENT_BUNDLE_ID]: WEB_TRANCHE6_REFLECTION_SEQUENCE_DEFINITION,
 };
 
 /**
