@@ -28,6 +28,11 @@ import {
   WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
   WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION,
   WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID,
+  WEB_TRANCHE4_INTERACTIVE_EXERCISE_ACTIVITY_ID,
+  WEB_TRANCHE4_INTERACTIVE_EXERCISE_ENGINE_CONFIG,
+  WEB_TRANCHE4_INTERACTIVE_EXERCISE_SEQUENCE_DEFINITION,
+  WEB_TRANCHE4_INTERACTIVE_EXERCISE_STAGE_ID,
+  WEB_TRANCHE4_MAT_M06_CONTENT_BUNDLE_ID,
   type SequenceDefinition,
 } from "@quest-city-web/content-runtime";
 import { SequenceHost } from "../../../../components/engine-host/SequenceHost";
@@ -123,6 +128,17 @@ const ACTIVITY_REGISTRY: Record<string, ActivityRegistryEntry> = {
     titleKey: "prerequisiteCheckMicroLesson.sequenceTitle",
     descriptionKey: "prerequisiteCheckMicroLesson.sequenceDescription",
     stagePrompts: WEB_TRANCHE3_MICRO_LESSON_STAGE_PROMPTS,
+  },
+  [WEB_TRANCHE4_MAT_M06_CONTENT_BUNDLE_ID]: {
+    definition: WEB_TRANCHE4_INTERACTIVE_EXERCISE_SEQUENCE_DEFINITION,
+    stageConfigs: { [WEB_TRANCHE4_INTERACTIVE_EXERCISE_STAGE_ID]: WEB_TRANCHE4_INTERACTIVE_EXERCISE_ENGINE_CONFIG },
+    activityId: WEB_TRANCHE4_INTERACTIVE_EXERCISE_ACTIVITY_ID,
+    runtimeStatePrefix: "web-tranche4-runtime",
+    titleKey: "interactiveExercise.sequenceTitle",
+    descriptionKey: "interactiveExercise.sequenceDescription",
+    stagePrompts: {
+      [WEB_TRANCHE4_INTERACTIVE_EXERCISE_STAGE_ID]: { titleKey: "interactiveExercise.promptTitle", bodyKey: "interactiveExercise.promptInstruction" },
+    },
   },
 };
 

@@ -76,6 +76,7 @@ export {
   createDragAndDropEngine,
   validateDragDropConfig,
   type DragDropConfig,
+  type DragDropFeedback,
   type DragDropItem,
   type DragDropMapping,
   type DragDropState,

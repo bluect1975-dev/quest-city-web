@@ -29,10 +29,12 @@ export const DRAG_AND_DROP_ENGINE_VERSION = "1.0.0";
 
 export interface DragDropItem {
   itemId: string;
+  text?: string;
 }
 
 export interface DragDropTarget {
   targetId: string;
+  text?: string;
 }
 
 export interface DragDropMapping {
@@ -40,10 +42,26 @@ export interface DragDropMapping {
   targetId: string;
 }
 
+/**
+ * M06 Web Full Vertical Slice Tranche 4 (`07_26 v1.0` §5/§13):
+ * `INTERACTIVE_EXERCISE`'s content authority (`03_35 §17.1`/`§6.6`) requires
+ * feedback that distinguishes a fully-wrong attempt from a "unilateral"
+ * one (some but not all `correctMapping` entries satisfied) — mirrors the
+ * config-declared feedback pattern already established by
+ * `QuickQuestionConfig.feedback` (same boundary: the engine selects which
+ * declared string applies, the config never carries computed text).
+ */
+export interface DragDropFeedback {
+  correctFeedbackText?: string;
+  partialFeedbackText?: string;
+  incorrectFeedbackText?: string;
+}
+
 export interface DragDropConfig {
   items: DragDropItem[];
   targets: DragDropTarget[];
   correctMapping: DragDropMapping[];
+  feedback?: DragDropFeedback;
 }
 
 export interface DragDropState {
@@ -60,11 +78,13 @@ export function validateDragDropConfig(config: unknown): ConfigValidationResult<
 
   const items = record["items"];
   const itemIds = new Set<string>();
+  const parsedItems: DragDropItem[] = [];
   if (!Array.isArray(items) || items.length === 0) {
     errors.push("config.items must be a non-empty array");
   } else {
     for (const [index, raw] of items.entries()) {
       const itemId = (raw as Record<string, unknown> | null)?.["itemId"];
+      const text = (raw as Record<string, unknown> | null)?.["text"];
       if (typeof itemId !== "string" || itemId.length === 0) {
         errors.push(`items[${index}].itemId must be a non-empty string`);
         continue;
@@ -73,17 +93,24 @@ export function validateDragDropConfig(config: unknown): ConfigValidationResult<
         errors.push(`items[${index}].itemId is duplicated: ${itemId}`);
         continue;
       }
+      if (text !== undefined && typeof text !== "string") {
+        errors.push(`items[${index}].text must be a string when present`);
+        continue;
+      }
       itemIds.add(itemId);
+      parsedItems.push(typeof text === "string" ? { itemId, text } : { itemId });
     }
   }
 
   const targets = record["targets"];
   const targetIds = new Set<string>();
+  const parsedTargets: DragDropTarget[] = [];
   if (!Array.isArray(targets) || targets.length === 0) {
     errors.push("config.targets must be a non-empty array");
   } else {
     for (const [index, raw] of targets.entries()) {
       const targetId = (raw as Record<string, unknown> | null)?.["targetId"];
+      const text = (raw as Record<string, unknown> | null)?.["text"];
       if (typeof targetId !== "string" || targetId.length === 0) {
         errors.push(`targets[${index}].targetId must be a non-empty string`);
         continue;
@@ -92,7 +119,12 @@ export function validateDragDropConfig(config: unknown): ConfigValidationResult<
         errors.push(`targets[${index}].targetId is duplicated: ${targetId}`);
         continue;
       }
+      if (text !== undefined && typeof text !== "string") {
+        errors.push(`targets[${index}].text must be a string when present`);
+        continue;
+      }
       targetIds.add(targetId);
+      parsedTargets.push(typeof text === "string" ? { targetId, text } : { targetId });
     }
   }
 
@@ -116,15 +148,38 @@ export function validateDragDropConfig(config: unknown): ConfigValidationResult<
     }
   }
 
+  const rawFeedback = record["feedback"];
+  let parsedFeedback: DragDropFeedback | undefined;
+  if (rawFeedback !== undefined) {
+    if (typeof rawFeedback !== "object" || rawFeedback === null) {
+      errors.push("config.feedback must be an object when present");
+    } else {
+      const feedbackRecord = rawFeedback as Record<string, unknown>;
+      const feedback: DragDropFeedback = {};
+      for (const key of ["correctFeedbackText", "partialFeedbackText", "incorrectFeedbackText"] as const) {
+        const value = feedbackRecord[key];
+        if (value !== undefined) {
+          if (typeof value !== "string") {
+            errors.push(`config.feedback.${key} must be a string when present`);
+            continue;
+          }
+          feedback[key] = value;
+        }
+      }
+      parsedFeedback = feedback;
+    }
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
   return {
     valid: true,
     config: {
-      items: items as DragDropItem[],
-      targets: targets as DragDropTarget[],
+      items: parsedItems,
+      targets: parsedTargets,
       correctMapping: parsedMapping,
+      ...(parsedFeedback ? { feedback: parsedFeedback } : {}),
     },
   };
 }
@@ -180,12 +235,30 @@ function evaluate(state: DragDropState, config: DragDropConfig): EngineEvaluatio
   if (Object.keys(state.placements).length === 0) {
     return { evaluated: false, reason: "NO_PLACEMENTS" };
   }
-  const correct = config.correctMapping.every((mapping) => state.placements[mapping.itemId] === mapping.targetId);
+  const matchedCount = config.correctMapping.filter(
+    (mapping) => state.placements[mapping.itemId] === mapping.targetId,
+  ).length;
+  const correct = matchedCount === config.correctMapping.length;
+  // M06 Web Full Vertical Slice Tranche 4 (`07_26 v1.0` §5/§13, `03_35`
+  // §17.1/§6.6): distinguishes a "unilateral" attempt (some but not all
+  // correctMapping entries satisfied) from a fully-wrong one, using only
+  // evidence the engine itself already produces (matchedCount) — never a
+  // pedagogical judgment the engine wasn't already making.
+  const feedbackText = correct
+    ? config.feedback?.correctFeedbackText
+    : matchedCount > 0
+      ? config.feedback?.partialFeedbackText
+      : config.feedback?.incorrectFeedbackText;
   return {
     evaluated: true,
     correctness: correct ? "CORRECT" : "INCORRECT",
     score: correct ? 1 : 0,
-    evidence: { placements: state.placements },
+    evidence: {
+      placements: state.placements,
+      matchedCount,
+      totalRequired: config.correctMapping.length,
+      ...(feedbackText ? { feedbackText } : {}),
+    },
   };
 }
 

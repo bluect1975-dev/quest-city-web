@@ -53,6 +53,42 @@ describe("DragAndDropEngine — config validation", () => {
       validateDragDropConfig({ ...VALID_CONFIG, items: [{ itemId: "dup" }, { itemId: "dup" }] }).valid,
     ).toBe(false);
   });
+
+  // M06 Web Full Vertical Slice Tranche 4 (07_26 v1.0 §5/§13): optional
+  // display text and evidence-derived feedback text, both additive.
+  it("accepts optional display text on items and targets", () => {
+    const result = validateDragDropConfig({
+      ...VALID_CONFIG,
+      items: [{ itemId: "i1", text: "−3" }, { itemId: "i2", text: "−3" }],
+      targets: [{ targetId: "t1", text: "x + 3" }, { targetId: "t2", text: "7" }],
+    });
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.config.items[0]?.text).toBe("−3");
+      expect(result.config.targets[0]?.text).toBe("x + 3");
+    }
+  });
+
+  it("rejects a non-string item text", () => {
+    expect(
+      validateDragDropConfig({ ...VALID_CONFIG, items: [{ itemId: "i1", text: 123 }, { itemId: "i2" }] }).valid,
+    ).toBe(false);
+  });
+
+  it("accepts an optional feedback object", () => {
+    const result = validateDragDropConfig({
+      ...VALID_CONFIG,
+      feedback: { correctFeedbackText: "ok", partialFeedbackText: "half", incorrectFeedbackText: "no" },
+    });
+    expect(result.valid).toBe(true);
+    if (result.valid) expect(result.config.feedback?.partialFeedbackText).toBe("half");
+  });
+
+  it("rejects a non-string feedback field", () => {
+    expect(
+      validateDragDropConfig({ ...VALID_CONFIG, feedback: { correctFeedbackText: 42 } }).valid,
+    ).toBe(false);
+  });
 });
 
 describe("DragAndDropEngine — applyAction", () => {
@@ -171,6 +207,75 @@ describe("DragAndDropEngine — evaluate", () => {
     ]);
     const result = engine.evaluate(state, VALID_CONFIG);
     expect(result.evaluated).toBe(false);
+  });
+
+  // M06 Web Full Vertical Slice Tranche 4 (07_26 v1.0 §5/§13, 03_35
+  // §17.1/§6.6): matchedCount distinguishes a "unilateral" attempt (some
+  // but not all correctMapping entries satisfied) from a fully-wrong one.
+  const CONFIG_WITH_FEEDBACK = {
+    ...VALID_CONFIG,
+    feedback: {
+      correctFeedbackText: "both sides correct",
+      partialFeedbackText: "only one side correct",
+      incorrectFeedbackText: "neither side correct",
+    },
+  };
+
+  it("reports matchedCount and correctFeedbackText when fully correct", () => {
+    const { state } = replayActions(engine, CONFIG_WITH_FEEDBACK, [
+      { actionType: "PLACE_ITEM", targetRole: "drop-target", payload: { itemId: "i1", targetId: "t1" } },
+      { actionType: "PLACE_ITEM", targetRole: "drop-target", payload: { itemId: "i2", targetId: "t2" } },
+      { actionType: "CONFIRM_SOLUTION", targetRole: "confirm-button", payload: {} },
+    ]);
+    const result = engine.evaluate(state, CONFIG_WITH_FEEDBACK);
+    expect(result.evaluated).toBe(true);
+    if (result.evaluated) {
+      expect(result.evidence["matchedCount"]).toBe(2);
+      expect(result.evidence["totalRequired"]).toBe(2);
+      expect(result.evidence["feedbackText"]).toBe("both sides correct");
+    }
+  });
+
+  it("reports matchedCount=1 and partialFeedbackText for a unilateral placement", () => {
+    const { state } = replayActions(engine, CONFIG_WITH_FEEDBACK, [
+      { actionType: "PLACE_ITEM", targetRole: "drop-target", payload: { itemId: "i1", targetId: "t1" } },
+      { actionType: "CONFIRM_SOLUTION", targetRole: "confirm-button", payload: {} },
+    ]);
+    const result = engine.evaluate(state, CONFIG_WITH_FEEDBACK);
+    expect(result.evaluated).toBe(true);
+    if (result.evaluated) {
+      expect(result.correctness).toBe("INCORRECT");
+      expect(result.evidence["matchedCount"]).toBe(1);
+      expect(result.evidence["feedbackText"]).toBe("only one side correct");
+    }
+  });
+
+  it("reports matchedCount=0 and incorrectFeedbackText when neither side matches", () => {
+    const { state } = replayActions(engine, CONFIG_WITH_FEEDBACK, [
+      { actionType: "PLACE_ITEM", targetRole: "drop-target", payload: { itemId: "i1", targetId: "t2" } },
+      { actionType: "PLACE_ITEM", targetRole: "drop-target", payload: { itemId: "i2", targetId: "t1" } },
+      { actionType: "CONFIRM_SOLUTION", targetRole: "confirm-button", payload: {} },
+    ]);
+    const result = engine.evaluate(state, CONFIG_WITH_FEEDBACK);
+    expect(result.evaluated).toBe(true);
+    if (result.evaluated) {
+      expect(result.evidence["matchedCount"]).toBe(0);
+      expect(result.evidence["feedbackText"]).toBe("neither side correct");
+    }
+  });
+
+  it("omits feedbackText from evidence when config declares no feedback (backward compatible)", () => {
+    const { state } = replayActions(engine, VALID_CONFIG, [
+      { actionType: "PLACE_ITEM", targetRole: "drop-target", payload: { itemId: "i1", targetId: "t1" } },
+      { actionType: "PLACE_ITEM", targetRole: "drop-target", payload: { itemId: "i2", targetId: "t2" } },
+      { actionType: "CONFIRM_SOLUTION", targetRole: "confirm-button", payload: {} },
+    ]);
+    const result = engine.evaluate(state, VALID_CONFIG);
+    expect(result.evaluated).toBe(true);
+    if (result.evaluated) {
+      expect(result.evidence["feedbackText"]).toBeUndefined();
+      expect(result.evidence["matchedCount"]).toBe(2);
+    }
   });
 });
 
