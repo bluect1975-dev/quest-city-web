@@ -5,11 +5,16 @@ import {
   UI_ICON_SHEET_SVG,
   sliceIconSheet,
   runSpriteCookBatch,
+  SPRITECOOK_INTEGRATION_STATUS,
 } from "./sprite-cook-batch";
 import { ACADEMY_ASSET_MANIFEST, ACADEMY_SPRITE_COOK_JOBS } from "./academy-manifest";
 import { resolveSemanticRole } from "./asset-manifest";
 
-describe("real SpriteCook batch + slicing (07_14 v1.0 §5-§7/§18, 07_26 v1.1 §13/§17.3)", () => {
+describe("local SpriteCook-workflow batch + slicing pipeline (07_14 v1.0 §5-§7/§18, 07_26 v1.1 §13/§17.3) — SPRITECOOK_INTEGRATION_STATUS=DEFERRED_EXTERNAL_DEPENDENCY, not a real SpriteCook call", () => {
+  it("declares its integration status honestly", () => {
+    expect(SPRITECOOK_INTEGRATION_STATUS).toBe("DEFERRED_EXTERNAL_DEPENDENCY");
+  });
+
   it("the icon sheet source is well-formed (real content, not a placeholder string)", () => {
     expect(UI_ICON_SHEET_SVG).toContain("<symbol");
     expect((UI_ICON_SHEET_SVG.match(/<symbol /g) ?? []).length).toBe(5);

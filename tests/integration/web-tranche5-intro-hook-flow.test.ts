@@ -5,12 +5,8 @@ import {
   AssignmentRepository,
   ContentBundleRepository,
   LearningAttemptRepository,
-  SemanticActionLogRepository,
-  AttemptResponseRepository,
-  AttemptConsolidationService,
   resolveEngineDispatch,
 } from "@quest-city-web/attempts";
-import { createDefaultEngineRuntimeRegistry } from "@quest-city-web/learning-engines";
 import { loadBundleManifest } from "@quest-city-web/content-runtime";
 import {
   WEB_TRANCHE5_INTRO_HOOK_BUNDLE_MANIFEST,
@@ -155,8 +151,8 @@ describe("Tranche 5 real content bundle + assignment materialization", () => {
   });
 });
 
-describe("Tranche 5 full attempt lifecycle against real content (non-interactive single stage)", () => {
-  it("launch -> Continua's real CONFIRM_SOLUTION action (the only thing that ever transitions this attempt out of CREATED) -> complete: consolidates without a score, never ATTEMPT_NOT_COMPLETABLE", async () => {
+describe("Tranche 5 content materialization against real assignment (non-interactive single stage)", () => {
+  it("a real launch-shaped attempt for INTRO_HOOK's content resolves to no engine dispatch (07_26 v1.1 §17.2 'nessuna semantic action di dominio')", async () => {
     const fx = await buildFixture();
     await seedTranche5ContentBundle();
     const assignmentId = await seedTranche5Assignment(fx.tenantId, fx.classId);
@@ -183,61 +179,20 @@ describe("Tranche 5 full attempt lifecycle against real content (non-interactive
     });
     expect(attempt.contentId).toBe(WEB_TRANCHE5_MAT_M06_CONTENT_BUNDLE_ID);
     expect(attempt.attemptState).toBe("CREATED");
+    expect(resolveEngineDispatch(attempt.contentId)).toBeUndefined();
 
-    // Real ATTEMPT_NOT_COMPLETABLE/INVALID_STATE precondition (07_15_01
-    // v1.1 §11-bis.2) — a CREATED attempt with zero logged actions is not
-    // completable, exactly the state the browser walkthrough bug produced.
-    expect(attempt.attemptState).not.toBe("IN_PROGRESS");
-
-    const semanticActions = new SemanticActionLogRepository(pool);
-    // The only action this activity ever logs: SequenceHost.handleContinue's
-    // CONFIRM_SOLUTION, submitted when the student clicks "Continua" on the
-    // non-interactive INTRO_HOOK stage (never a PLACE_ITEM/SELECT_OPTION/
-    // ENTER_VALUE — there is no EngineHost dispatch for this content).
-    await semanticActions.insert({
-      tenantId: fx.tenantId,
-      attemptId: attempt.id,
-      actionId: "act-confirm-0",
-      actionType: "CONFIRM_SOLUTION",
-      targetRole: null,
-      payload: { stageId: "intro-hook", interactive: false },
-      clientSequence: 0,
-      runtimeChannel: "WEB",
-      occurredAt: new Date(),
-    });
-
-    // Mirrors apps/api's actions route: the FIRST logged action transitions
-    // CREATED -> IN_PROGRESS as a side effect (never called directly by
-    // this test, exactly as the real route never calls it except from
-    // inside POST /attempts/{id}/actions).
-    const inProgress = await attempts.transitionToInProgress(attempt.id, fx.tenantId);
-    expect(inProgress?.attemptState).toBe("IN_PROGRESS");
-
-    const submitted = await attempts.transitionToCompletionSubmitted(attempt.id, fx.tenantId, "ACCEPTED_NOT_CONSOLIDATED");
-    expect(submitted).not.toBeNull();
-
-    const actions = await semanticActions.findByAttempt(attempt.id, fx.tenantId);
-    expect(actions).toHaveLength(1);
-    const attemptResponses = new AttemptResponseRepository(pool);
-    const consolidation = new AttemptConsolidationService(attempts, attemptResponses, createDefaultEngineRuntimeRegistry());
-    const result = await consolidation.consolidate({
-      attemptId: attempt.id,
-      tenantId: fx.tenantId,
-      contentId: attempt.contentId,
-      actions,
-    });
-
-    // No engine dispatch for this content -> outcome omits `score`
-    // entirely (still schema-valid, honestly absent a real result — same
-    // shape §41 already establishes for any unregistered/no-engine content).
-    expect(result.completionStatus).toBe("CONSOLIDATED");
-    expect(result.outcome).not.toHaveProperty("score");
-
-    const finalAttempt = await attempts.findByIdAndTenant(attempt.id, fx.tenantId);
-    expect(finalAttempt?.attemptState).toBe("COMPLETED");
-
-    const responses = await attemptResponses.findByAttempt(attempt.id, fx.tenantId);
-    expect(responses).toHaveLength(0); // no scored engine evaluation to record
+    // BLOCKED_CONTRACT_GAP (M06 Web Tranche 5 closure audit): in real
+    // usage nothing ever calls POST /attempts/{id}/actions for this
+    // content — INTRO_HOOK's "Continua" click logs no semantic action.
+    // Canon (07_13 §10 R3C.2A correction, 02_36 §20-bis.10, 07_26 v1.1
+    // §17.2) explicitly scopes every semantic action, CONFIRM_SOLUTION
+    // included, as an action directed at a stage's Learning Engine;
+    // INTRO_HOOK has none, and §17.2 states outright it involves no
+    // domain semantic action. No canonical document (07_15_01 v1.2
+    // §11-bis, 02_26 v1.8 §18.6, 02_36 §20-bis) defines any alternative,
+    // authorized path for the attempt to leave CREATED — see the
+    // regression guard below for the resulting, contract-compliant
+    // ATTEMPT_NOT_COMPLETABLE outcome.
   });
 
   it("activityId (WEB_TRANCHE5_INTRO_HOOK_ACTIVITY_ID) is a real, stable identifier", () => {

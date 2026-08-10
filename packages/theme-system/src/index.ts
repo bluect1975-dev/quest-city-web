@@ -20,5 +20,6 @@ export {
   UI_ICON_SHEET_SVG,
   sliceIconSheet,
   runSpriteCookBatch,
+  SPRITECOOK_INTEGRATION_STATUS,
 } from "./sprite-cook-batch";
 export { ACADEMY_ASSET_MANIFEST, ACADEMY_SPRITE_COOK_JOBS, ACADEMY_ASSET_SOURCES } from "./academy-manifest";

@@ -1,12 +1,17 @@
 #!/usr/bin/env node
-// Writes the real SpriteCook batch output (`@quest-city-web/theme-system`'s
-// `runSpriteCookBatch()`) to `apps/student-web/public/theme-assets/academy/`
-// (M06 Web Full Vertical Slice Tranche 5, `07_26 v1.1` §13/§17 — the
-// "almeno un batch SpriteCook reale con slicing automatico riuscito"
-// acceptance criterion, `07_14 v1.0` §18). This is the real `07_14` §7
-// step 6 ("esportare PNG/WebP/SVG appropriati") for this batch — actual
+// Writes the local SpriteCook-workflow batch output
+// (`@quest-city-web/theme-system`'s `runSpriteCookBatch()`,
+// `SPRITECOOK_INTEGRATION_STATUS = "DEFERRED_EXTERNAL_DEPENDENCY"` — this
+// is NOT a real SpriteCook call, see that module's doc comment) to
+// `apps/student-web/public/theme-assets/academy/` (M06 Web Full Vertical
+// Slice Tranche 5, `07_26 v1.1` §13/§17). This does NOT satisfy `07_14
+// v1.0` §18's "almeno un batch SpriteCook reale con slicing automatico
+// riuscito" acceptance criterion, which requires a genuine SpriteCook
+// call. It does perform the real `07_14` §7 step 6 ("esportare
+// PNG/WebP/SVG appropriati") for this locally-staged batch — actual
 // files, actual bytes, one per published `assetId`, filename convention
-// owned entirely by the presentation layer (never referenced by content).
+// owned entirely by the presentation layer (never referenced by content)
+// — so swapping in real SpriteCook output later needs no changes here.
 //
 // Usage:
 //   pnpm --filter @quest-city-web/tools run generate:theme-assets

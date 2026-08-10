@@ -242,7 +242,7 @@ describe("SequenceHost — Tranche 3 Prerequisite Check + Micro Lesson (real 2-i
  * — non-interactive, no engine, real scene rendered via `stageScenes`.
  */
 describe("SequenceHost — Tranche 5 INTRO_HOOK", () => {
-  it("renders the objective chip / mentor dialogue prompt and the Mission Plaza scene, then completes on Continua", async () => {
+  it("renders the objective chip / mentor dialogue prompt and the Mission Plaza scene, then completes the orchestration-level sequence on Continua (attempt-level completion is a separate, currently-unauthorized concern — see SequenceHost.tsx handleContinue)", async () => {
     const onComplete = vi.fn();
     const onAction = vi.fn();
     render(
@@ -272,15 +272,14 @@ describe("SequenceHost — Tranche 5 INTRO_HOOK", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continua" }));
     expect(await screen.findByText("Sequenza completata.")).toBeInTheDocument();
     expect(onComplete).toHaveBeenCalledTimes(1);
-    // A wholly non-interactive sequence never dispatches to an EngineHost —
-    // without this real CONFIRM_SOLUTION action, the attempt never leaves
-    // CREATED and POST /attempts/{id}/complete rejects it as
-    // ATTEMPT_NOT_COMPLETABLE (found via a live browser walkthrough).
-    expect(onAction).toHaveBeenCalledWith({
-      actionType: "CONFIRM_SOLUTION",
-      targetRole: null,
-      payload: { stageId: WEB_TRANCHE5_INTRO_HOOK_STAGE_ID, interactive: false },
-    });
+    // BLOCKED_CONTRACT_GAP (M06 Web Tranche 5 closure audit): a wholly
+    // non-interactive stage never dispatches to an EngineHost and logs no
+    // semantic action on Continua — canon defines no authorized
+    // alternative, so onAction is correctly never called here. The
+    // underlying attempt cannot currently reach IN_PROGRESS/COMPLETED;
+    // see the regression test in
+    // tests/integration/web-tranche5-intro-hook-flow.test.ts.
+    expect(onAction).not.toHaveBeenCalled();
   });
 
   it("renders no scene at all when stageScenes is not supplied (regression guard for every pre-Tranche-5 sequence)", async () => {

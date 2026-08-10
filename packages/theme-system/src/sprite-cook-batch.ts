@@ -2,16 +2,31 @@ import { createHash } from "node:crypto";
 import type { AssetManifestEntry } from "./asset-manifest";
 
 /**
- * Real SpriteCook batch (M06 Web Full Vertical Slice Tranche 5, `07_26
- * v1.1` §13 "almeno un batch SpriteCook reale con slicing automatico
- * riuscito" — the explicit `07_14 v1.0` §18 acceptance criterion this
- * module satisfies). This is a genuine, deterministic, code-driven batch
- * + slicing pipeline over hand-authored SVG source candidates — not a
- * call to an external AI image-generation service (`02_22`'s SpriteCook
- * pipeline itself is out of scope for this monorepo), and not fabricated
- * metadata: every asset below is real, original, checked-in vector
- * artwork, actually parsed, actually hashed, actually written to
- * `apps/student-web/public/theme-assets/academy/` and actually served.
+ * Local SpriteCook-workflow asset pipeline — NOT a real call to the
+ * SpriteCook service. `SPRITECOOK_INTEGRATION_STATUS` below is the
+ * authoritative status: real SpriteCook access requires product-owner
+ * configuration (the `spritecook` MCP connector needs interactive
+ * authentication this session cannot perform) and is out of scope for
+ * this monorepo until that dependency is resolved (M06 Web Tranche 5
+ * closure audit, `07_26 v1.1` §17). This module does NOT satisfy `07_14
+ * v1.0` §18's "almeno un batch SpriteCook reale con slicing automatico
+ * riuscito" acceptance criterion — that requires a genuine SpriteCook
+ * call, which has not happened here.
+ *
+ * What this module IS: a genuine, deterministic, code-driven slicing
+ * pipeline (§7 "Slicing automatico" steps — verify grid, segment, strip
+ * background, refine edges, normalize canvas/pivot, export, assign
+ * asset ID, update manifest — all real, not stubbed) running over
+ * hand-authored SVG source candidates staged as a local stand-in for
+ * SpriteCook-generated sheets. Every asset below is real, original,
+ * checked-in vector artwork, actually parsed, actually hashed, actually
+ * written to `apps/student-web/public/theme-assets/academy/` and
+ * actually served — not fabricated metadata — but its origin is manual
+ * authoring, not a SpriteCook batch call. The workflow/manifest/
+ * provenance plumbing this module exercises is exactly what a real
+ * SpriteCook batch would flow through, so swapping in real SpriteCook
+ * output later requires no architectural change — only replacing
+ * `ACADEMY_ASSET_SOURCES` with SpriteCook-returned sheets.
  *
  * `07_14` §8 permits SVG "per icone geometriche quando ricostruibili
  * senza perdita" — exactly this batch's content (UI icons, a flat
@@ -28,6 +43,18 @@ import type { AssetManifestEntry } from "./asset-manifest";
  * `QC-THEME-CORE` fallback path until whichever future tranche
  * materializes the stage that needs them.
  */
+
+/**
+ * Real SpriteCook integration is deferred pending product-owner-provided
+ * access — the `spritecook` MCP connector is listed as an available
+ * plugin for this workspace but requires interactive authentication
+ * (`claude mcp` / `/mcp`) that cannot be performed in this non-interactive
+ * session. Not a Tranche 5 failure: the runtime asset manifest, scene
+ * registry, and QC-THEME-CORE fallback all function correctly against
+ * these local assets, and replacing them with real SpriteCook output
+ * later needs no architectural change (see module doc above).
+ */
+export const SPRITECOOK_INTEGRATION_STATUS = "DEFERRED_EXTERNAL_DEPENDENCY" as const;
 
 const THEME_ID = "QC-THEME-ACADEMY";
 const SOURCE_JOB_ID_SCENE = "M06-SCENE-01";

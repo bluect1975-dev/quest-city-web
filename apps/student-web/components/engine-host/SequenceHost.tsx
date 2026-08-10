@@ -201,17 +201,28 @@ export function SequenceHost({
   }
 
   function handleContinue() {
-    // A non-interactive stage never dispatches to an EngineHost, so without
-    // this call a wholly non-interactive sequence (e.g. Tranche 5's
-    // single-stage INTRO_HOOK) never logs a single semantic action —
-    // leaving the attempt stuck at CREATED, which `POST /attempts/{id}/
-    // complete` rejects as ATTEMPT_NOT_COMPLETABLE (07_15_01 v1.1 §11-bis.2
-    // requires CREATED -> IN_PROGRESS first, a transition the API only
-    // performs as a side effect of a real logged action). CONFIRM_SOLUTION
-    // is the existing canonical actionType (07_08 §6) for "the learner
-    // confirms and moves on" — already used by interactive engines for the
-    // same intent.
-    onAction?.({ actionType: "CONFIRM_SOLUTION", targetRole: null, payload: { stageId: stage.stageId, interactive: false } });
+    // KNOWN CANONICAL GAP (M06 Web Tranche 5 closure audit, BLOCKED_CONTRACT_GAP):
+    // a wholly non-interactive stage (e.g. INTRO_HOOK) never dispatches to
+    // an EngineHost, so this path logs no semantic action at all — the
+    // underlying `learning_attempt` never leaves `CREATED`, and
+    // `POST /attempts/{id}/complete` will reject it as
+    // ATTEMPT_NOT_COMPLETABLE (07_15_01 v1.2 §11-bis.2: CREATED ->
+    // IN_PROGRESS happens ONLY via "almeno una semantic action inviata").
+    // A prior fix here submitted a synthetic CONFIRM_SOLUTION action to
+    // force that transition; audited against canon and reverted, because
+    // `07_13` §10 (correction R3C.2A) scopes every semantic action —
+    // CONFIRM_SOLUTION included — as an action "verso il Learning Engine
+    // di uno stage", and `07_26 v1.1` §17.2 states INTRO_HOOK explicitly
+    // involves "nessuna semantic action di dominio". `02_36` §20-bis.10
+    // separately rejected ADVANCE_STAGE as a semantic action for the same
+    // reason (a stage transition is an orchestration-layer event, not an
+    // engine-directed input) and §20-bis.8 confirms the orchestration
+    // layer does not own `attemptState`. No canonical document defines an
+    // alternative, authorized path out of CREATED for an engine-less
+    // stage — this is a real gap, not a solved problem: do not invent one
+    // here (no fabricated action type, no direct DB/API workaround).
+    // SequenceRuntimeState (orchestration-level) still advances/completes
+    // normally below; only the attempt-lifecycle completion is blocked.
     const nextState = advanceStage(definition, state!);
     setState(nextState);
     void persist(nextState);
