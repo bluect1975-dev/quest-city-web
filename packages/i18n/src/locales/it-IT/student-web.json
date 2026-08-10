@@ -84,6 +84,19 @@
     "sequenceTitle": "Domande rapide: equazioni di primo grado",
     "sequenceDescription": "Rispondi a una serie di domande rapide sulle equazioni. Ogni risposta ha un feedback immediato, senza penalità per il primo errore."
   },
+  "prerequisiteCheckMicroLesson": {
+    "sequenceTitle": "Prima di iniziare: cos'è un'equazione?",
+    "sequenceDescription": "Verifica di riconoscere un'equazione, poi una breve spiegazione visuale del principio di equilibrio.",
+    "microLessonEquilibriumTitle": "Spiegazione visuale",
+    "microLessonEquilibriumBody": "Bilancia visuale con x + 3 a sinistra e 7 a destra. Sottrai 3 da entrambi i lati. Pensa a una bilancia: togliere tre da un solo piatto rompe l'equilibrio. Togli tre da entrambi.",
+    "microLessonExampleTitle": "Esempio guidato",
+    "microLessonExampleStep1Body": "2x + 3 = 11",
+    "microLessonExampleStep2Body": "2x + 3 - 3 = 11 - 3",
+    "microLessonExampleStep3Body": "2x = 8",
+    "microLessonExampleStep4Body": "2x / 2 = 8 / 2",
+    "microLessonExampleStep5Body": "x = 4",
+    "microLessonExampleStep6Body": "Verifica: 2(4) + 3 = 11 → 8 + 3 = 11"
+  },
   "result": {
     "title": "Risultato",
     "loading": "Caricamento del risultato in corso...",

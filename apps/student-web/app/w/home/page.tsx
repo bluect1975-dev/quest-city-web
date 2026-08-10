@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { Button, StatusMessage } from "@quest-city-web/ui";
 import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../lib/student-auth-context";
-import { getWebM4Activity, getWebTranche1Activity, getWebTranche2Activity, type WebM4Activity } from "../../../lib/student-api-client";
+import {
+  getWebM4Activity,
+  getWebTranche1Activity,
+  getWebTranche2Activity,
+  getWebTranche3Activity,
+  type WebM4Activity,
+} from "../../../lib/student-api-client";
 import { StudentApiError } from "../../../lib/student-api-error";
 
 const P0_ENGINES = [
@@ -32,6 +38,9 @@ export default function StudentHomePage() {
   const [tranche2Activity, setTranche2Activity] = useState<WebM4Activity | null>(null);
   const [tranche2ActivityError, setTranche2ActivityError] = useState<string | null>(null);
   const [loadingTranche2Activity, setLoadingTranche2Activity] = useState(true);
+  const [tranche3Activity, setTranche3Activity] = useState<WebM4Activity | null>(null);
+  const [tranche3ActivityError, setTranche3ActivityError] = useState<string | null>(null);
+  const [loadingTranche3Activity, setLoadingTranche3Activity] = useState(true);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -114,6 +123,31 @@ export default function StudentHomePage() {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (status !== "authenticated" && status !== "authenticated-read-only") {
+      return;
+    }
+    let cancelled = false;
+    getWebTranche3Activity()
+      .then((result) => {
+        if (!cancelled) setTranche3Activity(result);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setTranche3ActivityError(
+          caught instanceof StudentApiError
+            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
+            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTranche3Activity(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
   async function handleLogout() {
     await logout();
     router.replace("/w/login");
@@ -170,6 +204,20 @@ export default function StudentHomePage() {
           <>
             <p>{tranche2Activity.title}</p>
             <Link href={`/w/activity/${encodeURIComponent(tranche2Activity.assignmentId)}`}>
+              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
+            </Link>
+          </>
+        )}
+      </section>
+
+      <section>
+        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
+        {loadingTranche3Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
+        {!loadingTranche3Activity && tranche3ActivityError && <StatusMessage kind="empty">{tranche3ActivityError}</StatusMessage>}
+        {!loadingTranche3Activity && !tranche3ActivityError && tranche3Activity && (
+          <>
+            <p>{tranche3Activity.title}</p>
+            <Link href={`/w/activity/${encodeURIComponent(tranche3Activity.assignmentId)}`}>
               <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
             </Link>
           </>

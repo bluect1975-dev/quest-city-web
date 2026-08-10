@@ -14,6 +14,7 @@
     "seed:content-bundle": "tsx seed-content-bundle.ts",
     "seed:tranche1-content-bundle": "tsx seed-tranche1-content-bundle.ts",
     "seed:tranche2-content-bundle": "tsx seed-tranche2-content-bundle.ts",
+    "seed:tranche3-content-bundle": "tsx seed-tranche3-content-bundle.ts",
     "seed:staff": "tsx seed-staff.ts",
     "check:duplicates": "node check-duplicates.mjs",
     "check:filenames": "node check-filenames.mjs"

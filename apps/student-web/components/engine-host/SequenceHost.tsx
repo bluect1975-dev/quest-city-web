@@ -49,7 +49,16 @@ export interface SequenceHostProps {
    */
   titleKey?: string;
   descriptionKey?: string;
-  /** Optional per-stage prompt copy (title + body i18n keys), rendered above the interactive `EngineHost` — e.g. displaying the equation an ENG-QUICK stage asks the student to solve, since neither the engine config nor `EngineHost` itself render freeform activity text. */
+  /**
+   * Optional per-stage prompt copy (title + body i18n keys). Rendered above
+   * the interactive `EngineHost` for interactive stages — e.g. displaying
+   * the equation an ENG-QUICK stage asks the student to solve, since
+   * neither the engine config nor `EngineHost` itself render freeform
+   * activity text. M06 Web Full Vertical Slice Tranche 3 (`07_26 v1.0`
+   * §8): also rendered for non-interactive stages (above the continue
+   * button), since `MICRO_LESSON`'s step-reveal content has no engine to
+   * render it and is entirely presentation/orchestration-owned.
+   */
   stagePrompts?: Record<string, { titleKey: string; bodyKey: string }>;
   /** When set and the current stage is non-interactive, renders a recap of the named prior stage's runtime stats (hints used, attempts, checkpoint) above the continue button — e.g. a `REFLECTION_AND_RESULT` stage recapping the preceding `GUIDED_PRACTICE` stage. */
   recapStageId?: string;
@@ -222,6 +231,12 @@ export function SequenceHost({
 
       {!stage.isInteractive && (
         <>
+          {stagePrompts?.[stage.stageId] && (
+            <div>
+              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h3>
+              <p>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.bodyKey)}</p>
+            </div>
+          )}
           {recapStageId && (
             <div>
               <h3>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h3>

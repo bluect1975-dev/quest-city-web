@@ -26,6 +26,8 @@ import {
   WEB_TRANCHE1_QUICK_QUESTION_ENGINE_CONFIG,
   WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID,
   WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
+  WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID,
+  WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
 } from "@quest-city-web/content-runtime";
 
 export interface ResolvedEngineDispatch {
@@ -73,6 +75,18 @@ const KNOWN_CONTENT_DISPATCH: Record<string, ResolvedEngineDispatch> = {
   [WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID]: {
     runtimeAdapterId: "QC-WEB-ENGINE-QUICK-QUESTION",
     config: WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
+  },
+  // M06 Web Full Vertical Slice Tranche 3 (07_26 v1.0 §5/§13): the
+  // PREREQUISITE_CHECK stage's real content bundle — same rationale as
+  // WEB-M4/Tranche 1/Tranche 2's entries above, keyed by the same fixed
+  // content_bundle.id (tools/seed-tranche3-content-bundle.ts)
+  // attempt.contentId actually carries. This dispatch only ever concerns
+  // the sequence's single interactive stage (PREREQUISITE_CHECK) — the
+  // seven MICRO_LESSON sub-stages are presentation-only and create no
+  // attempt of their own.
+  [WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID]: {
+    runtimeAdapterId: "QC-WEB-ENGINE-QUICK-QUESTION",
+    config: WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
   },
 };
 
