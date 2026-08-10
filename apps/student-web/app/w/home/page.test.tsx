@@ -22,12 +22,14 @@ const getWebM4Activity = vi.fn();
 const getWebTranche1Activity = vi.fn();
 const getWebTranche2Activity = vi.fn();
 const getWebTranche3Activity = vi.fn();
+const getWebTranche4Activity = vi.fn();
 
 vi.mock("../../../lib/student-api-client", () => ({
   getWebM4Activity: (...args: unknown[]) => getWebM4Activity(...args),
   getWebTranche1Activity: (...args: unknown[]) => getWebTranche1Activity(...args),
   getWebTranche2Activity: (...args: unknown[]) => getWebTranche2Activity(...args),
   getWebTranche3Activity: (...args: unknown[]) => getWebTranche3Activity(...args),
+  getWebTranche4Activity: (...args: unknown[]) => getWebTranche4Activity(...args),
 }));
 
 describe("StudentHomePage", () => {
@@ -39,13 +41,15 @@ describe("StudentHomePage", () => {
     getWebTranche1Activity.mockReset();
     getWebTranche2Activity.mockReset();
     getWebTranche3Activity.mockReset();
-    // Default: Tranche 1/2/3's own sections are exercised separately below;
+    getWebTranche4Activity.mockReset();
+    // Default: Tranche 1/2/3/4's own sections are exercised separately below;
     // other tests only assert on the WEB-M4 section, so keep these calls
     // pending/rejected to avoid extra identical "Inizia l'attività" links
     // colliding with getByRole.
     getWebTranche1Activity.mockRejectedValue(new Error("not stubbed for this test"));
     getWebTranche2Activity.mockRejectedValue(new Error("not stubbed for this test"));
     getWebTranche3Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    getWebTranche4Activity.mockRejectedValue(new Error("not stubbed for this test"));
   });
 
   it("redirects to /w/login when unauthenticated", () => {
@@ -96,5 +100,13 @@ describe("StudentHomePage", () => {
     render(<StudentHomePage />);
     const link = await screen.findByRole("link", { name: "Inizia l'attività" });
     expect(link).toHaveAttribute("href", "/w/activity/asn-tranche3-1");
+  });
+
+  it("shows a real entry-point link into /w/activity/:assignmentId once the Tranche 4 Interactive Exercise activity resolves", async () => {
+    getWebM4Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    getWebTranche4Activity.mockResolvedValue({ assignmentId: "asn-tranche4-1", activityId: "act-interactive-exercise", title: "Esercizio interattivo" });
+    render(<StudentHomePage />);
+    const link = await screen.findByRole("link", { name: "Inizia l'attività" });
+    expect(link).toHaveAttribute("href", "/w/activity/asn-tranche4-1");
   });
 });

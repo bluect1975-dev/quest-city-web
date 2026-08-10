@@ -13,11 +13,11 @@
  * `balanceMachineSemanticActions` (`w5`/`w5b`, weight 5 each) — not
  * invented, mirrored from the one real fixture this repository ships.
  *
- * Adding Quick/Drag entries here requires a real content bundle for each
- * (M06 content materialization), which is explicitly out of R3C.1 scope —
- * so an attempt against content that only exists for Quick/Drag today has
- * no entry here and correctly falls through to the unknown-adapter,
- * score-less outcome path in `AttemptConsolidationService`.
+ * M06 Web Full Vertical Slice Tranche 4 (07_26 v1.0 §5/§6): added the first
+ * real ENG-DRAG entry once real content (INTERACTIVE_EXERCISE) existed for
+ * it. An attempt against any content bundle with no entry here still
+ * correctly falls through to the unknown-adapter, score-less outcome path
+ * in `AttemptConsolidationService`.
  */
 import {
   WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG,
@@ -28,6 +28,8 @@ import {
   WEB_TRANCHE2_QUICK_QUESTION_SET_ENGINE_CONFIG,
   WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID,
   WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
+  WEB_TRANCHE4_INTERACTIVE_EXERCISE_ENGINE_CONFIG,
+  WEB_TRANCHE4_MAT_M06_CONTENT_BUNDLE_ID,
 } from "@quest-city-web/content-runtime";
 
 export interface ResolvedEngineDispatch {
@@ -87,6 +89,18 @@ const KNOWN_CONTENT_DISPATCH: Record<string, ResolvedEngineDispatch> = {
   [WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID]: {
     runtimeAdapterId: "QC-WEB-ENGINE-QUICK-QUESTION",
     config: WEB_TRANCHE3_PREREQUISITE_CHECK_ENGINE_CONFIG,
+  },
+  // M06 Web Full Vertical Slice Tranche 4 (07_26 v1.0 §5/§6/§13): the
+  // INTERACTIVE_EXERCISE stage's real content bundle — same rationale as
+  // WEB-M4/Tranche 1-3's entries above, keyed by the same fixed
+  // content_bundle.id (tools/seed-tranche4-content-bundle.ts)
+  // attempt.contentId actually carries. This is the first real content
+  // dispatched to QC-WEB-ENGINE-DRAG-DROP (ENG-DRAG) — the engine itself
+  // was already registered for real dispatch since R3C.1
+  // (default-engines.ts), only this content mapping is new.
+  [WEB_TRANCHE4_MAT_M06_CONTENT_BUNDLE_ID]: {
+    runtimeAdapterId: "QC-WEB-ENGINE-DRAG-DROP",
+    config: WEB_TRANCHE4_INTERACTIVE_EXERCISE_ENGINE_CONFIG,
   },
 };
 

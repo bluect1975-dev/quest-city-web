@@ -29,17 +29,21 @@ export function DragAndDropView({ config, state, onPlace }: DragAndDropViewProps
     <div className="qc-engine-drag">
       <fieldset>
         <legend>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.drag.itemsLegend")}</legend>
-        {config.items.map((item) => (
-          <Button
-            key={item.itemId}
-            type="button"
-            variant={selectedItemId === item.itemId ? "primary" : "secondary"}
-            onClick={() => setSelectedItemId(item.itemId)}
-            aria-pressed={selectedItemId === item.itemId}
-          >
-            {item.itemId} {state.placements[item.itemId] ? `→ ${state.placements[item.itemId]}` : ""}
-          </Button>
-        ))}
+        {config.items.map((item) => {
+          const placedTargetId = state.placements[item.itemId];
+          const placedTarget = placedTargetId ? config.targets.find((target) => target.targetId === placedTargetId) : undefined;
+          return (
+            <Button
+              key={item.itemId}
+              type="button"
+              variant={selectedItemId === item.itemId ? "primary" : "secondary"}
+              onClick={() => setSelectedItemId(item.itemId)}
+              aria-pressed={selectedItemId === item.itemId}
+            >
+              {item.text ?? item.itemId} {placedTarget ? `→ ${placedTarget.text ?? placedTarget.targetId}` : ""}
+            </Button>
+          );
+        })}
       </fieldset>
       <fieldset>
         <legend>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.drag.targetsLegend")}</legend>
@@ -51,7 +55,7 @@ export function DragAndDropView({ config, state, onPlace }: DragAndDropViewProps
             disabled={!selectedItemId}
             onClick={() => handleTargetClick(target.targetId)}
           >
-            {target.targetId}
+            {target.text ?? target.targetId}
           </Button>
         ))}
       </fieldset>

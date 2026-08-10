@@ -240,6 +240,13 @@ function ResolvedEngineHost({
               ? t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultCorrect")
               : t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultIncorrect")
             : t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultPending")}
+          {/* M06 Web Full Vertical Slice Tranche 4 (07_26 v1.0 §5/§13): a
+              generic, engine-agnostic rendering of any evidence-declared
+              feedback text — the engine decides whether to populate it,
+              EngineHost never inspects which engine produced it. */}
+          {result.evaluated && typeof result.evidence["feedbackText"] === "string"
+            ? `: ${result.evidence["feedbackText"] as string}`
+            : ""}
         </StatusBadge>
       )}
     </div>

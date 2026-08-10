@@ -97,6 +97,12 @@
     "microLessonExampleStep5Body": "x = 4",
     "microLessonExampleStep6Body": "Verifica: 2(4) + 3 = 11 → 8 + 3 = 11"
   },
+  "interactiveExercise": {
+    "sequenceTitle": "Esercizio interattivo: applica l'operazione a entrambi i membri",
+    "sequenceDescription": "Osserva l'equazione in equilibrio, scegli l'operazione corretta e applicala a entrambi i membri, poi verifica la soluzione.",
+    "promptTitle": "x + 3 = 7",
+    "promptInstruction": "Trascina l'operazione −3 sul membro sinistro e sul membro destro dell'equazione, poi conferma per verificare che x = 4."
+  },
   "result": {
     "title": "Risultato",
     "loading": "Caricamento del risultato in corso...",
