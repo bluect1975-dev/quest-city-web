@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDefaultEngineRuntimeRegistry } from "@quest-city-web/learning-engines";
+import { createDefaultEngineRuntimeRegistry, type EngineEvaluationResult } from "@quest-city-web/learning-engines";
 import { loadBundleManifest } from "../bundle-loader";
 import { initializeSequence, receiveEngineResult, advanceStage, isSequenceComplete } from "../stage-orchestrator";
 import {
@@ -119,9 +119,9 @@ describe("M06 Web Full Vertical Slice Tranche 4 real content (07_26 v1.0 §5/§6
     expect(stage.remediationPolicy).toBeUndefined();
 
     let state = initializeSequence(definition, "test-runtime-state-tr4-max-attempts");
-    const incorrectResult = {
-      evaluated: true as const,
-      correctness: "INCORRECT" as const,
+    const incorrectResult: EngineEvaluationResult = {
+      evaluated: true,
+      correctness: "INCORRECT",
       score: 0,
       evidence: { placements: {}, matchedCount: 0, totalRequired: 2 },
     };
