@@ -13,6 +13,9 @@
     "activitySectionTitle": "La tua attività",
     "activityLoading": "Caricamento dell'attività in corso...",
     "startActivityButton": "Inizia l'attività",
+    "fullSequenceSectionTitle": "Percorso completo",
+    "fullSequenceDescription": "Svolgi l'intera unità sulle equazioni di primo grado in un unico percorso, dall'introduzione alla verifica finale.",
+    "startFullSequenceButton": "Inizia il percorso completo",
     "logoutButton": "Esci"
   },
   "engines": {
@@ -108,6 +111,12 @@
     "sequenceDescription": "Arrivo alla Balance Machine e primo aggancio narrativo, prima di iniziare la lezione.",
     "promptTitle": "Mantieni uguali i due membri",
     "promptBody": "La Balance Machine confronta due lati. Se cambiamo un lato, dobbiamo fare lo stesso sull'altro."
+  },
+  "fullSequence": {
+    "sequenceTitle": "Percorso completo: equazioni di primo grado",
+    "sequenceDescription": "Dall'introduzione alla verifica finale: introduzione, verifica dei prerequisiti, spiegazione, domande rapide, pratica guidata, esercizio interattivo, sfida della bilancia e riepilogo.",
+    "launchingGroupMessage": "Preparazione della prossima parte del percorso...",
+    "groupUnavailableMessage": "Impossibile avviare questa parte del percorso al momento."
   },
   "result": {
     "title": "Risultato",

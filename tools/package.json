@@ -17,6 +17,7 @@
     "seed:tranche3-content-bundle": "tsx seed-tranche3-content-bundle.ts",
     "seed:tranche4-content-bundle": "tsx seed-tranche4-content-bundle.ts",
     "seed:tranche5-content-bundle": "tsx seed-tranche5-content-bundle.ts",
+    "seed:tranche6-content-bundle": "tsx seed-tranche6-content-bundle.ts",
     "seed:staff": "tsx seed-staff.ts",
     "generate:theme-assets": "tsx generate-theme-assets.ts",
     "check:duplicates": "node check-duplicates.mjs",
