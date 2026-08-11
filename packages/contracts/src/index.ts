@@ -12,6 +12,13 @@
  * `vendor/provenance-v1_3.json`) is a separate, additive artifact — it adds
  * only the WEB-M1 `/web-auth/*` and `/me/student-context` paths and does
  * not replace or modify the v1.2 baseline.
+ *
+ * `vendor/quest-city-platform-openapi-v1_9.yaml` (provenance in
+ * `vendor/provenance-v1_9.json`) is the School Onboarding + Staff
+ * Membership contract (School Pilot Readiness Tranche B): 12 paths for
+ * staff invitation/membership lifecycle, class + roster management, and
+ * general content assignment (`STAFF_GENERAL` origin type). Additive to
+ * v1.2 through v1.8; no existing path or schema is touched.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";

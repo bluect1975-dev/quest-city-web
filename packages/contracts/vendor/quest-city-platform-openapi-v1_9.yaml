@@ -1,0 +1,1230 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.9.0
+  description: >-
+    Quest City API contract formalization for the School Onboarding and Staff
+    Membership surface (02_35 v1.2 §11bis, 02_26 v1.11 §33). This file is
+    additive: v1.2.0 through v1.8.0 remain available unchanged as separate
+    immutable artifacts; no prior path or schema is removed or altered.
+
+    This is a CONTRACTS-ONLY release. It defines, before any implementation
+    exists, the endpoints required to let a SCHOOL_ADMIN invite/manage
+    Teachers, manage classes and roster, and let SCHOOL_ADMIN/TEACHER assign
+    published content to a class — closing the BLOCKED_CANONICAL_CONTRACT
+    finding of the dedicated Tranche B contract audit (2026-08-11). No
+    endpoint in this file has been implemented in quest-city-web at the time
+    of writing.
+servers:
+- url: /api/v1
+  description: Quest City Platform API (staff-session-scoped and
+    tenant-scoped resources)
+security: []
+paths:
+  /staff/invitations:
+    post:
+      summary: SCHOOL_ADMIN invites a Teacher into their own tenant (capability
+        staff.invite). Reuses an existing staff_account by email rather than
+        ever duplicating it (ONE HUMAN -> ONE PLATFORM IDENTITY, 02_38 §9,
+        same pattern as activateSchoolAdmin). Role is restricted to TEACHER
+        only — School Admin creation remains exclusively a PLATFORM_ADMIN
+        action (activateSchoolAdmin, v1.8).
+      operationId: createStaffInvitation
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStaffInvitationRequest'
+      responses:
+        '201':
+          description: Invitation issued. acceptanceToken is present exactly once
+            in this response and is never persisted or logged in plaintext
+            (only its hash is stored) — the caller (SCHOOL_ADMIN) is
+            responsible for controlled, manual delivery to the invitee for
+            the pilot (07_20, no email integration exists or is required).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffInvitationResponse'
+        '400':
+          description: VALIDATION_ERROR — email must be a valid email address;
+            role must be TEACHER.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — session role is not SCHOOL_ADMIN, or
+            CSRF token invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: TEACHER_ACCOUNT_SUSPENDED (the email's existing
+            staff_account is SUSPENDED/DEACTIVATED), MEMBERSHIP_ALREADY_ACTIVE
+            (already an ACTIVE TEACHER or SCHOOL_ADMIN in this tenant),
+            MEMBERSHIP_SUSPENDED_USE_REACTIVATE (a SUSPENDED membership
+            already exists — use PATCH /staff/members/{id} instead),
+            INVITATION_ALREADY_PENDING (an INVITED membership already exists
+            and has not expired), IDEMPOTENCY_CONFLICT, or
+            IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/StaffRateLimited'
+  /staff/invitations/accept:
+    post:
+      summary: Invitee accepts a pending Teacher invitation using the one-time
+        acceptanceToken. No staff session required — the token itself is the
+        credential for this single action (same posture as /web-auth/session
+        resolving a class-code, never a session-authenticated route). Sets a
+        password only if the underlying staff_account had none (brand-new
+        identity); an already-credentialed reused identity accepts without a
+        password and continues to use its existing one. Never signs the
+        caller in — a normal /staff-auth/session/start call follows
+        separately.
+      operationId: acceptStaffInvitation
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptStaffInvitationRequest'
+      responses:
+        '200':
+          description: Membership transitioned INVITED -> ACTIVE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptStaffInvitationResponse'
+        '400':
+          description: VALIDATION_ERROR — password required and missing (new
+            identity, no existing credential), or password does not meet the
+            existing staff password policy (02_35 §4.1).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: INVITATION_NOT_FOUND — token unknown or malformed. Same
+            response for "does not exist" and "wrong token" (anti-enumeration,
+            same posture as CLASS_ACCESS_DENIED).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: INVITATION_EXPIRED (past expiresAt) or
+            INVITATION_ALREADY_CONSUMED (already accepted once).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/StaffRateLimited'
+  /staff/members:
+    get:
+      summary: SCHOOL_ADMIN lists every staff_tenant_membership row in their own
+        tenant (capability staff.member.read), including INVITED and
+        non-ACTIVE rows, so pending invitations are visible in the same view
+        as active staff. Never includes any didactic data.
+      operationId: listStaffMembers
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Tenant staff list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMemberListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — session role is not SCHOOL_ADMIN.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /staff/members/{staffTenantMembershipId}:
+    patch:
+      summary: SCHOOL_ADMIN suspends, reactivates or revokes a membership in
+        their own tenant (capabilities staff.membership.suspend — governs
+        both SUSPEND and REACTIVATE, same "single capability governs both
+        directions" pattern as tenant.suspend, 02_26 v1.10 §32.3 — and
+        staff.membership.revoke for REVOKE). A School Admin can never target
+        their own membership when doing so would leave the tenant with zero
+        ACTIVE SCHOOL_ADMIN memberships (LAST_SCHOOL_ADMIN_PROTECTED).
+      operationId: updateStaffMembershipStatus
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/StaffTenantMembershipId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStaffMembershipStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMembershipStatusResponse'
+        '400':
+          description: VALIDATION_ERROR — action must be one of SUSPEND,
+            REACTIVATE, REVOKE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — session role is not SCHOOL_ADMIN, target
+            membership belongs to a different tenant, or CSRF token invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: MEMBERSHIP_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: MEMBERSHIP_STATUS_UNCHANGED (illegal or no-op transition —
+            e.g. REACTIVATE on an INVITED or REVOKED row, only SUSPENDED ->
+            ACTIVE is a legal reactivate), LAST_SCHOOL_ADMIN_PROTECTED,
+            IDEMPOTENCY_CONFLICT, or IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes:
+    post:
+      summary: SCHOOL_ADMIN creates a school_class in their own tenant
+        (capability class.create). Tenant is always resolved server-side from
+        the staff session, never from a client-supplied header (02_35 §3.2)
+        — unlike the obsolete v1.2.0 POST /classes, which predates the staff
+        session model entirely and is not reused by this endpoint. No
+        students, teachers, or demo content are ever auto-created.
+      operationId: createSchoolClass
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassRequest'
+      responses:
+        '201':
+          description: Class created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolClassResponse'
+        '400':
+          description: VALIDATION_ERROR — name must be 1-120 non-empty characters
+            (same bound as the retired v1.2.0 CreateClassRequest.name).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — session role is not SCHOOL_ADMIN, or CSRF
+            token invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: IDEMPOTENCY_CONFLICT or IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes/{classId}:
+    patch:
+      summary: SCHOOL_ADMIN renames a class in their own tenant (capability
+        class.manage).
+      operationId: updateSchoolClass
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateClassRequest'
+      responses:
+        '200':
+          description: Class updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolClassResponse'
+        '400':
+          description: VALIDATION_ERROR — name must be 1-120 non-empty characters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED (session role is not
+            SCHOOL_ADMIN of this class's tenant, or CSRF token invalid).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+        '409':
+          description: IDEMPOTENCY_CONFLICT or IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes/{classId}/archive:
+    post:
+      summary: SCHOOL_ADMIN archives a class in their own tenant (capability
+        class.manage). Roster and historical attempts are entirely
+        unaffected — archiving only changes school_class.status, exactly as
+        already anticipated by the existing status enum (02_25 §6.11).
+      operationId: archiveSchoolClass
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Class archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolClassResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+        '409':
+          description: CLASS_ALREADY_ARCHIVED, IDEMPOTENCY_CONFLICT, or
+            IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes/{classId}/teachers:
+    post:
+      summary: SCHOOL_ADMIN grants a TEACHER membership explicit scope over a
+        class (capability class.teacher.assign). Creates a
+        staff_class_assignment row (02_35 §2.3), unmodified. The target
+        membership must already be role=TEACHER and status=ACTIVE in this
+        same tenant.
+      operationId: assignTeacherToClass
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignTeacherToClassRequest'
+      responses:
+        '201':
+          description: Teacher assigned to class
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherClassAssignmentResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: CLASS_ACCESS_DENIED or MEMBERSHIP_NOT_FOUND (target
+            staffTenantMembershipId does not exist in this tenant).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: TEACHER_MEMBERSHIP_NOT_ACTIVE (target membership is not
+            role=TEACHER and status=ACTIVE), TEACHER_ALREADY_ASSIGNED,
+            IDEMPOTENCY_CONFLICT, or IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes/{classId}/teachers/{staffTenantMembershipId}:
+    delete:
+      summary: SCHOOL_ADMIN removes a Teacher's scope over a class (capability
+        class.teacher.assign, same capability governs both directions).
+        Deletes the staff_class_assignment row — this is purely an
+        access-scope grant, not a historical record, so unlike roster removal
+        it is a real delete, not a soft transition (no student data, no
+        attempt, no progress is referenced by this table).
+      operationId: unassignTeacherFromClass
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/StaffTenantMembershipId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Teacher unassigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherClassAssignmentResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: CLASS_ACCESS_DENIED or the assignment does not exist
+            (same TEACHER_ALREADY_ASSIGNED-adjacent 404, reusing
+            CLASS_ACCESS_DENIED's anti-enumeration posture is not applicable
+            here since staffTenantMembershipId is not a secret — returns a
+            plain 404 with code MEMBERSHIP_NOT_FOUND).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: IDEMPOTENCY_CONFLICT or IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes/{classId}/students:
+    post:
+      summary: SCHOOL_ADMIN (any class in tenant) or TEACHER (only classes in
+        their own classScope) adds a student to the class roster (capability
+        roster.manage). mode=NEW creates a brand-new student_profile +
+        school_enrollment; mode=EXISTING creates a new school_enrollment for
+        an already-existing student_profile (the same human enrolling in an
+        additional class) — the operator states which case applies
+        explicitly; no name/email heuristic matching is ever attempted
+        (02_38 §9 principle, applied here by analogy).
+      operationId: addStudentToRoster
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddStudentToRosterRequest'
+      responses:
+        '201':
+          description: Student enrolled. pin is present in this response exactly
+            once when the caller did not supply one (system-generated) or
+            when the caller did supply one — either way it is never returned
+            again by any other endpoint (same one-time-disclosure posture as
+            temporaryPassword/acceptanceToken).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RosterMemberResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED (TEACHER without
+            this class in classScope).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: CLASS_ACCESS_DENIED, or STUDENT_NOT_FOUND
+            (mode=EXISTING, studentPublicId not found in this tenant).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: STUDENT_ALREADY_ENROLLED (accessAlias already active in
+            this class, or the target student already has an ACTIVE
+            enrollment in this exact class), IDEMPOTENCY_CONFLICT, or
+            IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes/{classId}/students/{studentProfileId}:
+    delete:
+      summary: SCHOOL_ADMIN or TEACHER-in-scope removes a student from the class
+        (capability roster.manage). Transitions school_enrollment.status to
+        LEFT — never deletes student_profile, learning_attempt,
+        mastery_state, or any historical evidence, which key off
+        student_profile_id and are entirely unaffected (07 identity/task
+        invariant, applied here explicitly).
+      operationId: removeStudentFromRoster
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/StudentProfileId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Enrollment set to LEFT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemoveStudentFromRosterResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: CLASS_ACCESS_DENIED or the enrollment does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: ENROLLMENT_NOT_ACTIVE (already LEFT or ARCHIVED),
+            IDEMPOTENCY_CONFLICT, or IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /assignments:
+    post:
+      summary: SCHOOL_ADMIN (any class in tenant) or TEACHER (only classes in
+        their own classScope) assigns a published content bundle to a class
+        (capability assignment.create) — controlled policy change lifting
+        the general assignment-authoring restriction of 02_35 v1.1 §11.1
+        (02_35 v1.2 §11.6, AGENTS.md rule 16 second exception). Reuses the
+        existing assignment table exactly as recovery-assignment already
+        does (02_35 §11.3) — a new origin_type value, STAFF_GENERAL, and
+        target_student_profile_id left NULL (class-wide visibility, same as
+        ADMIN_SEED). No new assignment table, no new student-facing
+        plumbing — the existing launch-context/attempt pipeline already
+        serves class-wide assignments identically regardless of origin_type.
+      operationId: createGeneralAssignment
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssignmentRequest'
+      responses:
+        '201':
+          description: Assignment created and immediately visible to every
+            student with an ACTIVE enrollment in the target class.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED (TEACHER without
+            this class in classScope).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: CLASS_ACCESS_DENIED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: ASSIGNMENT_CONTENT_NOT_PUBLISHED (contentBundleId does not
+            reference a content_bundle with status PUBLISHED),
+            IDEMPOTENCY_CONFLICT, or IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  securitySchemes:
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_6.yaml — HttpOnly, Secure,
+        SameSite=Lax, scoped to exactly one tenant for its entire lifetime,
+        never accessible to client-side JavaScript. Redeclared here only
+        because each versioned contract file is self-contained for its own
+        $ref resolution (same convention as platformSessionCookie being
+        redeclared in v1.8.0).
+    staffCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Same synchronizer-token mechanism and header name as
+        csrfHeader (v1.3.0) and platformCsrfHeader (v1.8.0), issued and
+        validated independently for staff sessions.
+  parameters:
+    ClassId:
+      name: classId
+      in: path
+      required: true
+      schema:
+        type: string
+    StaffTenantMembershipId:
+      name: staffTenantMembershipId
+      in: path
+      required: true
+      schema:
+        type: string
+    StudentProfileId:
+      name: studentProfileId
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required on every mutating endpoint in this file (02_26
+        v1.11 §8.1, extended by this same version to name each one
+        explicitly — teacher invitation, membership status change, class
+        create/update/archive, teacher class assignment, roster add/remove,
+        general assignment creation). Same header, same
+        idempotency_record/IdempotencyRecordRepository mechanism already in
+        use for every prior scope — no second mechanism.
+  responses:
+    StaffUnauthorized:
+      description: STAFF_AUTH_REQUIRED — no valid staff session (PLATFORM domain,
+        same domain used by every staff-facing error in this corpus).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    StaffValidationError:
+      description: VALIDATION_ERROR
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    StaffRateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain,
+        RATE_LIMITED)
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ClassAccessDenied:
+      description: CLASS_ACCESS_DENIED — the class does not exist or is not in
+        the caller's scope. Same response for both cases (02_35 §13,
+        anti-enumeration).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - STAFF_AUTH_REQUIRED
+          - STAFF_FORBIDDEN
+          - CLASS_ACCESS_DENIED
+          - VALIDATION_ERROR
+          - RATE_LIMITED
+          - IDEMPOTENCY_CONFLICT
+          - IDEMPOTENCY_IN_PROGRESS
+          - INVITATION_ALREADY_PENDING
+          - INVITATION_NOT_FOUND
+          - INVITATION_EXPIRED
+          - INVITATION_ALREADY_CONSUMED
+          - TEACHER_ACCOUNT_SUSPENDED
+          - MEMBERSHIP_ALREADY_ACTIVE
+          - MEMBERSHIP_SUSPENDED_USE_REACTIVATE
+          - MEMBERSHIP_NOT_FOUND
+          - MEMBERSHIP_STATUS_UNCHANGED
+          - LAST_SCHOOL_ADMIN_PROTECTED
+          - CLASS_ALREADY_ARCHIVED
+          - TEACHER_MEMBERSHIP_NOT_ACTIVE
+          - TEACHER_ALREADY_ASSIGNED
+          - STUDENT_NOT_FOUND
+          - STUDENT_ALREADY_ENROLLED
+          - ENROLLMENT_NOT_ACTIVE
+          - ASSIGNMENT_CONTENT_NOT_PUBLISHED
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+
+    StaffCapability:
+      type: string
+      enum:
+      - staff.invite
+      - staff.member.read
+      - staff.membership.suspend
+      - staff.membership.revoke
+      - class.create
+      - class.manage
+      - class.teacher.assign
+      - roster.manage
+      - assignment.create
+      description: Granular, explicitly-named capabilities only (02_27 §5.3,
+        same illustrative-additive convention as PlatformCapability, v1.8.0).
+        No implicit "all" capability. roster.manage and assignment.create
+        are held by both SCHOOL_ADMIN (tenant-wide) and TEACHER
+        (classScope-limited, via staff_class_assignment) — every other
+        capability in this list is SCHOOL_ADMIN-only.
+
+    StaffRole:
+      type: string
+      enum:
+      - TEACHER
+      - SCHOOL_ADMIN
+      description: Reuses staff_tenant_membership.role exactly as defined by
+        02_35 §2.3, unchanged. Treated as an open enum at the description
+        level, not closed — 02_38 §20 anticipates a future
+        INDEPENDENT_EDUCATOR value; nothing in this file assumes exactly two
+        values anywhere.
+
+    StaffMembershipStatus:
+      type: string
+      enum:
+      - INVITED
+      - ACTIVE
+      - SUSPENDED
+      - REVOKED
+      description: Extends staff_tenant_membership.status from its previous
+        two values (ACTIVE, SUSPENDED — 02_35 v1.1 §2.3) to four (02_35 v1.2
+        §11bis.2). INVITED replaces the absence of any pending state; REVOKED
+        is a new terminal-until-re-invited state, distinct from SUSPENDED
+        (temporary, reactivated directly by SCHOOL_ADMIN with no new
+        invitation).
+
+    CreateStaffInvitationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      - role
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          const: TEACHER
+
+    StaffInvitationResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - invitationId
+      - staffTenantMembershipId
+      - email
+      - role
+      - status
+      - expiresAt
+      - acceptanceToken
+      - identityReused
+      - createdAt
+      properties:
+        invitationId:
+          type: string
+        staffTenantMembershipId:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          const: TEACHER
+        status:
+          type: string
+          const: INVITED
+        expiresAt:
+          type: string
+          format: date-time
+          description: createdAt + 168 hours (7 days) — numeric TTL fixed by
+            02_35 v1.2 §11bis.3, not configurable per-invitation.
+        acceptanceToken:
+          type: string
+          description: Present exactly once, in this response only. Persisted
+            only as a salted hash (staff_invitation.token_hash); never
+            logged, never retrievable again.
+        identityReused:
+          type: boolean
+          description: true when an existing staff_account was reused by email
+            (02_38 §9); false when a brand-new staff_account was created.
+        createdAt:
+          type: string
+          format: date-time
+
+    AcceptStaffInvitationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - token
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          description: Required only when the underlying staff_account has no
+            usable credential yet (identityReused=false at invitation time).
+            Ignored (must be omitted) when the identity already has a
+            password.
+
+    AcceptStaffInvitationResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - staffTenantMembershipId
+      - status
+      - email
+      properties:
+        staffTenantMembershipId:
+          type: string
+        status:
+          type: string
+          const: ACTIVE
+        email:
+          type: string
+
+    StaffMember:
+      type: object
+      additionalProperties: false
+      required:
+      - staffTenantMembershipId
+      - staffAccountId
+      - email
+      - role
+      - status
+      - classScope
+      - createdAt
+      - updatedAt
+      properties:
+        staffTenantMembershipId:
+          type: string
+        staffAccountId:
+          type: string
+        email:
+          type: string
+        role:
+          $ref: '#/components/schemas/StaffRole'
+        status:
+          $ref: '#/components/schemas/StaffMembershipStatus'
+        classScope:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: null for SCHOOL_ADMIN (tenant-wide, implicit); array of
+            classId (possibly empty) for TEACHER.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    StaffMemberListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - meta
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffMember'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    UpdateStaffMembershipStatusRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - action
+      properties:
+        action:
+          type: string
+          enum:
+          - SUSPEND
+          - REACTIVATE
+          - REVOKE
+          description: SUSPEND requires current status ACTIVE. REACTIVATE requires
+            current status SUSPENDED (never INVITED or REVOKED — those use
+            createStaffInvitation to re-invite instead). REVOKE is legal from
+            INVITED, ACTIVE, or SUSPENDED.
+
+    StaffMembershipStatusResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - staffTenantMembershipId
+      - status
+      - updatedAt
+      properties:
+        staffTenantMembershipId:
+          type: string
+        status:
+          $ref: '#/components/schemas/StaffMembershipStatus'
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateClassRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+
+    UpdateClassRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+
+    SchoolClassResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - classId
+      - name
+      - status
+      - createdAt
+      properties:
+        classId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ARCHIVED
+        createdAt:
+          type: string
+          format: date-time
+
+    AssignTeacherToClassRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - staffTenantMembershipId
+      properties:
+        staffTenantMembershipId:
+          type: string
+
+    TeacherClassAssignmentResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - staffTenantMembershipId
+      - classId
+      - createdAt
+      properties:
+        staffTenantMembershipId:
+          type: string
+        classId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    AddStudentToRosterRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - mode
+      - accessAlias
+      properties:
+        mode:
+          type: string
+          enum:
+          - NEW
+          - EXISTING
+        studentPublicId:
+          type: string
+          description: Required when mode=EXISTING (the same human enrolling in
+            an additional class); must be omitted when mode=NEW. Never
+            resolved by name/email matching — the operator supplies it
+            explicitly (02_38 §9 principle, applied by analogy).
+        accessAlias:
+          type: string
+          minLength: 1
+          description: Class-scoped (02_25 §6.11 UNIQUE(class_id,
+            access_alias_normalized)) — always required, even for an
+            EXISTING student, since a student's alias is per-class, not
+            per-tenant.
+        pin:
+          type: string
+          description: Optional; system-generates a CSPRNG PIN when omitted,
+            using the existing packages/identity PIN model unchanged.
+
+    RosterMemberResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - studentProfileId
+      - studentPublicId
+      - classId
+      - accessAlias
+      - status
+      - createdAt
+      properties:
+        studentProfileId:
+          type: string
+        studentPublicId:
+          type: string
+        classId:
+          type: string
+        accessAlias:
+          type: string
+        pin:
+          type: string
+          description: Present exactly once, in this response only, whether
+            system-generated or caller-supplied. Never returned by any other
+            endpoint (only pin_hash is ever persisted).
+        status:
+          type: string
+          enum:
+          - INVITED
+          - ACTIVE
+          - SUSPENDED
+          - LEFT
+          - ARCHIVED
+        createdAt:
+          type: string
+          format: date-time
+
+    RemoveStudentFromRosterResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - studentProfileId
+      - classId
+      - status
+      properties:
+        studentProfileId:
+          type: string
+        classId:
+          type: string
+        status:
+          type: string
+          const: LEFT
+
+    CreateAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - classId
+      - contentBundleId
+      - title
+      - allowedRuntimeChannels
+      properties:
+        classId:
+          type: string
+        contentBundleId:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        allowedRuntimeChannels:
+          type: array
+          items:
+            type: string
+            enum:
+            - WEB
+            - ROBLOX
+          description: Same RuntimeChannelInput shape already used by
+            recovery-assignment (02_35 §11.4), unchanged. UNKNOWN_LEGACY is
+            never a valid input value here either (AGENTS.md §4.21 rule 18).
+        opensAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+
+    AssignmentResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - assignmentId
+      - classId
+      - title
+      - status
+      - originType
+      - createdAt
+      properties:
+        assignmentId:
+          type: string
+        classId:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PUBLISHED
+          - ARCHIVED
+          description: Reuses Assignment.status exactly as already defined
+            (02_35 §11.4) — not a new enum. A general assignment is created
+            directly PUBLISHED (visible immediately), matching this
+            endpoint's own 201 description.
+        originType:
+          type: string
+          const: STAFF_GENERAL
+          description: Third value of assignment.origin_type, alongside the
+            existing ADMIN_SEED and RECOVERY_FROM_REVIEW (02_35 §11.3). No
+            new column — target_student_profile_id stays NULL for this
+            origin_type, exactly like ADMIN_SEED.
+        createdAt:
+          type: string
+          format: date-time

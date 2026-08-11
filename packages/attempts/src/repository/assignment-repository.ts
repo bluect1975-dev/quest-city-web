@@ -6,10 +6,14 @@ export type CreatedByActorType = "ADMIN_SEED_SCRIPT" | "SYSTEM" | "STAFF";
 /**
  * WEB-M3B (02_35 §11.3, migration 0004): ADMIN_SEED is the pre-existing,
  * unchanged behaviour (class-wide, targetStudentProfileId null).
- * RECOVERY_FROM_REVIEW is the sole new, narrowly-scoped creation path —
- * never generic assignment authoring.
+ * RECOVERY_FROM_REVIEW is the narrowly-scoped, single-student-targeted
+ * creation path. STAFF_GENERAL (School Onboarding + Staff Membership,
+ * 02_35 v1.2 §11bis.9, migration 0008) is the second, narrowly-scoped
+ * exception to AGENTS.md rule 16 — class-wide like ADMIN_SEED
+ * (targetStudentProfileId stays null), distinct from
+ * RECOVERY_FROM_REVIEW. No fourth value without a dedicated ADR.
  */
-export type AssignmentOriginType = "ADMIN_SEED" | "RECOVERY_FROM_REVIEW";
+export type AssignmentOriginType = "ADMIN_SEED" | "RECOVERY_FROM_REVIEW" | "STAFF_GENERAL";
 
 export interface Assignment {
   id: string;

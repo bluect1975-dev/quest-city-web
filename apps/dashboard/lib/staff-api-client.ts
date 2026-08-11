@@ -1,17 +1,28 @@
 import { StaffApiError } from "./staff-api-error";
 import type {
+  AcceptStaffInvitationResult,
   AttemptHistoryEntry,
   AttemptReviewDetail,
   ClassSummary,
+  CreateStaffInvitationResult,
+  GeneralAssignment,
+  MembershipStatusAction,
   ProgressAggregate,
   RecoveryAssignment,
+  RemoveRosterMemberResult,
   ReviewQueueItem,
   ReviewQueueItemPriority,
   ReviewQueueItemStatus,
+  RosterMember,
+  RosterMode,
+  SchoolClassDetail,
   StaffContext,
+  StaffMember,
+  StaffMembershipStatusResult,
   StaffRole,
   StudentProgressSummary,
   StudentRosterEntry,
+  TeacherClassAssignment,
   TeacherFeedback,
 } from "./staff-api-types";
 
@@ -25,7 +36,7 @@ import type {
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL_DASHBOARD ?? "/api";
 
 interface RequestOptions {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   csrfToken?: string | null;
   ifMatchVersion?: number;
@@ -107,8 +118,8 @@ export async function listClasses(): Promise<ClassSummary[]> {
   return envelope.data;
 }
 
-export async function getClass(classId: string): Promise<ClassSummary> {
-  const envelope = await request<Envelope<ClassSummary>>(`/classes/${encodeURIComponent(classId)}`);
+export async function getClass(classId: string): Promise<SchoolClassDetail> {
+  const envelope = await request<Envelope<SchoolClassDetail>>(`/classes/${encodeURIComponent(classId)}`);
   return envelope.data;
 }
 
@@ -221,6 +232,179 @@ export async function revokeTeacherFeedback(input: {
     method: "POST",
     csrfToken: input.csrfToken,
     ifMatchVersion: input.version,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `POST /staff/invitations` (02_35 v1.2 §11bis.3). SCHOOL_ADMIN-only. */
+export async function inviteStaffMember(input: { email: string; csrfToken: string }): Promise<CreateStaffInvitationResult> {
+  const envelope = await request<Envelope<CreateStaffInvitationResult>>("/staff/invitations", {
+    method: "POST",
+    body: { email: input.email, role: "TEACHER" },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `POST /staff/invitations/accept` — no staff session, no CSRF token (public, token-based). */
+export async function acceptStaffInvitation(input: {
+  token: string;
+  password: string | undefined;
+}): Promise<AcceptStaffInvitationResult> {
+  const envelope = await request<Envelope<AcceptStaffInvitationResult>>("/staff/invitations/accept", {
+    method: "POST",
+    body: { token: input.token, password: input.password },
+  });
+  return envelope.data;
+}
+
+/** `GET /staff/members` (02_35 v1.2 §11bis.4). SCHOOL_ADMIN-only. */
+export async function listStaffMembers(): Promise<StaffMember[]> {
+  const envelope = await request<Envelope<StaffMember[]>>("/staff/members");
+  return envelope.data;
+}
+
+/** `PATCH /staff/members/{id}` (02_35 v1.2 §11bis.2). */
+export async function updateStaffMembershipStatus(input: {
+  staffTenantMembershipId: string;
+  action: MembershipStatusAction;
+  csrfToken: string;
+}): Promise<StaffMembershipStatusResult> {
+  const envelope = await request<Envelope<StaffMembershipStatusResult>>(
+    `/staff/members/${encodeURIComponent(input.staffTenantMembershipId)}`,
+    {
+      method: "PATCH",
+      body: { action: input.action },
+      csrfToken: input.csrfToken,
+      idempotencyKey: generateIdempotencyKey(),
+    },
+  );
+  return envelope.data;
+}
+
+/** `POST /classes` (02_35 v1.2 §11bis.6). SCHOOL_ADMIN-only (class.create). */
+export async function createClass(input: { name: string; csrfToken: string }): Promise<SchoolClassDetail> {
+  const envelope = await request<Envelope<SchoolClassDetail>>("/classes", {
+    method: "POST",
+    body: { name: input.name },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `PATCH /classes/{classId}` (02_35 v1.2 §11bis.6). class.manage. */
+export async function renameClass(input: { classId: string; name: string; csrfToken: string }): Promise<SchoolClassDetail> {
+  const envelope = await request<Envelope<SchoolClassDetail>>(`/classes/${encodeURIComponent(input.classId)}`, {
+    method: "PATCH",
+    body: { name: input.name },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `POST /classes/{classId}/archive` (02_35 v1.2 §11bis.6). class.manage. */
+export async function archiveClass(input: { classId: string; csrfToken: string }): Promise<SchoolClassDetail> {
+  const envelope = await request<Envelope<SchoolClassDetail>>(`/classes/${encodeURIComponent(input.classId)}/archive`, {
+    method: "POST",
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `POST /classes/{classId}/teachers` (02_35 v1.2 §11bis.6). class.teacher.assign. */
+export async function assignTeacherToClass(input: {
+  classId: string;
+  staffTenantMembershipId: string;
+  csrfToken: string;
+}): Promise<TeacherClassAssignment> {
+  const envelope = await request<Envelope<TeacherClassAssignment>>(`/classes/${encodeURIComponent(input.classId)}/teachers`, {
+    method: "POST",
+    body: { staffTenantMembershipId: input.staffTenantMembershipId },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `DELETE /classes/{classId}/teachers/{id}` (02_35 v1.2 §11bis.6). class.teacher.assign. */
+export async function unassignTeacherFromClass(input: {
+  classId: string;
+  staffTenantMembershipId: string;
+  csrfToken: string;
+}): Promise<TeacherClassAssignment> {
+  const envelope = await request<Envelope<TeacherClassAssignment>>(
+    `/classes/${encodeURIComponent(input.classId)}/teachers/${encodeURIComponent(input.staffTenantMembershipId)}`,
+    {
+      method: "DELETE",
+      csrfToken: input.csrfToken,
+      idempotencyKey: generateIdempotencyKey(),
+    },
+  );
+  return envelope.data;
+}
+
+/** `POST /classes/{classId}/students` (02_35 v1.2 §11bis.7). roster.manage. */
+export async function addStudentToRoster(input: {
+  classId: string;
+  mode: RosterMode;
+  studentPublicId: string | undefined;
+  accessAlias: string;
+  pin: string | undefined;
+  csrfToken: string;
+}): Promise<RosterMember> {
+  const envelope = await request<Envelope<RosterMember>>(`/classes/${encodeURIComponent(input.classId)}/students`, {
+    method: "POST",
+    body: {
+      mode: input.mode,
+      studentPublicId: input.studentPublicId,
+      accessAlias: input.accessAlias,
+      pin: input.pin,
+    },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `DELETE /classes/{classId}/students/{id}` (02_35 v1.2 §11bis.7). roster.manage. */
+export async function removeStudentFromRoster(input: {
+  classId: string;
+  studentProfileId: string;
+  csrfToken: string;
+}): Promise<RemoveRosterMemberResult> {
+  const envelope = await request<Envelope<RemoveRosterMemberResult>>(
+    `/classes/${encodeURIComponent(input.classId)}/students/${encodeURIComponent(input.studentProfileId)}`,
+    {
+      method: "DELETE",
+      csrfToken: input.csrfToken,
+      idempotencyKey: generateIdempotencyKey(),
+    },
+  );
+  return envelope.data;
+}
+
+/** `POST /assignments` (02_35 v1.2 §11bis.8-9). assignment.create. */
+export async function createGeneralAssignment(input: {
+  classId: string;
+  contentBundleId: string;
+  title: string;
+  allowedRuntimeChannels: Array<"WEB" | "ROBLOX">;
+  csrfToken: string;
+}): Promise<GeneralAssignment> {
+  const envelope = await request<Envelope<GeneralAssignment>>("/assignments", {
+    method: "POST",
+    body: {
+      classId: input.classId,
+      contentBundleId: input.contentBundleId,
+      title: input.title,
+      allowedRuntimeChannels: input.allowedRuntimeChannels,
+    },
+    csrfToken: input.csrfToken,
     idempotencyKey: generateIdempotencyKey(),
   });
   return envelope.data;
