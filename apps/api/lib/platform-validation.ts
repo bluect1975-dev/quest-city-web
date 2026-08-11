@@ -44,6 +44,15 @@ export function validateTenantStatusInput(value: unknown): "ACTIVE" | "SUSPENDED
   return value as "ACTIVE" | "SUSPENDED";
 }
 
+/** `POST /platform/tenants` (02_26 v1.10 §32.4): critical write, Idempotency-Key required. Same 16-128 char contract as the staff-identity precedent (`apps/api/lib/staff-validation.ts`). */
+export function requirePlatformIdempotencyKey(request: Request): string {
+  const key = request.headers.get("idempotency-key");
+  if (!key || key.length < 16 || key.length > 128) {
+    throw new PlatformAdminError("VALIDATION_ERROR", "Idempotency-Key header is required (16-128 chars)");
+  }
+  return key;
+}
+
 export function validatePaginationQuery(url: URL): { limit: number; offset: number } {
   const limitRaw = url.searchParams.get("limit");
   const offsetRaw = url.searchParams.get("offset");

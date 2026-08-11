@@ -186,7 +186,9 @@ describe("Capability-first authorization on Platform Admin operations (02_27 §5
     const identity = await platformAuth.resolveIdentity(session.sessionToken);
 
     const provisioning = new TenantProvisioningService(pool);
-    await expect(provisioning.createSchoolTenant(identity, { name: "Should Fail School" })).rejects.toMatchObject({
+    await expect(
+      provisioning.createSchoolTenant(identity, { name: "Should Fail School", idempotencyKey: "idem-capability-denied-0001" }),
+    ).rejects.toMatchObject({
       code: "CAPABILITY_DENIED",
     });
   });
@@ -198,17 +200,17 @@ describe("Capability-first authorization on Platform Admin operations (02_27 §5
     const identity = await platformAuth.resolveIdentity(session.sessionToken);
 
     const provisioning = new TenantProvisioningService(pool);
-    const result = await provisioning.createSchoolTenant(identity, { name: "New School" });
-    expect(result.tenant.type).toBe("SCHOOL");
-    expect(result.tenant.status).toBe("ACTIVE");
+    const result = await provisioning.createSchoolTenant(identity, { name: "New School", idempotencyKey: "idem-create-success-0001" });
+    expect(result.type).toBe("SCHOOL");
+    expect(result.status).toBe("ACTIVE");
 
     const classCount = await pool.query<{ n: string }>(`SELECT count(*)::text AS n FROM school_class WHERE tenant_id = $1`, [
-      result.tenant.id,
+      result.id,
     ]);
     expect(classCount.rows[0]!.n).toBe("0");
 
     const auditRow = await pool.query(`SELECT action, tenant_id FROM audit_event WHERE action = 'tenant.created' AND tenant_id = $1`, [
-      result.tenant.id,
+      result.id,
     ]);
     expect(auditRow.rows).toHaveLength(1);
   });
@@ -495,6 +497,127 @@ describe("Data access boundary (02_38 §4.1/§18.1) -- Platform Admin never gets
       expect(Object.keys(row)).not.toContain("class_name");
       expect(Object.keys(row)).not.toContain("student_profile_id");
     }
+  });
+});
+
+describe("POST /platform/tenants idempotency (02_26 v1.10 §32.4, migration 0007)", () => {
+  beforeEach(truncateAll);
+  afterAll(truncateAll);
+
+  async function tenantCount(): Promise<number> {
+    const result = await pool.query<{ n: string }>(`SELECT count(*)::text AS n FROM tenant`);
+    return Number(result.rows[0]!.n);
+  }
+
+  it("replay: same Idempotency-Key + same payload returns the exact original response and creates no second tenant", async () => {
+    await createPlatformAdmin("idem-replay@example.org", ["tenant.create"]);
+    const platformAuth = new PlatformAuthService(pool);
+    const session = await platformAuth.start({ email: "idem-replay@example.org", password: PASSWORD, clientIp: "127.0.0.1" });
+    const identity = await platformAuth.resolveIdentity(session.sessionToken);
+    const provisioning = new TenantProvisioningService(pool);
+
+    const key = "idem-replay-same-payload-0001";
+    const first = await provisioning.createSchoolTenant(identity, { name: "Replay School", idempotencyKey: key });
+    const second = await provisioning.createSchoolTenant(identity, { name: "Replay School", idempotencyKey: key });
+
+    expect(second).toEqual(first);
+    expect(await tenantCount()).toBe(1);
+
+    const auditRows = await pool.query(`SELECT id FROM audit_event WHERE action = 'tenant.created' AND tenant_id = $1`, [first.id]);
+    expect(auditRows.rows).toHaveLength(1);
+  });
+
+  it("conflict: same Idempotency-Key + different payload is rejected with IDEMPOTENCY_CONFLICT, no second tenant created", async () => {
+    await createPlatformAdmin("idem-conflict@example.org", ["tenant.create"]);
+    const platformAuth = new PlatformAuthService(pool);
+    const session = await platformAuth.start({ email: "idem-conflict@example.org", password: PASSWORD, clientIp: "127.0.0.1" });
+    const identity = await platformAuth.resolveIdentity(session.sessionToken);
+    const provisioning = new TenantProvisioningService(pool);
+
+    const key = "idem-conflict-different-payload-01";
+    await provisioning.createSchoolTenant(identity, { name: "Original School", idempotencyKey: key });
+    await expect(provisioning.createSchoolTenant(identity, { name: "Different School", idempotencyKey: key })).rejects.toMatchObject(
+      { code: "IDEMPOTENCY_CONFLICT" },
+    );
+    expect(await tenantCount()).toBe(1);
+  });
+
+  it("actor partitioning: the same Idempotency-Key value used by two different Platform Admins never collides -- two tenants are created", async () => {
+    await createPlatformAdmin("idem-actor-a@example.org", ["tenant.create"]);
+    await createPlatformAdmin("idem-actor-b@example.org", ["tenant.create"]);
+    const platformAuth = new PlatformAuthService(pool);
+    const sessionA = await platformAuth.start({ email: "idem-actor-a@example.org", password: PASSWORD, clientIp: "127.0.0.1" });
+    const sessionB = await platformAuth.start({ email: "idem-actor-b@example.org", password: PASSWORD, clientIp: "127.0.0.1" });
+    const identityA = await platformAuth.resolveIdentity(sessionA.sessionToken);
+    const identityB = await platformAuth.resolveIdentity(sessionB.sessionToken);
+    const provisioning = new TenantProvisioningService(pool);
+
+    const sharedKey = "idem-shared-key-reused-by-two-admins";
+    const resultA = await provisioning.createSchoolTenant(identityA, { name: "School A", idempotencyKey: sharedKey });
+    const resultB = await provisioning.createSchoolTenant(identityB, { name: "School B", idempotencyKey: sharedKey });
+
+    expect(resultA.id).not.toBe(resultB.id);
+    expect(await tenantCount()).toBe(2);
+  });
+
+  it("concurrency: N concurrent requests with the same actor and the same Idempotency-Key create at most one real tenant", async () => {
+    await createPlatformAdmin("idem-concurrent@example.org", ["tenant.create"]);
+    const platformAuth = new PlatformAuthService(pool);
+    const session = await platformAuth.start({ email: "idem-concurrent@example.org", password: PASSWORD, clientIp: "127.0.0.1" });
+    const identity = await platformAuth.resolveIdentity(session.sessionToken);
+    const provisioning = new TenantProvisioningService(pool);
+
+    const key = "idem-concurrent-single-creation-0001";
+    const outcomes = await Promise.allSettled(
+      Array.from({ length: 5 }, () => provisioning.createSchoolTenant(identity, { name: "Concurrent School", idempotencyKey: key })),
+    );
+
+    expect(await tenantCount()).toBe(1);
+    const fulfilled = outcomes.filter((o): o is PromiseFulfilledResult<Awaited<ReturnType<typeof provisioning.createSchoolTenant>>> =>
+      o.status === "fulfilled",
+    );
+    // Every settled (non-rejected) outcome must agree on the same tenant id --
+    // the Postgres row-level lock on the atomic UPSERT guarantees this
+    // structurally, not just at the application layer (02_26 v1.10 §32.4).
+    const distinctTenantIds = new Set(fulfilled.map((o) => o.value.id));
+    expect(distinctTenantIds.size).toBe(1);
+  });
+
+  it("backward compatibility: tenant-scoped idempotency scopes (tenant_id NOT NULL) keep working unmodified after migration 0007", async () => {
+    // Direct regression check on the shared repository/table rather than a
+    // higher-level service, since packages/staff-identity's own services
+    // are out of scope for this tranche -- this proves migration 0007 only
+    // widened the column, never narrowed or altered existing behavior for
+    // every scope with a real tenantId.
+    const { IdempotencyRecordRepository } = await import("@quest-city-web/attempts");
+    const repo = new IdempotencyRecordRepository(pool);
+    const tenantId = await createSchoolTenant("Idempotency Regression School");
+
+    const begin = await repo.begin({
+      tenantId,
+      scope: "attempt_completion",
+      scopeKey: "regression-scope-key-0001",
+      requestHash: "deadbeef",
+    });
+    expect(begin.outcome).toBe("NEW");
+    if (begin.outcome !== "NEW") throw new Error("unreachable");
+
+    const complete = await repo.complete({
+      tenantId,
+      scope: "attempt_completion",
+      scopeKey: "regression-scope-key-0001",
+      expectedGeneration: begin.generation,
+      response: { ok: true },
+    });
+    expect(complete.outcome).toBe("COMMITTED");
+
+    const replay = await repo.begin({
+      tenantId,
+      scope: "attempt_completion",
+      scopeKey: "regression-scope-key-0001",
+      requestHash: "deadbeef",
+    });
+    expect(replay.outcome).toBe("DUPLICATE_SAME_PAYLOAD");
   });
 });
 

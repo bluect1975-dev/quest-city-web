@@ -5,8 +5,9 @@ import { assertCapability } from "./authorization";
 import type { PlatformAdminIdentity } from "./platform-auth-service";
 
 /**
- * `PATCH /platform/tenants/{id}/status` (02_38 §21 indicative endpoint;
- * this tranche's §10). Only ACTIVE and SUSPENDED are reachable through
+ * `PATCH /platform/tenants/{id}/status` (02_38 §21, confirmed canonical
+ * by `02_26 v1.10` §32.3; this tranche's §10). Only ACTIVE and SUSPENDED
+ * are reachable through
  * this service -- ARCHIVED exists in the `tenant.status` CHECK
  * (migration 0002) but is not a transition this tranche exposes
  * (irreversible archival is out of scope; §10: "NON hard-delete

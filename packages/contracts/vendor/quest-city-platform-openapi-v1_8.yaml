@@ -1,0 +1,878 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.8.0
+  description: >-
+    Quest City API contract formalization for the Platform Admin and Tenant
+    Foundation surface (02_38 v1.0/v1.1, 02_26 v1.10 §32). This file is
+    additive: v1.2.0 through v1.7.0 remain available unchanged as separate
+    immutable artifacts; no prior path or schema is removed or altered.
+
+    This is a CONTRACTS-ONLY release, authored against the already-implemented
+    quest-city-web feature branch `feature/school-pilot-platform-admin-tenant-foundation`
+    (commit cf492f5f848cf453e8676d43a66ae3d864b29921) to close a real contract
+    gap identified by a dedicated audit (`BLOCKED_CANONICAL_CONTRACT`,
+    2026-08-11): that implementation introduced 9 real endpoints with no
+    preceding canonical OpenAPI/02_26 authorization, in direct contradiction
+    of 02_38 v1.0 §21 ("da confermare nella futura fase di contratto
+    OpenAPI"). This file, together with 02_26 v1.10 §32, is that fase. It
+    does not itself modify quest-city-web; it formalizes, corrects where
+    necessary (Idempotency-Key on tenant creation — see below) and confirms
+    the contract the already-written code must be brought into full
+    conformance with in a future, separately authorized implementation
+    phase.
+
+    Namespace: `/platform/...` is promoted from the "indicative, non-binding"
+    status 02_38 §21 gave it to the canonical namespace for platform-level
+    (cross-tenant, PLATFORM_ADMIN-only) operations, distinct from the flat
+    `/tenants/{id}/...` pattern used by tenant-scoped resources elsewhere in
+    this corpus. `/platform-auth/...` is the canonical namespace for the
+    Platform Admin session lifecycle, following the same
+    `<domain>-auth/session/*` shape already established by `/web-auth/*`
+    (v1.3.0) and `/staff-auth/*` (v1.6.0). Platform Admin identity is a third,
+    entirely separate session domain: distinct cookie (qc_platform_session),
+    distinct session table, distinct credential model from both
+    studentSessionCookie and staffSessionCookie. A platform session carries
+    no tenant scope at all (PLATFORM_ADMIN is cross-tenant by construction,
+    02_27 §4); this is the one architectural difference from the staff
+    session model, which is always scoped to exactly one tenant.
+
+    Capability mapping (capability-first authorization, 02_27 §5.3, reused
+    unmodified — no new authorization model introduced): `tenant.create`,
+    `tenant.read`, `tenant.suspend`, `school_admin.activate`,
+    `audit.read.global`. `tenant.read` is confirmed here as a granular,
+    additive capability string fully conformant with the illustrative (not
+    closed) vocabulary already exemplified by 02_27 §5.3 and 02_38 §4.1 for
+    this exact resource/actor pair — its introduction required no canonical
+    change and none is made to it by this file. No generic
+    "platform.admin.all"/"superuser"/"all_access" capability is introduced or
+    permitted; every operation below requires its own named capability,
+    checked server-side, never implied by session type alone.
+
+    Tenant creation idempotency (the second, deeper gap the audit
+    identified): `POST /platform/tenants` is now formally a critical write
+    operation requiring `Idempotency-Key` (02_26 §8.1, extended by this
+    version to explicitly include tenant creation). The existing
+    `idempotency_record` mechanism (migration 0003, extended by 0004/0006)
+    could not previously cover this operation because
+    `idempotency_record.tenant_id` is `NOT NULL` by design -- every prior
+    idempotent write happens inside an already-existing tenant; tenant
+    creation is the first write in this corpus that necessarily precedes the
+    tenant's own existence. This file, together with 02_26 v1.10 §32.4,
+    resolves that gap architecturally (not with a route-specific workaround):
+    `idempotency_record.tenant_id` becomes nullable, gated by a new CHECK
+    `(scope = 'platform_tenant_create') = (tenant_id IS NULL)`, with a new
+    partial unique index `(scope, scope_key) WHERE tenant_id IS NULL` doing
+    the deduplication work the existing composite `UNIQUE (tenant_id, scope,
+    scope_key)` cannot do for NULL tenant_id (SQL NULLs are never equal to
+    each other). `scope_key` for this one scope is
+    `${platformAdminStaffAccountId}:${Idempotency-Key}` -- the acting admin's
+    identity substitutes for the tenant as the partition dimension, since no
+    tenant exists yet to partition by; every other existing scope, mechanism
+    and outcome (NEW/REOPENED/DUPLICATE_SAME_PAYLOAD/CONFLICT_DIFFERENT_PAYLOAD/
+    FAILED_TERMINAL/RETRY_TOO_SOON, `packages/attempts/src/repository/idempotency-record-repository.ts`)
+    is reused byte-for-byte unmodified. See 02_26 v1.10 §32.4 for the full
+    per-outcome HTTP mapping.
+
+    No new error domain is introduced: every error code below is `domain:
+    PLATFORM`, reusing the ErrorEnvelope shape unchanged from v1.4.0 onward.
+    Two new PLATFORM-domain codes are added for tenant-creation idempotency:
+    `IDEMPOTENCY_CONFLICT` (409, same-key-different-payload -- the generic
+    behavior already named by 02_26 §8.1's own general rule, applied here for
+    the first time to a PLATFORM-domain operation) and
+    `IDEMPOTENCY_IN_PROGRESS` (409, retryable, concurrent/too-soon retry on
+    the same key while the first request is still in flight).
+
+    `tenant.type` in the response schema below reuses the existing
+    `tenant.type` column exactly as implemented in quest-city-web today
+    (`SCHOOL` | `ORGANIZATION`, migration 0002). Reconciling this literal
+    value with 02_38 §3-4's `TENANT_TYPE` vocabulary (`SCHOOL` |
+    `INDEPENDENT_EDUCATOR`) is explicitly out of scope for this phase --
+    Independent Educator is excluded by this phase's own instructions -- and
+    is registered here as a known, disclosed, non-blocking discrepancy for a
+    future Independent Educator canonical/implementation phase to resolve.
+    This tranche only ever creates `SCHOOL` tenants; `ORGANIZATION` is never
+    produced by any endpoint in this file.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+security:
+- platformSessionCookie: []
+paths:
+  /platform-auth/session/start:
+    post:
+      summary: Authenticate a Platform Admin with email and password, starting a
+        cross-tenant platform session
+      operationId: startPlatformSession
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformSessionStartRequest'
+      responses:
+        '200':
+          description: Session started. Sets the qc_platform_session HttpOnly/
+            Secure/SameSite=Lax cookie (distinct from qc_staff_session/
+            qc_web_session) and returns a one-time csrfToken and the actor's
+            effective capability set in the body (02_38 §4.1).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformSessionStartResponse'
+        '401':
+          description: PLATFORM_AUTH_REQUIRED — invalid email or password. Never
+            distinguishes an unknown email from a wrong password
+            (anti-enumeration, same pattern as 02_35 §4.6).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                domain: PLATFORM
+                code: PLATFORM_AUTH_REQUIRED
+                httpStatus: 401
+                message: Credenziali Platform Admin non valide.
+                correlationId: req_01hz90
+                retryable: false
+        '423':
+          description: PLATFORM_ACCOUNT_LOCKED — account temporarily locked after
+            repeated failed login attempts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /platform-auth/session/refresh:
+    post:
+      summary: Rotate the platform session token and CSRF token
+      operationId: refreshPlatformSession
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      responses:
+        '200':
+          description: Session rotated; the absolute expiry is carried over
+            unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformSessionRefreshResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/PlatformCsrfInvalid'
+  /platform-auth/logout:
+    post:
+      summary: Terminate the platform session. Always 200, regardless of prior
+        session state. Idempotent.
+      operationId: platformLogout
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      responses:
+        '200':
+          description: Always returns loggedOut=true; the cookie is always
+            cleared. CSRF is checked only when a valid session is present at
+            request time.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - loggedOut
+                properties:
+                  loggedOut:
+                    type: boolean
+                    const: true
+  /me/platform-context:
+    get:
+      summary: Minimal profile of the authenticated platform session — identity
+        and effective capability set
+      operationId: getPlatformContext
+      security:
+      - platformSessionCookie: []
+      responses:
+        '200':
+          description: Platform context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformContextResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+  /platform/tenants:
+    get:
+      summary: List tenants (capability tenant.read). Paginated, no didactic
+        data of any kind.
+      operationId: listTenants
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Tenant list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantListResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+    post:
+      summary: Create a SCHOOL tenant (capability tenant.create). Creates only
+        the tenant row itself — no classes, students, or demo content are
+        ever auto-created (02_38 §9).
+      operationId: createTenant
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: Tenant created. A retry with the same Idempotency-Key and
+            the same payload (DUPLICATE_SAME_PAYLOAD) replays this exact
+            response byte-for-byte, including this same 201 status — no
+            second tenant is ever created (02_26 v1.10 §32.4).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '400':
+          description: VALIDATION_ERROR — name must be 1-200 non-empty
+            characters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (CSRF token non valido) or
+            CAPABILITY_DENIED (missing tenant.create).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: IDEMPOTENCY_CONFLICT (same Idempotency-Key, different
+            payload) or IDEMPOTENCY_IN_PROGRESS (same key, request already in
+            flight or too soon to retry after a retryable failure —
+            Retry-After header present).
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /platform/tenants/{tenantId}/status:
+    patch:
+      summary: Suspend or reactivate a tenant (capability tenant.suspend,
+        governs both directions). Enforced for real at every subsequent
+        staff/student session read (02_38 §4.1).
+      operationId: setTenantStatus
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTenantStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantStatusResponse'
+        '400':
+          description: VALIDATION_ERROR — status must be one of ACTIVE,
+            SUSPENDED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (CSRF token non valido) or
+            CAPABILITY_DENIED (missing tenant.suspend).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: TENANT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: TENANT_STATUS_UNCHANGED — the requested status equals the
+            tenant's current status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /platform/tenants/{tenantId}/school-admins:
+    post:
+      summary: Activate the first (or an additional) School Admin for a tenant
+        (capability school_admin.activate). Preserves ONE HUMAN → ONE
+        PLATFORM IDENTITY (02_38 §9) — reuses an existing staff_account by
+        email rather than ever duplicating it.
+      operationId: activateSchoolAdmin
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateSchoolAdminRequest'
+      responses:
+        '201':
+          description: School Admin activated. temporaryPassword is present only
+            when a brand-new identity was created, returned exactly once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolAdminActivationResponse'
+        '400':
+          description: VALIDATION_ERROR — email must be a valid email address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (CSRF token non valido) or
+            CAPABILITY_DENIED (missing school_admin.activate).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: TENANT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: TENANT_SUSPENDED, SCHOOL_ADMIN_ALREADY_ACTIVE, or
+            SCHOOL_ADMIN_IDENTITY_SUSPENDED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /platform/audit:
+    get:
+      summary: List platform-scope audit_event rows (capability
+        audit.read.global). Read-only over the existing audit_event table —
+        no new table, no didactic data (audit rows for this domain never
+        carry student content).
+      operationId: listPlatformAudit
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventListResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+components:
+  securitySchemes:
+    platformSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_platform_session
+      description: HttpOnly, Secure, SameSite=Lax opaque platform session token.
+        Entirely distinct cookie, table and credential model from
+        staffSessionCookie/studentSessionCookie. Never accessible to
+        client-side JavaScript. Carries no tenant scope — PLATFORM_ADMIN is
+        cross-tenant by construction (02_27 §4); every cross-tenant read is
+        still gated by an explicit capability, never implied by session type
+        alone.
+    platformCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Synchronizer-token CSRF protection, same mechanism and
+        header name as staffCsrfHeader/csrfHeader, issued and validated
+        independently for platform sessions.
+  parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required on POST /platform/tenants (02_26 v1.10 §8.1, §32.4
+        — critical write, creates a real organizational entity). Same header
+        name reused across every prior contract file; scope is always
+        per-operation. Scoped server-side to
+        (actingPlatformAdminStaffAccountId, this header value) rather than to
+        a tenant, since no tenant exists yet at request time.
+  responses:
+    PlatformUnauthorized:
+      description: PLATFORM_AUTH_REQUIRED — no valid platform session (PLATFORM
+        domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    PlatformCsrfInvalid:
+      description: PLATFORM_FORBIDDEN — CSRF token non valido (PLATFORM domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    CapabilityDenied:
+      description: CAPABILITY_DENIED — authenticated as a platform admin but
+        lacking the specific capability this operation requires (02_27 §5.3
+        capability-first authorization). Distinct from PLATFORM_FORBIDDEN,
+        which is an identity/CSRF-level failure, not a capability-level one.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain,
+        RATE_LIMITED)
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - PLATFORM_AUTH_REQUIRED
+          - PLATFORM_FORBIDDEN
+          - PLATFORM_ACCOUNT_LOCKED
+          - CAPABILITY_DENIED
+          - TENANT_NOT_FOUND
+          - TENANT_SUSPENDED
+          - TENANT_STATUS_UNCHANGED
+          - SCHOOL_ADMIN_ALREADY_ACTIVE
+          - SCHOOL_ADMIN_IDENTITY_SUSPENDED
+          - VALIDATION_ERROR
+          - RATE_LIMITED
+          - IDEMPOTENCY_CONFLICT
+          - IDEMPOTENCY_IN_PROGRESS
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+
+    PlatformCapability:
+      type: string
+      enum:
+      - tenant.create
+      - tenant.read
+      - tenant.suspend
+      - school_admin.activate
+      - audit.read.global
+      description: Granular, explicitly-named capabilities only (02_27 §5.3,
+        02_38 §4.1). No implicit "all" capability exists or is permitted.
+        This list reflects exactly what Tranche A (Platform Admin + Tenant
+        Foundation) implements; it is illustrative-additive by the same
+        corpus-wide convention as 02_27 §5.3/02_38 §4.1 themselves, not a
+        closed enumeration — a future tranche may introduce further granular
+        capabilities (e.g. independent_educator.activate, convergence.*,
+        license.assign, incident.manage — already named as examples by
+        02_38 §4.1) without requiring this enum to be treated as
+        exhaustive today.
+
+    TenantType:
+      type: string
+      enum:
+      - SCHOOL
+      - ORGANIZATION
+      description: Reuses the existing tenant.type column exactly as
+        implemented (migration 0002). This tranche only ever produces
+        SCHOOL. Reconciling this vocabulary with 02_38 §3-4's TENANT_TYPE
+        (SCHOOL/INDEPENDENT_EDUCATOR) is out of scope here — registered as a
+        disclosed, non-blocking discrepancy for a future Independent
+        Educator phase.
+
+    TenantStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - SUSPENDED
+      - ARCHIVED
+      description: Only ACTIVE and SUSPENDED are settable via PATCH
+        /platform/tenants/{tenantId}/status. ARCHIVED exists in the column's
+        domain but is not reachable through any endpoint in this file.
+
+    PlatformSessionStartRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    PlatformSessionStartResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - csrfToken
+          - capabilities
+          properties:
+            csrfToken:
+              type: string
+            capabilities:
+              type: array
+              items:
+                $ref: '#/components/schemas/PlatformCapability'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    PlatformSessionRefreshResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - csrfToken
+          properties:
+            csrfToken:
+              type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    PlatformContextResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - staffAccountId
+          - capabilities
+          properties:
+            staffAccountId:
+              type: string
+            capabilities:
+              type: array
+              items:
+                $ref: '#/components/schemas/PlatformCapability'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TenantSummary:
+      type: object
+      required:
+      - id
+      - publicId
+      - type
+      - status
+      - name
+      - createdAt
+      properties:
+        id:
+          type: string
+        publicId:
+          type: string
+        type:
+          $ref: '#/components/schemas/TenantType'
+        status:
+          $ref: '#/components/schemas/TenantStatus'
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    TenantListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TenantResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/TenantSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateTenantRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Display name only. Creates only the tenant row — no
+            classes, students, or demo content (02_38 §9).
+
+    SetTenantStatusRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+
+    TenantStatusResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - id
+          - publicId
+          - status
+          properties:
+            id:
+              type: string
+            publicId:
+              type: string
+            status:
+              $ref: '#/components/schemas/TenantStatus'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ActivateSchoolAdminRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    SchoolAdminActivationResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - staffAccountId
+          - email
+          - temporaryPassword
+          - identityReused
+          - reactivated
+          properties:
+            staffAccountId:
+              type: string
+            email:
+              type: string
+              format: email
+            temporaryPassword:
+              type:
+              - string
+              - 'null'
+              description: Present only when a brand-new identity was created;
+                returned exactly once, never persisted in retrievable form,
+                never logged.
+            identityReused:
+              type: boolean
+              description: True when an existing staff_account was reused by
+                email rather than a new one created (02_38 §9, ONE HUMAN → ONE
+                PLATFORM IDENTITY).
+            reactivated:
+              type: boolean
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AuditEventSummary:
+      type: object
+      required:
+      - id
+      - tenantId
+      - actorType
+      - actorId
+      - action
+      - targetType
+      - targetId
+      - result
+      - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type:
+          - string
+          - 'null'
+          description: Null for platform-scope actions with no single tenant
+            target (e.g. tenant.created before the row exists in the
+            requester's frame of reference is still tenant-scoped to the new
+            tenant's own id; genuinely tenant-less actions are the exception,
+            not the rule).
+        actorType:
+          type: string
+        actorId:
+          type:
+          - string
+          - 'null'
+        action:
+          type: string
+        targetType:
+          type:
+          - string
+          - 'null'
+        targetId:
+          type:
+          - string
+          - 'null'
+        result:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditEventListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEventSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'

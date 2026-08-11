@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-platform-admin-tenant-foundation",
+  "artifactVersion": "1.8.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "feature/platform-admin-api-contracts",
+  "sourceCommit": "3cf824d343284a7ba8c4385a033bd9703de35a34",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_8.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_10",
+  "checksum": "sha256:2a69773479ec2b49e482fabe57ca979886de6057e73d93658dac854418062a28",
+  "syncedAt": "2026-08-11",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_6.yaml, all unmodified and independently tracked (v1_7.yaml was never vendored: a narrow error-description correction to an already-vendored v1.4/v1.5 endpoint, not a new path). Adds 9 Platform Admin + Tenant Foundation paths (02_38 v1.1, 02_26 v1.10 §32): platform-auth session lifecycle, me/platform-context, platform/tenants (list/create/status), school-admins activation, platform audit. Formalizes, as a compliance patch to this package's own consumer (feature/school-pilot-platform-admin-tenant-foundation, commit cf492f5f848cf453e8676d43a66ae3d864b29921), the contract that implementation was written against without prior canonical authorization -- resolved by a dedicated contract audit (BLOCKED_CANONICAL_CONTRACT -> PLATFORM_ADMIN_API_CONTRACTS_CLOSED, 2026-08-11). No existing path or schema from v1.2-v1.6 is touched. Do not edit vendor/quest-city-platform-openapi-v1_8.yaml directly.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_8.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_8.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

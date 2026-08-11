@@ -1,18 +1,29 @@
 import { PlatformApiError } from "./platform-api-error";
 import type { AuditEventSummary, PlatformContext, SchoolAdminActivationResponse, TenantSummary } from "./platform-api-types";
 
-/** Same base-URL convention as `staff-api-client.ts` — same-origin in production/Docker-compose, overridable for local `next dev`. */
+/**
+ * Consumer for `contracts/quest-city-platform-openapi-v1_8.yaml`
+ * (`packages/contracts/vendor`, 02_26 v1.10 §32). Same base-URL
+ * convention as `staff-api-client.ts` — same-origin in
+ * production/Docker-compose, overridable for local `next dev`.
+ */
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL_DASHBOARD ?? "/api";
 
 interface RequestOptions {
   method?: "GET" | "POST" | "PATCH";
   body?: unknown;
   csrfToken?: string | null;
+  idempotencyKey?: string;
 }
 
 interface Envelope<T> {
   data: T;
   meta: { request_id?: string; api_version: "v1" };
+}
+
+/** A fresh key per mutating call — never reused across distinct user actions (same convention as `staff-api-client.ts`). */
+export function generateIdempotencyKey(): string {
+  return crypto.randomUUID();
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -24,6 +35,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
   if (options.csrfToken) {
     headers["X-CSRF-Token"] = options.csrfToken;
+  }
+  if (options.idempotencyKey) {
+    headers["Idempotency-Key"] = options.idempotencyKey;
   }
 
   const init: RequestInit = { method: options.method ?? "GET", credentials: "include", headers };
@@ -65,11 +79,13 @@ export async function listTenants(): Promise<TenantSummary[]> {
   return envelope.data;
 }
 
-export async function createTenant(input: { name: string; csrfToken: string }): Promise<TenantSummary> {
+/** `Idempotency-Key` required (02_26 v1.10 §32.4) — pass a fresh `generateIdempotencyKey()` value per distinct user action; reusing it retries the same logical request. */
+export async function createTenant(input: { name: string; csrfToken: string; idempotencyKey: string }): Promise<TenantSummary> {
   const envelope = await request<Envelope<TenantSummary>>("/platform/tenants", {
     method: "POST",
     body: { name: input.name },
     csrfToken: input.csrfToken,
+    idempotencyKey: input.idempotencyKey,
   });
   return envelope.data;
 }

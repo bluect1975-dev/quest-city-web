@@ -8,7 +8,13 @@ import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-we
 import { RequirePlatformAuth } from "../../../lib/RequirePlatformAuth";
 import { usePlatformAuth } from "../../../lib/platform-auth-context";
 import { useAsyncPlatform } from "../../../lib/useAsyncPlatform";
-import { activateSchoolAdmin, createTenant, listTenants, setTenantStatus } from "../../../lib/platform-api-client";
+import {
+  activateSchoolAdmin,
+  createTenant,
+  generateIdempotencyKey,
+  listTenants,
+  setTenantStatus,
+} from "../../../lib/platform-api-client";
 import { platformErrorText } from "../../../lib/platform-error-text";
 import type { Capability, PlatformContext, TenantSummary } from "../../../lib/platform-api-types";
 
@@ -109,7 +115,7 @@ function CreateTenantForm({ csrfToken, onCreated }: { csrfToken: string; onCreat
     setSubmitting(true);
     setError(null);
     try {
-      await createTenant({ name, csrfToken });
+      await createTenant({ name, csrfToken, idempotencyKey: generateIdempotencyKey() });
       setName("");
       onCreated();
     } catch (caught) {

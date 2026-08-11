@@ -30,6 +30,14 @@ export interface ErrorEnvelope {
  * the operation requires (02_27 §5.3 capability-first authorization) --
  * a coined code, since no prior PLATFORM-domain error models a
  * capability-level (as opposed to identity-level) authorization failure.
+ * `IDEMPOTENCY_CONFLICT`/`IDEMPOTENCY_IN_PROGRESS` (02_26 v1.10 §32.4,
+ * OpenAPI v1.8) cover `POST /platform/tenants`'s `Idempotency-Key`
+ * contract: same key + different payload, and same key + request still
+ * in flight or too-soon-to-retry after a retryable failure, respectively
+ * -- kept as two distinct codes for this scope specifically because the
+ * canonical contract names them separately, unlike the single
+ * `IDEMPOTENCY_CONFLICT` some pre-existing staff-identity scopes collapse
+ * both cases into.
  */
 export const PLATFORM_ADMIN_ERROR_CODES = [
   "PLATFORM_AUTH_REQUIRED",
@@ -43,6 +51,8 @@ export const PLATFORM_ADMIN_ERROR_CODES = [
   "SCHOOL_ADMIN_IDENTITY_SUSPENDED",
   "VALIDATION_ERROR",
   "RATE_LIMITED",
+  "IDEMPOTENCY_CONFLICT",
+  "IDEMPOTENCY_IN_PROGRESS",
 ] as const;
 
 export type PlatformAdminErrorCode = (typeof PLATFORM_ADMIN_ERROR_CODES)[number];
@@ -59,6 +69,8 @@ const HTTP_STATUS_BY_CODE: Record<PlatformAdminErrorCode, number> = {
   SCHOOL_ADMIN_IDENTITY_SUSPENDED: 409,
   VALIDATION_ERROR: 400,
   RATE_LIMITED: 429,
+  IDEMPOTENCY_CONFLICT: 409,
+  IDEMPOTENCY_IN_PROGRESS: 409,
 };
 
 export class PlatformAdminError extends Error {
@@ -88,7 +100,7 @@ export class PlatformAdminError extends Error {
       httpStatus: this.httpStatus,
       message: this.message,
       correlationId,
-      retryable: this.code === "RATE_LIMITED",
+      retryable: this.code === "RATE_LIMITED" || this.code === "IDEMPOTENCY_IN_PROGRESS",
       ...(this.safeDetails ? { safeDetails: this.safeDetails } : {}),
     };
   }

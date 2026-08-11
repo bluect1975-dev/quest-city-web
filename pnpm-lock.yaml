@@ -338,6 +338,9 @@ importers:
 
   packages/platform-admin:
     dependencies:
+      '@quest-city-web/attempts':
+        specifier: workspace:*
+        version: link:../attempts
       '@quest-city-web/identity':
         specifier: workspace:*
         version: link:../identity

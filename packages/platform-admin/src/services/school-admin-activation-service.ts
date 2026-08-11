@@ -30,8 +30,8 @@ function generateTemporaryPassword(): string {
 }
 
 /**
- * `POST /platform/tenants/{tenantId}/school-admins` (02_38 §21
- * indicative endpoint; this tranche's §11). Preserves ONE HUMAN -> ONE
+ * `POST /platform/tenants/{tenantId}/school-admins` (02_38 §21,
+ * confirmed canonical by `02_26 v1.10` §32.5; this tranche's §11). Preserves ONE HUMAN -> ONE
  * PLATFORM IDENTITY (02_38 §9): if a `staff_account` with this email
  * already exists, it is reused, never duplicated. Does not implement
  * the normal teacher invitation flow (deferred to a later tranche, per
