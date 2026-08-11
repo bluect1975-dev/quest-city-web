@@ -6,6 +6,7 @@ import {
   generateToken,
   hashToken,
   SESSION_TOKEN_BYTES,
+  TenantRepository,
   verifyTokenHash,
   type RateLimitDimension,
 } from "@quest-city-web/identity";
@@ -71,6 +72,7 @@ export class StaffAuthService {
   private readonly classAssignments: StaffClassAssignmentRepository;
   private readonly sessions: StaffSessionRepository;
   private readonly audit: AuditRepository;
+  private readonly tenants: TenantRepository;
 
   constructor(
     private readonly pool: Pool,
@@ -81,6 +83,7 @@ export class StaffAuthService {
     this.classAssignments = new StaffClassAssignmentRepository(pool);
     this.sessions = new StaffSessionRepository(pool);
     this.audit = new AuditRepository(pool);
+    this.tenants = new TenantRepository(pool);
   }
 
   /**
@@ -157,6 +160,15 @@ export class StaffAuthService {
         "VALIDATION_ERROR",
         "tenantId è obbligatorio quando l'account ha più di una membership attiva.",
       );
+    }
+
+    // School Pilot Readiness Tranche A (02_38 §10): a SUSPENDED tenant
+    // rejects staff login outright, server-side, not merely hidden in a
+    // UI (02_24 §11.1 — tenant scope enforcement is always server-side).
+    const tenant = await this.tenants.findById(membership.tenantId);
+    if (!tenant || tenant.status !== "ACTIVE") {
+      await this.recordLoginFailure(account.id, "TENANT_NOT_ACTIVE");
+      throw new StaffIdentityError("TENANT_SUSPENDED", "Questo tenant è sospeso.");
     }
 
     const sessionToken = generateToken(SESSION_TOKEN_BYTES);
@@ -281,6 +293,17 @@ export class StaffAuthService {
     const membership = await this.memberships.findById(session.staffTenantMembershipId, session.tenantId);
     if (!membership || membership.status !== "ACTIVE") {
       throw new StaffIdentityError("STAFF_AUTH_REQUIRED");
+    }
+
+    // School Pilot Readiness Tranche A (02_38 §10): enforced on every
+    // request, not only at login — a tenant suspended mid-session must
+    // reject that session's very next use, revoked with the same
+    // ADMIN_REVOKED reason already used for other administrative
+    // session terminations (migration 0004's revoked_reason enum).
+    const tenant = await this.tenants.findById(session.tenantId);
+    if (!tenant || tenant.status !== "ACTIVE") {
+      await this.sessions.revoke(session.id, session.tenantId, "ADMIN_REVOKED");
+      throw new StaffIdentityError("TENANT_SUSPENDED", "Questo tenant è sospeso.");
     }
     await this.sessions.touchLastSeen(session.id, session.tenantId);
 

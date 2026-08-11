@@ -84,4 +84,21 @@ export class StaffTenantMembershipRepository {
     if (!row) throw new Error("INSERT ... RETURNING produced no row");
     return mapRow(row);
   }
+
+  /**
+   * Reactivates (or suspends) an existing membership row in place --
+   * never a second INSERT (UNIQUE (staff_account_id, tenant_id) would
+   * reject one anyway). Introduced for the Platform Admin School Admin
+   * activation flow's "membership already exists, SUSPENDED" case
+   * (School Pilot Readiness Tranche A).
+   */
+  async updateStatus(id: string, tenantId: string, status: StaffTenantMembershipStatus): Promise<StaffTenantMembership | null> {
+    const result = await this.db.query<StaffTenantMembershipRow>(
+      `UPDATE staff_tenant_membership SET status = $3, updated_at = now() WHERE id = $1 AND tenant_id = $2
+       RETURNING ${SELECT_COLUMNS}`,
+      [id, tenantId, status],
+    );
+    const [row] = result.rows;
+    return row ? mapRow(row) : null;
+  }
 }

@@ -18,6 +18,10 @@ function makeEnv(overrides: Partial<ApiEnv> = {}): ApiEnv {
     staffSessionAbsoluteTtlSeconds: 43200,
     staffSessionInactivityTtlSeconds: 3600,
     staffAuthTrustedOrigins: ["http://localhost:3001"],
+    platformSessionCookieName: "qc_platform_session",
+    platformSessionAbsoluteTtlSeconds: 43200,
+    platformSessionInactivityTtlSeconds: 3600,
+    platformAuthTrustedOrigins: ["http://localhost:3002"],
     ...overrides,
   };
 }

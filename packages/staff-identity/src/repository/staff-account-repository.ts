@@ -2,6 +2,16 @@ import type { Queryable } from "./types";
 
 export type StaffAccountStatus = "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
 
+/**
+ * ADMIN_BOOTSTRAP_SCRIPT and PLATFORM_ADMIN added by migration 0006
+ * (School Pilot Readiness Tranche A) -- the first origin for the
+ * first-ever PLATFORM_ADMIN's own staff_account (02_38 §4.1, no public
+ * self-registration), the second for a staff_account created by an
+ * already-active PLATFORM_ADMIN via the school-admin activation flow
+ * (02_38 §4.1 capability `school_admin.activate`).
+ */
+export type StaffAccountCreatedByActorType = "ADMIN_SEED_SCRIPT" | "ADMIN_BOOTSTRAP_SCRIPT" | "PLATFORM_ADMIN";
+
 export interface StaffAccount {
   id: string;
   email: string;
@@ -10,7 +20,7 @@ export interface StaffAccount {
   status: StaffAccountStatus;
   failedLoginCount: number;
   lockedUntil: Date | null;
-  createdByActorType: "ADMIN_SEED_SCRIPT";
+  createdByActorType: StaffAccountCreatedByActorType;
   createdByActorId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -25,7 +35,7 @@ interface StaffAccountRow {
   status: StaffAccountStatus;
   failed_login_count: number;
   locked_until: Date | null;
-  created_by_actor_type: "ADMIN_SEED_SCRIPT";
+  created_by_actor_type: StaffAccountCreatedByActorType;
   created_by_actor_id: string;
   created_at: Date;
   updated_at: Date;
@@ -70,18 +80,19 @@ export class StaffAccountRepository {
     return row ? mapRow(row) : null;
   }
 
-  /** Administrative offline seed only (02_35 §4.2) — no public self-registration endpoint exists. */
+  /** Administrative offline/controlled provisioning only (02_35 §4.2, 02_38 §4.1) — no public self-registration endpoint exists. */
   async create(input: {
     email: string;
     passwordHash: string;
     status: StaffAccountStatus;
+    createdByActorType?: StaffAccountCreatedByActorType;
     createdByActorId: string;
   }): Promise<StaffAccount> {
     const result = await this.db.query<StaffAccountRow>(
       `INSERT INTO staff_account (email, password_hash, password_algorithm, status, created_by_actor_type, created_by_actor_id)
-       VALUES ($1, $2, 'scrypt', $3, 'ADMIN_SEED_SCRIPT', $4)
+       VALUES ($1, $2, 'scrypt', $3, $4, $5)
        RETURNING ${SELECT_COLUMNS}`,
-      [input.email, input.passwordHash, input.status, input.createdByActorId],
+      [input.email, input.passwordHash, input.status, input.createdByActorType ?? "ADMIN_SEED_SCRIPT", input.createdByActorId],
     );
     const [row] = result.rows;
     if (!row) throw new Error("INSERT ... RETURNING produced no row");

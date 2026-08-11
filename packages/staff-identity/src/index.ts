@@ -11,7 +11,12 @@ export {
   PasswordHashFormatError,
 } from "./crypto/password";
 
-export { StaffAccountRepository, type StaffAccount, type StaffAccountStatus } from "./repository/staff-account-repository";
+export {
+  StaffAccountRepository,
+  type StaffAccount,
+  type StaffAccountStatus,
+  type StaffAccountCreatedByActorType,
+} from "./repository/staff-account-repository";
 export {
   StaffTenantMembershipRepository,
   type StaffTenantMembership,

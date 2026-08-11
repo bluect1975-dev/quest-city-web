@@ -40,6 +40,9 @@ export const STAFF_ERROR_CODES = [
   "ETAG_MISMATCH",
   "RATE_LIMITED",
   "IDEMPOTENCY_CONFLICT",
+  // School Pilot Readiness Tranche A (02_38 §10): a suspended tenant's
+  // staff cannot authenticate or keep using an existing session.
+  "TENANT_SUSPENDED",
 ] as const;
 
 export type StaffErrorCode = (typeof STAFF_ERROR_CODES)[number];
@@ -56,6 +59,7 @@ const HTTP_STATUS_BY_CODE: Record<StaffErrorCode, number> = {
   VALIDATION_ERROR: 400,
   ETAG_MISMATCH: 412,
   RATE_LIMITED: 429,
+  TENANT_SUSPENDED: 409,
   IDEMPOTENCY_CONFLICT: 409,
 };
 

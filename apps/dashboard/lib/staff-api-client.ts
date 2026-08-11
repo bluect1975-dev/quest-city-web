@@ -22,7 +22,7 @@ import type {
  * `apps/api` — 07_06 §3); `NEXT_PUBLIC_API_BASE_URL_DASHBOARD` lets local
  * `next dev` point at a directly-running API instance instead.
  */
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL_DASHBOARD ?? "";
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL_DASHBOARD ?? "/api";
 
 interface RequestOptions {
   method?: "GET" | "POST";

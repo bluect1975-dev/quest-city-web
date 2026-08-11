@@ -90,6 +90,24 @@ export class ClassCodeService {
       throw new IdentityError("CLASS_CODE_INVALID");
     }
 
+    // School Pilot Readiness Tranche A (02_38 §10): a SUSPENDED tenant's
+    // students cannot start a new class-code session either. Same
+    // uniform CLASS_CODE_INVALID as any other failure cause here — the
+    // resolve endpoint never reveals tenant lifecycle state to a
+    // student-facing anonymous caller.
+    if (tenant.status !== "ACTIVE") {
+      await this.audit.record({
+        tenantId: tenant.id,
+        actorType: "STUDENT",
+        action: "student_access_failed",
+        targetType: "class_access_code",
+        targetId: record.id,
+        result: "FAILURE",
+        metadataRedacted: { reason: "TENANT_NOT_ACTIVE" },
+      });
+      throw new IdentityError("CLASS_CODE_INVALID");
+    }
+
     await this.audit.record({
       tenantId: tenant.id,
       actorType: "STUDENT",

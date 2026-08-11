@@ -28,6 +28,12 @@ export interface ApiEnv {
   staffSessionInactivityTtlSeconds: number;
   /** Origins allowed to perform mutating staff-auth/dashboard requests — separate list from `webAuthTrustedOrigins` since `apps/dashboard` runs on its own origin. */
   staffAuthTrustedOrigins: string[];
+  /** School Pilot Readiness Tranche A (02_38 §4.1, §20 "riusa staff_account"): distinct cookie name from `staffSessionCookieName`, never the same cookie or table as staff/student sessions. */
+  platformSessionCookieName: string;
+  platformSessionAbsoluteTtlSeconds: number;
+  platformSessionInactivityTtlSeconds: number;
+  /** Origins allowed to perform mutating platform-admin requests — separate list, since the Platform Admin surface may run on its own origin/app. */
+  platformAuthTrustedOrigins: string[];
   /**
    * HMAC-SHA-256 key for class-code hashing (WEB-M1 Fase 2 correction #1).
    * Required in every environment — no default, ever. Decoded and length
@@ -61,6 +67,9 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
   // values as the student session, independently configurable.
   const staffSessionAbsoluteTtlSeconds = parsePositiveInt(source, "STAFF_SESSION_ABSOLUTE_TTL_SECONDS", String(12 * 60 * 60));
   const staffSessionInactivityTtlSeconds = parsePositiveInt(source, "STAFF_SESSION_INACTIVITY_TTL_SECONDS", String(60 * 60));
+  // School Pilot Readiness Tranche A: same 12h absolute / 60min inactivity baseline, independently configurable.
+  const platformSessionAbsoluteTtlSeconds = parsePositiveInt(source, "PLATFORM_SESSION_ABSOLUTE_TTL_SECONDS", String(12 * 60 * 60));
+  const platformSessionInactivityTtlSeconds = parsePositiveInt(source, "PLATFORM_SESSION_INACTIVITY_TTL_SECONDS", String(60 * 60));
   const nodeEnv = source.NODE_ENV ?? "development";
   const sessionCookieSecureOverrideInsecureLocal =
     nodeEnv === "development" && source.SESSION_COOKIE_SECURE_OVERRIDE_INSECURE_LOCAL === "true";
@@ -95,6 +104,13 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
     staffSessionAbsoluteTtlSeconds,
     staffSessionInactivityTtlSeconds,
     staffAuthTrustedOrigins: (source.STAFF_AUTH_TRUSTED_ORIGINS ?? "http://localhost:3001,http://localhost:8080")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
+    platformSessionCookieName: source.PLATFORM_SESSION_COOKIE_NAME ?? "qc_platform_session",
+    platformSessionAbsoluteTtlSeconds,
+    platformSessionInactivityTtlSeconds,
+    platformAuthTrustedOrigins: (source.PLATFORM_AUTH_TRUSTED_ORIGINS ?? "http://localhost:3002,http://localhost:8080")
       .split(",")
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),

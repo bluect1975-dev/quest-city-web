@@ -26,5 +26,14 @@
   "ETAG_MISMATCH": "Questo elemento è stato modificato da un'altra sessione. Ricarica e riprova.",
   "IDEMPOTENCY_CONFLICT": "La richiesta è già stata inviata con dati diversi. Riprova con una nuova richiesta.",
   "WEB_M4_ACTIVITY_NOT_AVAILABLE": "L'attività non è ancora disponibile per la tua scuola.",
+  "TENANT_SUSPENDED": "Questa scuola è sospesa. Contatta l'amministratore di piattaforma.",
+  "PLATFORM_AUTH_REQUIRED": "Devi accedere come amministratore di piattaforma per continuare.",
+  "PLATFORM_FORBIDDEN": "Non sei autorizzato a compiere questa azione.",
+  "PLATFORM_ACCOUNT_LOCKED": "Account temporaneamente bloccato per troppi tentativi falliti.",
+  "CAPABILITY_DENIED": "Non hai la capability necessaria per questa operazione.",
+  "TENANT_NOT_FOUND": "Scuola non trovata.",
+  "TENANT_STATUS_UNCHANGED": "La scuola ha già questo stato.",
+  "SCHOOL_ADMIN_ALREADY_ACTIVE": "Questa persona è già amministratore attivo di questa scuola.",
+  "SCHOOL_ADMIN_IDENTITY_SUSPENDED": "L'identità collegata a questa email non è attiva.",
   "UNKNOWN_ERROR": "Si è verificato un errore imprevisto. Riprova."
 }

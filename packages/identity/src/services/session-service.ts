@@ -368,6 +368,27 @@ export class SessionService {
       });
       return null;
     }
+
+    // School Pilot Readiness Tranche A (02_38 §10): `start()` already
+    // rejects a SUSPENDED tenant at login (TENANT_ACCESS_DENIED, above
+    // this method); this closes the same gap for an *already-active*
+    // session, so suspension is enforced immediately for the classroom's
+    // whole current student cohort, not only for new logins.
+    const tenant = await this.tenants.findById(session.tenantId);
+    if (!tenant || tenant.status !== "ACTIVE") {
+      await this.sessions.revoke(session.id, session.tenantId, "ADMIN_REVOKED");
+      await this.audit.record({
+        tenantId: session.tenantId,
+        actorType: "SYSTEM",
+        actorId: session.studentProfileId,
+        action: "student_session_revoked",
+        targetType: "student_session",
+        targetId: session.id,
+        result: "SUCCESS",
+        metadataRedacted: { reason: "TENANT_NOT_ACTIVE" },
+      });
+      return null;
+    }
     return session;
   }
 
