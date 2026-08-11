@@ -17,9 +17,9 @@ apps/dashboard/next.config.ts, apps/student-web/next.config.ts
 # regardless of local autocrlf settings. All three groups are genuinely
 # fully byte-identical at the committed-blob level; the prior split
 # undercounted them.
-packages/attempts/tsconfig.json, packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/i18n/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/staff-identity/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
-packages/attempts/vitest.config.ts, packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/i18n/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/staff-identity/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
-packages/attempts/src/repository/types.ts, packages/identity/src/repository/types.ts, packages/staff-identity/src/repository/types.ts
+packages/attempts/tsconfig.json, packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/i18n/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/platform-admin/tsconfig.json, packages/staff-identity/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
+packages/attempts/vitest.config.ts, packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/i18n/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/platform-admin/vitest.config.ts, packages/staff-identity/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
+packages/attempts/src/repository/types.ts, packages/identity/src/repository/types.ts, packages/platform-admin/src/repository/types.ts, packages/staff-identity/src/repository/types.ts
 # Single-line `/// <reference types="@testing-library/jest-dom/vitest" />`
 # stub (WEB-M3B FVR), needed inside each package's own tsconfig `include`
 # scope — same per-package-boilerplate rationale as the rest of this file.

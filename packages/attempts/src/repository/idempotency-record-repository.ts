@@ -28,28 +28,43 @@ interface IdempotencyRecordRow {
 /**
  * Generation-based optimistic-concurrency idempotency (07_15_01 v1.1 §10,
  * §11-bis.6; extended to staff write scopes by 02_35 §14 / migration
- * 0004). Semantic actions dedup via semantic_action_log's own unique
- * constraints, never through this table (AGENTS.md v4.30, one mechanism
- * per operation) — `scope` selects which of the CHECK-constrained
- * `idempotency_record.scope` values this call belongs to, but the
- * mechanism itself (single atomic `INSERT ... ON CONFLICT DO UPDATE ...
- * WHERE`) is shared unmodified across every scope. Postgres's own
- * row-level locking makes concurrent callers on the same key race safely;
- * at most one gets NEW/REOPENED per generation.
+ * 0004; extended to the one platform-scope write by 02_26 v1.10 §32.4 /
+ * migration 0007). Semantic actions dedup via semantic_action_log's own
+ * unique constraints, never through this table (AGENTS.md v4.30, one
+ * mechanism per operation) — `scope` selects which of the
+ * CHECK-constrained `idempotency_record.scope` values this call belongs
+ * to, but the mechanism itself (single atomic `INSERT ... ON CONFLICT DO
+ * UPDATE ... WHERE`) is shared unmodified across every scope. Postgres's
+ * own row-level locking makes concurrent callers on the same key race
+ * safely; at most one gets NEW/REOPENED per generation.
+ *
+ * `tenantId` is `null` for exactly one scope, `platform_tenant_create`
+ * (02_26 v1.10 §32.4): tenant creation has no tenant to scope the record
+ * to until the operation itself completes. Every other scope keeps
+ * `tenantId` as a required `string`, unchanged. Because SQL `NULL` is
+ * never equal to `NULL`, the existing composite unique constraint
+ * `(tenant_id, scope, scope_key)` cannot deduplicate `tenant_id IS NULL`
+ * rows — migration 0007 adds a dedicated partial unique index,
+ * `(scope, scope_key) WHERE tenant_id IS NULL`, used as the `ON CONFLICT`
+ * arbiter only when `tenantId` is `null`. `tenant_id = $1` comparisons
+ * throughout this class use `IS NOT DISTINCT FROM` instead of `=` so the
+ * same query text is correct whether `tenantId` is `null` or a real UUID.
  */
 export class IdempotencyRecordRepository {
   constructor(private readonly db: Queryable) {}
 
   async begin(input: {
-    tenantId: string;
+    tenantId: string | null;
     scope: string;
     scopeKey: string;
     requestHash: string;
   }): Promise<IdempotencyBeginOutcome> {
+    const conflictTarget =
+      input.tenantId === null ? "(scope, scope_key) WHERE tenant_id IS NULL" : "(tenant_id, scope, scope_key)";
     const upsert = await this.db.query<IdempotencyRecordRow>(
       `INSERT INTO idempotency_record (tenant_id, scope, scope_key, request_hash, status, expires_at)
        VALUES ($1, $2, $3, $4, 'PENDING', now() + interval '${DEFAULT_TTL_MINUTES} minutes')
-       ON CONFLICT (tenant_id, scope, scope_key) DO UPDATE
+       ON CONFLICT ${conflictTarget} DO UPDATE
          SET status = 'PENDING', response_json = NULL, failure_retryable = NULL,
              generation = idempotency_record.generation + 1, updated_at = now(),
              expires_at = now() + interval '${DEFAULT_TTL_MINUTES} minutes'
@@ -70,7 +85,7 @@ export class IdempotencyRecordRepository {
     // eligible) — classify the existing row to produce the exact outcome.
     const existing = await this.db.query<IdempotencyRecordRow>(
       `SELECT id, status, generation, response_json, request_hash, failure_retryable, created_at, updated_at, false AS inserted_fresh
-       FROM idempotency_record WHERE tenant_id = $1 AND scope = $2 AND scope_key = $3`,
+       FROM idempotency_record WHERE tenant_id IS NOT DISTINCT FROM $1 AND scope = $2 AND scope_key = $3`,
       [input.tenantId, input.scope, input.scopeKey],
     );
     const [existingRow] = existing.rows;
@@ -100,7 +115,7 @@ export class IdempotencyRecordRepository {
   }
 
   async complete(input: {
-    tenantId: string;
+    tenantId: string | null;
     scope: string;
     scopeKey: string;
     expectedGeneration: number;
@@ -109,7 +124,7 @@ export class IdempotencyRecordRepository {
     const result = await this.db.query(
       `UPDATE idempotency_record
        SET status = 'COMPLETED', response_json = $5, failure_retryable = NULL, updated_at = now()
-       WHERE tenant_id = $1 AND scope = $2 AND scope_key = $3
+       WHERE tenant_id IS NOT DISTINCT FROM $1 AND scope = $2 AND scope_key = $3
          AND status = 'PENDING' AND generation = $4
        RETURNING id`,
       [input.tenantId, input.scope, input.scopeKey, input.expectedGeneration, JSON.stringify(input.response)],
@@ -118,7 +133,7 @@ export class IdempotencyRecordRepository {
   }
 
   async fail(input: {
-    tenantId: string;
+    tenantId: string | null;
     scope: string;
     scopeKey: string;
     expectedGeneration: number;
@@ -128,7 +143,7 @@ export class IdempotencyRecordRepository {
     const result = await this.db.query(
       `UPDATE idempotency_record
        SET status = 'FAILED', response_json = $5, failure_retryable = $6, updated_at = now()
-       WHERE tenant_id = $1 AND scope = $2 AND scope_key = $3
+       WHERE tenant_id IS NOT DISTINCT FROM $1 AND scope = $2 AND scope_key = $3
          AND status = 'PENDING' AND generation = $4
        RETURNING id`,
       [input.tenantId, input.scope, input.scopeKey, input.expectedGeneration, JSON.stringify(input.response), input.retryable],

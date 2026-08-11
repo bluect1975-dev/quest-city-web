@@ -38,6 +38,15 @@ function mapTenant(row: TenantRow): Tenant {
 export class TenantRepository {
   constructor(private readonly db: Queryable) {}
 
+  async list(input: { limit: number; offset: number }): Promise<Tenant[]> {
+    const result = await this.db.query<TenantRow>(
+      `SELECT id, public_id, type, status, name, settings_json, created_at FROM tenant
+       ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      [input.limit, input.offset],
+    );
+    return result.rows.map(mapTenant);
+  }
+
   async findById(id: string): Promise<Tenant | null> {
     const result = await this.db.query<TenantRow>(
       `SELECT id, public_id, type, status, name, settings_json, created_at FROM tenant WHERE id = $1`,
@@ -75,5 +84,23 @@ export class TenantRepository {
       throw new Error("INSERT ... RETURNING produced no row");
     }
     return mapTenant(row);
+  }
+
+  /**
+   * Platform Admin tenant status transition (02_38 §4.1 `tenant.suspend`
+   * capability governs both directions — canon names only the
+   * one-directional "suspend"; reactivation is the documented symmetric
+   * inverse of the same governed lifecycle action, not a second
+   * capability). Returns null if the tenant does not exist so the caller
+   * can distinguish "not found" from "no-op" without a second query.
+   */
+  async updateStatus(id: string, status: TenantStatus): Promise<Tenant | null> {
+    const result = await this.db.query<TenantRow>(
+      `UPDATE tenant SET status = $2 WHERE id = $1
+       RETURNING id, public_id, type, status, name, settings_json, created_at`,
+      [id, status],
+    );
+    const [row] = result.rows;
+    return row ? mapTenant(row) : null;
   }
 }

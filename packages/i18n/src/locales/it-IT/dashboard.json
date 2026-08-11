@@ -135,5 +135,51 @@
       "left": "Uscito",
       "archived": "Archiviato"
     }
+  },
+  "platformAdmin": {
+    "login": {
+      "title": "Accesso amministratore di piattaforma",
+      "emailLabel": "Email",
+      "passwordLabel": "Password",
+      "submit": "Accedi",
+      "submitting": "Accesso in corso..."
+    },
+    "nav": {
+      "tenants": "Scuole",
+      "audit": "Registro attività",
+      "logout": "Esci"
+    },
+    "tenants": {
+      "title": "Scuole",
+      "columnName": "Nome",
+      "columnPublicId": "ID",
+      "columnStatus": "Stato",
+      "columnCreatedAt": "Creata il",
+      "empty": "Nessuna scuola registrata.",
+      "createTitle": "Crea nuova scuola",
+      "createNameLabel": "Nome scuola",
+      "createSubmit": "Crea scuola",
+      "createSubmitting": "Creazione in corso...",
+      "suspendAction": "Sospendi",
+      "reactivateAction": "Riattiva",
+      "statusActive": "Attiva",
+      "statusSuspended": "Sospesa",
+      "activateSchoolAdminTitle": "Attiva amministratore scuola",
+      "activateSchoolAdminEmailLabel": "Email amministratore scuola",
+      "activateSchoolAdminSubmit": "Attiva",
+      "activateSchoolAdminSubmitting": "Attivazione in corso...",
+      "activateSchoolAdminResultReused": "Identità esistente riutilizzata.",
+      "activateSchoolAdminResultNew": "Nuova identità creata. Password temporanea:",
+      "activateSchoolAdminResultReactivated": "Amministratore scuola riattivato."
+    },
+    "audit": {
+      "title": "Registro attività",
+      "columnTimestamp": "Data e ora",
+      "columnActorType": "Tipo attore",
+      "columnAction": "Azione",
+      "columnTargetType": "Tipo destinatario",
+      "columnResult": "Esito",
+      "empty": "Nessun evento registrato."
+    }
   }
 }

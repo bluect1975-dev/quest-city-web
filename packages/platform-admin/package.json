@@ -1,0 +1,27 @@
+{
+  "name": "@quest-city-web/platform-admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "School Pilot Readiness Tranche A: Platform Admin identity, capability-first authorization, School tenant provisioning and status enforcement (Idempotency-Key required, 02_26 v1.10 §32.4), and first School Admin activation (02_38 v1.0/v1.1 §4.1/§5.2/§5.3/§9/§20-21). PlatformIdentity reuses @quest-city-web/staff-identity's staff_account exactly (02_38 §20) -- this package never introduces a second identity table. Reuses (never duplicates) tenant read/write and audit repositories from @quest-city-web/identity, and the idempotency mechanism from @quest-city-web/attempts.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --config ../config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quest-city-web/attempts": "workspace:*",
+    "@quest-city-web/identity": "workspace:*",
+    "@quest-city-web/staff-identity": "workspace:*",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/pg": "8.11.10",
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}
