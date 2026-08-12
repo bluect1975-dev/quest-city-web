@@ -56,7 +56,21 @@ export class ClassAccessCodeRepository {
     return row ? mapCode(row) : null;
   }
 
-  /** Administrative provisioning only (seed). */
+  /**
+   * The current ACTIVE code for a class, if any (02_25 §6.11: at most one
+   * ACTIVE row per class, enforced at the service layer by revoking this
+   * row, inside the same transaction, before inserting a replacement).
+   */
+  async findActiveByClassId(classId: string, tenantId: string): Promise<ClassAccessCode | null> {
+    const result = await this.db.query<ClassAccessCodeRow>(
+      `SELECT id, tenant_id, class_id, code_hash, status, expires_at, created_at, revoked_at
+       FROM class_access_code WHERE class_id = $1 AND tenant_id = $2 AND status = 'ACTIVE'`,
+      [classId, tenantId],
+    );
+    const [row] = result.rows;
+    return row ? mapCode(row) : null;
+  }
+
   async create(input: { tenantId: string; classId: string; codeHash: string; expiresAt: Date | null }): Promise<ClassAccessCode> {
     const result = await this.db.query<ClassAccessCodeRow>(
       `INSERT INTO class_access_code (tenant_id, class_id, code_hash, status, expires_at)

@@ -1,6 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { AuditRepository, SchoolClassRepository, type SchoolClassStatus } from "@quest-city-web/identity";
+import {
+  AuditRepository,
+  SchoolClassRepository,
+  ClassAccessCodeRepository,
+  generateClassCode,
+  hashClassCode,
+  type SchoolClassStatus,
+} from "@quest-city-web/identity";
 import { IdempotencyRecordRepository } from "@quest-city-web/attempts";
 import { StaffIdentityError } from "../errors";
 import { StaffTenantMembershipRepository } from "../repository/staff-tenant-membership-repository";
@@ -22,6 +29,29 @@ export interface SchoolClassResult {
   createdAt: string;
 }
 
+/**
+ * `POST /classes` response (`SchoolClassCreatedResponse`, OpenAPI
+ * v1.10, superseding v1.9 on this path — 02_26 v1.12 §34.2). Every field
+ * of `SchoolClassResult` plus a one-time, plaintext `accessCode`: this is
+ * the only response in which the class access code is ever returned in
+ * the clear (02_25 v1.8 §6.11) — it is not retrievable again afterward,
+ * only regenerated via `issueAccessCode`.
+ */
+export interface SchoolClassCreatedResult extends SchoolClassResult {
+  accessCode: string;
+}
+
+/**
+ * `POST /classes/{classId}/access-code` response (`ClassAccessCodeResponse`,
+ * OpenAPI v1.10 — 02_26 v1.12 §34.3). Same one-time-disclosure guarantee
+ * as `SchoolClassCreatedResult.accessCode`.
+ */
+export interface ClassAccessCodeResult {
+  classId: string;
+  accessCode: string;
+  issuedAt: string;
+}
+
 export interface TeacherClassAssignmentResult {
   staffTenantMembershipId: string;
   classId: string;
@@ -38,35 +68,72 @@ function toResult(c: { id: string; name: string; status: SchoolClassStatus; crea
 
 /**
  * `POST /classes`, `PATCH /classes/{classId}`, `POST
- * /classes/{classId}/archive`, `POST/DELETE /classes/{classId}/teachers`
- * (02_35 v1.2 §11bis.5-§11bis.6). `school_class` is the sole canonical
- * class model (`classroom`/`class_teacher` are legacy/superseded, never
- * used here). Tenant is always resolved server-side from the staff
- * session — no client-supplied tenant id anywhere in this service.
+ * /classes/{classId}/archive`, `POST /classes/{classId}/access-code`,
+ * `POST/DELETE /classes/{classId}/teachers` (02_35 v1.2 §11bis.5-§11bis.6,
+ * `class_access_code` lifecycle per 02_26 v1.12 §34.2-§34.4 /
+ * 02_25 v1.8 §6.11). `school_class` is the sole canonical class model
+ * (`classroom`/`class_teacher` are legacy/superseded, never used here).
+ * Tenant is always resolved server-side from the staff session — no
+ * client-supplied tenant id anywhere in this service.
+ *
+ * `pepper`: required `CLASS_CODE_HASH_PEPPER`, same mechanism and same
+ * env value as the student-facing `ClassCodeService` (`@quest-city-web/
+ * identity`) — the class-code hashing algorithm is not reimplemented
+ * here, only reused (`generateClassCode`/`hashClassCode`,
+ * `packages/identity/src/crypto/class-code.ts`).
  */
 export class SchoolClassManagementService {
   private readonly classes: SchoolClassRepository;
+  private readonly codes: ClassAccessCodeRepository;
   private readonly memberships: StaffTenantMembershipRepository;
   private readonly classAssignments: StaffClassAssignmentRepository;
   private readonly idempotency: IdempotencyRecordRepository;
   private readonly audit: AuditRepository;
 
-  constructor(pool: Pool) {
+  constructor(
+    private readonly pool: Pool,
+    private readonly pepper: Buffer,
+  ) {
     this.classes = new SchoolClassRepository(pool);
+    this.codes = new ClassAccessCodeRepository(pool);
     this.memberships = new StaffTenantMembershipRepository(pool);
     this.classAssignments = new StaffClassAssignmentRepository(pool);
     this.idempotency = new IdempotencyRecordRepository(pool);
     this.audit = new AuditRepository(pool);
   }
 
-  async create(input: { identity: StaffInternalIdentity; name: string; idempotencyKey: string }): Promise<SchoolClassResult> {
+  /**
+   * `class_access_code` is created in the same transaction as
+   * `school_class` (02_26 v1.12 §34.2): a class returned by this method is
+   * immediately usable for student login — no manual seeding, no direct
+   * DB intervention. `expiresAt: null` (02_25 v1.8 §6.11): the code stays
+   * valid until explicitly regenerated or the class is archived.
+   */
+  async create(input: { identity: StaffInternalIdentity; name: string; idempotencyKey: string }): Promise<SchoolClassCreatedResult> {
     const { identity, name } = input;
     assertStaffCapability(identity, "class.create");
 
     return this.withIdempotency(identity, SCOPE_CREATE, input.idempotencyKey, { name }, async () => {
       const publicId = `cls_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
-      const created = await this.classes.create({ tenantId: identity.tenantId, publicId, name, status: "ACTIVE" });
-      const result = toResult(created);
+      const plainCode = generateClassCode();
+      const codeHash = hashClassCode(plainCode, this.pepper);
+
+      const client = await this.pool.connect();
+      let created: Awaited<ReturnType<SchoolClassRepository["create"]>>;
+      try {
+        await client.query("BEGIN");
+        const classesTx = new SchoolClassRepository(client);
+        const codesTx = new ClassAccessCodeRepository(client);
+        created = await classesTx.create({ tenantId: identity.tenantId, publicId, name, status: "ACTIVE" });
+        await codesTx.create({ tenantId: identity.tenantId, classId: created.id, codeHash, expiresAt: null });
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+
       await this.audit.record({
         tenantId: identity.tenantId,
         actorType: "STAFF",
@@ -76,7 +143,80 @@ export class SchoolClassManagementService {
         targetId: created.id,
         result: "SUCCESS",
       });
-      return result;
+      await this.audit.record({
+        tenantId: identity.tenantId,
+        actorType: "STAFF",
+        actorId: identity.staffAccountId,
+        action: "class_access_code_issued",
+        targetType: "class_access_code",
+        targetId: created.id,
+        result: "SUCCESS",
+        metadataRedacted: { reason: "CLASS_CREATED" },
+      });
+      return { ...toResult(created), accessCode: plainCode };
+    });
+  }
+
+  /**
+   * `POST /classes/{classId}/access-code` (02_26 v1.12 §34.3). Revokes any
+   * existing `ACTIVE` code and issues a new one in the same transaction —
+   * at most one `ACTIVE` row per class at any time, enforced here (not by
+   * a schema constraint: the DB-level unique index scopes `code_hash`
+   * globally among `ACTIVE` rows, per 02_25 v1.8 §6.11, not `class_id`).
+   * SCHOOL_ADMIN-only (`class.manage`, same capability as class update/
+   * archive — no new capability introduced).
+   */
+  async issueAccessCode(input: {
+    identity: StaffInternalIdentity;
+    classId: string;
+    idempotencyKey: string;
+  }): Promise<ClassAccessCodeResult> {
+    const { identity, classId } = input;
+    assertStaffCapability(identity, "class.manage");
+    assertClassInScope(identity, classId);
+
+    return this.withIdempotency(identity, "staff_class_access_code_issue", input.idempotencyKey, { classId }, async () => {
+      const current = await this.classes.findById(classId, identity.tenantId);
+      if (!current) {
+        throw new StaffIdentityError("CLASS_ACCESS_DENIED");
+      }
+      if (current.status === "ARCHIVED") {
+        throw new StaffIdentityError("CLASS_ALREADY_ARCHIVED");
+      }
+
+      const plainCode = generateClassCode();
+      const codeHash = hashClassCode(plainCode, this.pepper);
+      let issuedAt: Date;
+
+      const client = await this.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const codesTx = new ClassAccessCodeRepository(client);
+        const existing = await codesTx.findActiveByClassId(classId, identity.tenantId);
+        if (existing) {
+          await codesTx.revoke(existing.id, identity.tenantId);
+        }
+        const created = await codesTx.create({ tenantId: identity.tenantId, classId, codeHash, expiresAt: null });
+        issuedAt = created.createdAt;
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+
+      await this.audit.record({
+        tenantId: identity.tenantId,
+        actorType: "STAFF",
+        actorId: identity.staffAccountId,
+        action: "class_access_code_issued",
+        targetType: "class_access_code",
+        targetId: classId,
+        result: "SUCCESS",
+        metadataRedacted: { reason: "REGENERATED" },
+      });
+      return { classId, accessCode: plainCode, issuedAt: issuedAt.toISOString() };
     });
   }
 
@@ -122,7 +262,32 @@ export class SchoolClassManagementService {
       if (current.status === "ARCHIVED") {
         throw new StaffIdentityError("CLASS_ALREADY_ARCHIVED");
       }
-      const archived = await this.classes.archive(classId, identity.tenantId);
+      // 02_26 v1.12 §34.4: archiving a class revokes its ACTIVE
+      // class_access_code in the same operation — the old code must not
+      // let a student start a new class-code session afterward. Archive
+      // and revoke run in one transaction; the access-code revocation is
+      // best-effort by design (a class with no ACTIVE code is a no-op),
+      // never a reason to fail an otherwise-successful archive.
+      let archived: Awaited<ReturnType<SchoolClassRepository["archive"]>>;
+      const client = await this.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const classesTx = new SchoolClassRepository(client);
+        const codesTx = new ClassAccessCodeRepository(client);
+        archived = await classesTx.archive(classId, identity.tenantId);
+        if (archived) {
+          const existing = await codesTx.findActiveByClassId(classId, identity.tenantId);
+          if (existing) {
+            await codesTx.revoke(existing.id, identity.tenantId);
+          }
+        }
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
       if (!archived) {
         throw new StaffIdentityError("CLASS_ACCESS_DENIED");
       }

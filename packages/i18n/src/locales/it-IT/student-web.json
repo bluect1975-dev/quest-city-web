@@ -16,6 +16,17 @@
     "fullSequenceSectionTitle": "Percorso completo",
     "fullSequenceDescription": "Svolgi l'intera unità sulle equazioni di primo grado in un unico percorso, dall'introduzione alla verifica finale.",
     "startFullSequenceButton": "Inizia il percorso completo",
+    "myAssignmentsSectionTitle": "Assegnazioni della tua classe",
+    "myAssignmentsLoading": "Caricamento delle assegnazioni in corso...",
+    "myAssignmentsEmpty": "Nessuna assegnazione al momento.",
+    "myAssignmentsError": "Non è stato possibile caricare le assegnazioni.",
+    "assignmentStatusNotStarted": "Da iniziare",
+    "assignmentStatusInProgress": "In corso",
+    "assignmentStatusCompleted": "Completata",
+    "startAssignmentButton": "Inizia",
+    "resumeAssignmentButton": "Riprendi",
+    "reviewAssignmentButton": "Rivedi",
+    "assignmentDueAt": "Scadenza: {dueAt}",
     "logoutButton": "Esci"
   },
   "engines": {

@@ -32,7 +32,13 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 }
 
-/** `POST /classes` (02_35 v1.2 §11bis.6). SCHOOL_ADMIN-only (class.create). `school_class` is the sole canonical class model. */
+/**
+ * `POST /classes` (02_35 v1.2 §11bis.6, response shape superseded by
+ * OpenAPI v1.10 `SchoolClassCreatedResponse` — 02_26 v1.12 §34.2).
+ * SCHOOL_ADMIN-only (class.create). `school_class` is the sole canonical
+ * class model. The response now also carries a one-time `accessCode`:
+ * the class is immediately usable for student login, no manual seeding.
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
   try {

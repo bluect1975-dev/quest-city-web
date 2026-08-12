@@ -1,5 +1,11 @@
 import { Pool } from "pg";
-import { ClassCodeService, SessionService, TenantRepository, type SessionSecurityConfig } from "@quest-city-web/identity";
+import {
+  ClassCodeService,
+  SessionService,
+  TenantRepository,
+  SchoolEnrollmentRepository,
+  type SessionSecurityConfig,
+} from "@quest-city-web/identity";
 import { loadEnv } from "./env";
 
 let pool: Pool | undefined;
@@ -59,4 +65,15 @@ export function getTenantRepository(): TenantRepository {
     tenantRepository = new TenantRepository(getIdentityPool());
   }
   return tenantRepository;
+}
+
+/**
+ * `GET /me/assignments` (OpenAPI v1.10, 02_26 v1.12 §34.5) needs the
+ * enrollment's own `status` — `SessionService.resolveInternalIdentity`
+ * only returns `classId`, not `status` (02_26 §30.1's session model never
+ * needed it before this contract). No new repository: `SchoolEnrollmentRepository`
+ * already existed for WEB-M1.
+ */
+export function getSchoolEnrollmentRepository(): SchoolEnrollmentRepository {
+  return new SchoolEnrollmentRepository(getIdentityPool());
 }

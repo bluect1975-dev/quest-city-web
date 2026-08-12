@@ -73,6 +73,8 @@ export {
 export {
   SchoolClassManagementService,
   type SchoolClassResult,
+  type SchoolClassCreatedResult,
+  type ClassAccessCodeResult,
   type TeacherClassAssignmentResult,
 } from "./services/school-class-management-service";
 export {

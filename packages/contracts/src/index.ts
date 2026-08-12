@@ -19,6 +19,16 @@
  * staff invitation/membership lifecycle, class + roster management, and
  * general content assignment (`STAFF_GENERAL` origin type). Additive to
  * v1.2 through v1.8; no existing path or schema is touched.
+ *
+ * `vendor/quest-city-platform-openapi-v1_10.yaml` (provenance in
+ * `vendor/provenance-v1_10.json`) is the Student Access + Assignment
+ * Discovery contract (School Pilot Readiness Tranche B, final Web
+ * compliance patch): redeclares `POST /classes` to emit a one-time
+ * `class_access_code` in the same transaction as class creation, adds
+ * `POST /classes/{classId}/access-code` (regeneration) and
+ * `GET /me/assignments` (student-scoped `STAFF_GENERAL` assignment
+ * discovery). Additive to v1.2 through v1.9; no existing path or schema
+ * is touched.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";

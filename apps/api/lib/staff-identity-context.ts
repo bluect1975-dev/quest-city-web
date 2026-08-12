@@ -69,7 +69,7 @@ export function getStaffMembershipService(): StaffMembershipService {
 }
 
 export function getSchoolClassManagementService(): SchoolClassManagementService {
-  return new SchoolClassManagementService(getStaffIdentityPool());
+  return new SchoolClassManagementService(getStaffIdentityPool(), loadEnv().classCodeHashPepper);
 }
 
 export function getRosterManagementService(): RosterManagementService {

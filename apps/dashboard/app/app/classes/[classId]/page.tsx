@@ -18,6 +18,7 @@ import {
   getClassProgress,
   listClassStudents,
   listStaffMembers,
+  regenerateClassAccessCode,
   removeStudentFromRoster,
   renameClass,
   unassignTeacherFromClass,
@@ -67,6 +68,10 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
 
+  const [regenerateBusy, setRegenerateBusy] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
+  const [regeneratedAccessCode, setRegeneratedAccessCode] = useState<string | null>(null);
+
   const [assignTeacherId, setAssignTeacherId] = useState("");
   const [teacherBusy, setTeacherBusy] = useState<string | null>(null);
   const [teacherError, setTeacherError] = useState<string | null>(null);
@@ -114,6 +119,21 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
       setArchiveError(staffErrorText(error));
     } finally {
       setArchiveBusy(false);
+    }
+  }
+
+  async function handleRegenerateAccessCode() {
+    if (!csrfToken || !window.confirm(t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.regenerateAccessCodeConfirm"))) return;
+    setRegenerateBusy(true);
+    setRegenerateError(null);
+    setRegeneratedAccessCode(null);
+    try {
+      const regenerated = await regenerateClassAccessCode({ classId, csrfToken });
+      setRegeneratedAccessCode(regenerated.accessCode);
+    } catch (error) {
+      setRegenerateError(staffErrorText(error));
+    } finally {
+      setRegenerateBusy(false);
     }
   }
 
@@ -246,6 +266,18 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
                 </Button>
               ) : null}
               {archiveError ? <StatusMessage kind="error">{archiveError}</StatusMessage> : null}
+
+              {result.data.schoolClass.status === "ACTIVE" ? (
+                <Button variant="secondary" disabled={regenerateBusy || !csrfToken} onClick={() => void handleRegenerateAccessCode()}>
+                  {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.regenerateAccessCodeAction")}
+                </Button>
+              ) : null}
+              {regenerateError ? <StatusMessage kind="error">{regenerateError}</StatusMessage> : null}
+              {regeneratedAccessCode ? (
+                <p role="status">
+                  {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.regenerateAccessCodeResult")} <code>{regeneratedAccessCode}</code>
+                </p>
+              ) : null}
             </section>
           ) : null}
 

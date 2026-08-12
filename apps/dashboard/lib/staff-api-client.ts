@@ -316,6 +316,27 @@ export async function archiveClass(input: { classId: string; csrfToken: string }
   return envelope.data;
 }
 
+/**
+ * `POST /classes/{classId}/access-code` (OpenAPI v1.10 — 02_26 v1.12
+ * §34.3). class.manage. Revokes any existing ACTIVE code and returns the
+ * new one-time plaintext code — shown to SCHOOL_ADMIN exactly once by the
+ * caller, never persisted in clear.
+ */
+export async function regenerateClassAccessCode(input: {
+  classId: string;
+  csrfToken: string;
+}): Promise<{ classId: string; accessCode: string; issuedAt: string }> {
+  const envelope = await request<Envelope<{ classId: string; accessCode: string; issuedAt: string }>>(
+    `/classes/${encodeURIComponent(input.classId)}/access-code`,
+    {
+      method: "POST",
+      csrfToken: input.csrfToken,
+      idempotencyKey: generateIdempotencyKey(),
+    },
+  );
+  return envelope.data;
+}
+
 /** `POST /classes/{classId}/teachers` (02_35 v1.2 §11bis.6). class.teacher.assign. */
 export async function assignTeacherToClass(input: {
   classId: string;

@@ -98,6 +98,28 @@ export class AssignmentRepository {
     return mapRow(row, await this.runtimeChannelsFor(row.id));
   }
 
+  /**
+   * `GET /me/assignments` (OpenAPI v1.10, 02_26 v1.12 §34.5). Deliberately
+   * narrow: `originType = STAFF_GENERAL` only (`ADMIN_SEED` and
+   * `RECOVERY_FROM_REVIEW` are out of scope for this endpoint — their own
+   * `classId` semantics were not part of this contract's verification),
+   * `status = PUBLISHED` only. Ordering is deterministic (`due_at` first —
+   * nulls last — then `created_at`) per the canonical contract.
+   */
+  async findByClassIdForStudentDiscovery(classId: string, tenantId: string): Promise<Assignment[]> {
+    const result = await this.db.query<AssignmentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM assignment
+       WHERE tenant_id = $1 AND class_id = $2 AND origin_type = 'STAFF_GENERAL' AND status = 'PUBLISHED'
+       ORDER BY (due_at IS NULL) ASC, due_at ASC, created_at ASC`,
+      [tenantId, classId],
+    );
+    const assignments: Assignment[] = [];
+    for (const row of result.rows) {
+      assignments.push(mapRow(row, await this.runtimeChannelsFor(row.id)));
+    }
+    return assignments;
+  }
+
   async findByPublicIdAndTenant(publicId: string, tenantId: string): Promise<Assignment | null> {
     const result = await this.db.query<AssignmentRow>(
       `SELECT ${SELECT_COLUMNS} FROM assignment WHERE public_id = $1 AND tenant_id = $2`,

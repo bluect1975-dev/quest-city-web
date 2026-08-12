@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-student-access-assignment-discovery",
+  "artifactVersion": "1.10.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "29114e6fbefbf32cde0eaf923e1595536f5cebfc",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_10.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_12 / 02_25_Quest_City_Backend_Services_Database_and_API_Specification_v1_8",
+  "checksum": "sha256:c05dd7b9517d7b1263b55561a25a08dbca4d60844fcc8d34ebd99f5e20524c0b",
+  "syncedAt": "2026-08-12",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_6.yaml, v1_8.yaml and v1_9.yaml, all unmodified and independently tracked (v1_7.yaml was never vendored, same as noted in provenance-v1_8.json and provenance-v1_9.json). Closes the two Tranche B Web report gaps (class_access_code lifecycle, student active-assignment discovery): redeclares POST /classes (createSchoolClass, superseding v1_9.yaml on this path only) to emit a one-time class_access_code in the same transaction, adds POST /classes/{classId}/access-code (issueClassAccessCode, SCHOOL_ADMIN-only regeneration) and GET /me/assignments (listMyAssignments, studentSessionCookie-scoped discovery of STAFF_GENERAL assignments). No existing path or schema from v1.2-v1.9 is touched.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_10.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_10.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

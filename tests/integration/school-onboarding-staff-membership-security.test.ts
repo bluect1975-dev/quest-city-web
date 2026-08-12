@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import {
@@ -27,6 +28,13 @@ const DATABASE_URL =
   process.env.DATABASE_URL ?? "postgresql://quest_city_web:changeme_local_only@localhost:5556/quest_city_web";
 
 const pool = new Pool({ connectionString: DATABASE_URL });
+
+/** School Pilot Readiness Tranche B final Web compliance patch (02_26 v1.12 §34): fixture pepper for `SchoolClassManagementService`'s class-code hashing (same mechanism as `ClassCodeService`). */
+const CLASS_CODE_PEPPER = randomBytes(32);
+
+function newSchoolClassManagementService(): SchoolClassManagementService {
+  return new SchoolClassManagementService(pool, CLASS_CODE_PEPPER);
+}
 
 function rnd(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -183,7 +191,7 @@ describe("Cross-tenant isolation (02_35 §5, §13)", () => {
   it("SCHOOL_ADMIN cannot rename a class belonging to another tenant (CLASS_ACCESS_DENIED)", async () => {
     const fixture = await buildFixture();
     const admin = await buildSchoolAdmin(fixture);
-    const service = new SchoolClassManagementService(pool);
+    const service = newSchoolClassManagementService();
     await expect(
       service.update({ identity: admin, classId: fixture.otherTenantClassId, name: "Hijacked", idempotencyKey: idempotencyKey() }),
     ).rejects.toMatchObject({ code: "CLASS_ACCESS_DENIED" });
@@ -233,7 +241,7 @@ describe("Capability enforcement (9 capabilities, 02_35 v1.2 §11bis.10)", () =>
   it("TEACHER lacks class.create -> STAFF_FORBIDDEN", async () => {
     const fixture = await buildFixture();
     const teacher = await buildTeacher(fixture, [fixture.classId]);
-    const service = new SchoolClassManagementService(pool);
+    const service = newSchoolClassManagementService();
     await expect(service.create({ identity: teacher, name: "New Class", idempotencyKey: idempotencyKey() })).rejects.toMatchObject({
       code: "STAFF_FORBIDDEN",
     });
@@ -242,7 +250,7 @@ describe("Capability enforcement (9 capabilities, 02_35 v1.2 §11bis.10)", () =>
   it("TEACHER lacks class.manage -> STAFF_FORBIDDEN even for a class in its own scope", async () => {
     const fixture = await buildFixture();
     const teacher = await buildTeacher(fixture, [fixture.classId]);
-    const service = new SchoolClassManagementService(pool);
+    const service = newSchoolClassManagementService();
     await expect(
       service.update({ identity: teacher, classId: fixture.classId, name: "Renamed", idempotencyKey: idempotencyKey() }),
     ).rejects.toMatchObject({ code: "STAFF_FORBIDDEN" });
@@ -253,7 +261,7 @@ describe("Capability enforcement (9 capabilities, 02_35 v1.2 §11bis.10)", () =>
     const teacher = await buildTeacher(fixture, [fixture.classId]);
     const otherTeacherAccountId = await createStaffAccount(`other-teacher-${rnd()}@example.org`);
     const otherMembershipId = await createMembership(otherTeacherAccountId, fixture.tenantId, "TEACHER");
-    const service = new SchoolClassManagementService(pool);
+    const service = newSchoolClassManagementService();
     await expect(
       service.assignTeacher({
         identity: teacher,
@@ -345,7 +353,7 @@ describe("Capability enforcement (9 capabilities, 02_35 v1.2 §11bis.10)", () =>
   it("SCHOOL_ADMIN implicit whole-tenant scope: can manage a class it was never explicitly assigned to", async () => {
     const fixture = await buildFixture();
     const admin = await buildSchoolAdmin(fixture);
-    const service = new SchoolClassManagementService(pool);
+    const service = newSchoolClassManagementService();
     const result = await service.update({ identity: admin, classId: fixture.otherClassId, name: "Renamed by admin", idempotencyKey: idempotencyKey() });
     expect(result.name).toBe("Renamed by admin");
   });
@@ -636,7 +644,7 @@ describe("Content and enrollment integrity guards (02_35 v1.2 §11bis.7-9)", () 
     const admin = await buildSchoolAdmin(fixture);
     const suspendedTeacherAccountId = await createStaffAccount(`suspended-membership-${rnd()}@example.org`);
     const suspendedMembershipId = await createMembership(suspendedTeacherAccountId, fixture.tenantId, "TEACHER", "SUSPENDED");
-    const service = new SchoolClassManagementService(pool);
+    const service = newSchoolClassManagementService();
     await expect(
       service.assignTeacher({
         identity: admin,
