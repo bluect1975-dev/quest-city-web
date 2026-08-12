@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { IdentityError } from "@quest-city-web/identity";
 import { getSessionService, getSchoolEnrollmentRepository } from "../../../lib/identity-context";
 import { getAssignmentRepository, getLearningAttemptRepository } from "../../../lib/attempts-context";
 import { attemptErrorResponse } from "../../../lib/attempt-error-response";
