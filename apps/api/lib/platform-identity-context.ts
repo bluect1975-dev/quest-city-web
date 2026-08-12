@@ -4,6 +4,8 @@ import {
   TenantProvisioningService,
   TenantStatusService,
   SchoolAdminActivationService,
+  IndependentEducatorActivationService,
+  IndependentEducatorStatusService,
   type PlatformAdminSessionSecurityConfig,
 } from "@quest-city-web/platform-admin";
 import { AuditRepository } from "@quest-city-web/identity";
@@ -48,6 +50,14 @@ export function getTenantStatusService(): TenantStatusService {
 
 export function getSchoolAdminActivationService(): SchoolAdminActivationService {
   return new SchoolAdminActivationService(getPlatformAdminPool());
+}
+
+export function getIndependentEducatorActivationService(): IndependentEducatorActivationService {
+  return new IndependentEducatorActivationService(getPlatformAdminPool());
+}
+
+export function getIndependentEducatorStatusService(): IndependentEducatorStatusService {
+  return new IndependentEducatorStatusService(getPlatformAdminPool());
 }
 
 /** For the audit-read route, which lists audit_event rows directly (capability audit.read.global) without going through a platform-admin write service. */

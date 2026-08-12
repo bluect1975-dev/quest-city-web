@@ -9,6 +9,9 @@ export const CAPABILITIES = [
   "tenant.suspend",
   "school_admin.activate",
   "audit.read.global",
+  "independent_educator.activate",
+  "independent_educator.read",
+  "independent_educator.status.manage",
 ] as const;
 
 /** `Capability` is a closed union matching the DB CHECK on `capability_grant.capability` exactly (migration 0006). */

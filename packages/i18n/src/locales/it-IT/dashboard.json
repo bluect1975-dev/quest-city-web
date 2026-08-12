@@ -33,6 +33,7 @@
       "welcome": "Sei collegato come",
       "roleTeacher": "Docente",
       "roleSchoolAdmin": "Amministratore scuola",
+      "roleIndependentEducator": "Educatore indipendente",
       "classScopeLabel": "Classi assegnate",
       "classScopeAll": "Tutte le classi della scuola",
       "goToClasses": "Vai alle classi",
@@ -218,6 +219,7 @@
     },
     "nav": {
       "tenants": "Scuole",
+      "independentEducators": "Educatori indipendenti",
       "audit": "Registro attività",
       "logout": "Esci"
     },
@@ -252,6 +254,26 @@
       "columnTargetType": "Tipo destinatario",
       "columnResult": "Esito",
       "empty": "Nessun evento registrato."
+    },
+    "independentEducators": {
+      "title": "Educatori indipendenti",
+      "columnTenantName": "Nome",
+      "columnEmail": "Email",
+      "columnTenantStatus": "Stato tenant",
+      "columnMembershipStatus": "Stato membership",
+      "columnCreatedAt": "Creato il",
+      "empty": "Nessun educatore indipendente registrato.",
+      "statusActive": "Attivo",
+      "statusSuspended": "Sospeso",
+      "suspendAction": "Sospendi",
+      "reactivateAction": "Riattiva",
+      "createTitle": "Attiva nuovo educatore indipendente",
+      "createEmailLabel": "Email educatore",
+      "createTenantNameLabel": "Nome del tenant",
+      "createSubmit": "Attiva",
+      "createSubmitting": "Attivazione in corso...",
+      "createResultReused": "Identità esistente riutilizzata.",
+      "createResultNew": "Nuova identità creata. Password temporanea:"
     }
   }
 }

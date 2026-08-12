@@ -25,6 +25,17 @@ function schoolAdmin(): StaffInternalIdentity {
   };
 }
 
+function independentEducator(): StaffInternalIdentity {
+  return {
+    staffAccountId: "staff-3",
+    tenantId: "tenant-2",
+    staffTenantMembershipId: "membership-3",
+    role: "INDEPENDENT_EDUCATOR",
+    classScope: null,
+    csrfTokenHash: "unused-in-these-tests",
+  };
+}
+
 describe("isClassInScope / assertClassInScope (02_35 §3.2)", () => {
   it("SCHOOL_ADMIN is always in scope for any class in its tenant, regardless of classScope", () => {
     expect(isClassInScope(schoolAdmin(), "class-a")).toBe(true);
@@ -40,6 +51,11 @@ describe("isClassInScope / assertClassInScope (02_35 §3.2)", () => {
 
   it("TEACHER with an empty classScope is out of scope for every class", () => {
     expect(isClassInScope(teacher([]), "class-a")).toBe(false);
+  });
+
+  it("INDEPENDENT_EDUCATOR is always in scope for any class in its own tenant, regardless of classScope (02_35 v1.4 §11ter.4, same tenant-wide pattern as SCHOOL_ADMIN)", () => {
+    expect(isClassInScope(independentEducator(), "class-a")).toBe(true);
+    expect(isClassInScope(independentEducator(), "class-does-not-exist")).toBe(true);
   });
 
   it("assertClassInScope does not throw when in scope", () => {

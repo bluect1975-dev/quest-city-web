@@ -11,11 +11,15 @@ import { staffErrorText } from "../../../lib/staff-error-text";
 import { createClass, listClasses } from "../../../lib/staff-api-client";
 import type { ClassSummary } from "../../../lib/staff-api-types";
 
-/** `/app/classes` (02_35 §5, §3.2, v1.2 §11bis.6). TEACHER sees its explicit scope; SCHOOL_ADMIN sees the whole tenant and can create classes (class.create). */
+/**
+ * `/app/classes` (02_35 §5, §3.2, v1.2 §11bis.6, v1.4 §11ter.4). TEACHER
+ * sees its explicit scope; SCHOOL_ADMIN and INDEPENDENT_EDUCATOR each see
+ * their whole tenant and can create classes (`class.create`).
+ */
 export default function StaffClassesPage() {
   return (
     <RequireStaffAuth>
-      {(context) => <ClassesView canCreate={context.role === "SCHOOL_ADMIN"} />}
+      {(context) => <ClassesView canCreate={context.role === "SCHOOL_ADMIN" || context.role === "INDEPENDENT_EDUCATOR"} />}
     </RequireStaffAuth>
   );
 }

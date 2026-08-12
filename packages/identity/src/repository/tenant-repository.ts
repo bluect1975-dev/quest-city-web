@@ -1,6 +1,11 @@
 import type { Queryable } from "./types";
 
-export type TenantType = "SCHOOL" | "ORGANIZATION";
+/**
+ * INDEPENDENT_EDUCATOR added, ORGANIZATION retired (02_25 v1.9 §6.13.1,
+ * migration 0010): ORGANIZATION was never assigned any meaning by any
+ * authority and never used to create a real tenant row in this codebase.
+ */
+export type TenantType = "SCHOOL" | "INDEPENDENT_EDUCATOR";
 export type TenantStatus = "ACTIVE" | "SUSPENDED" | "ARCHIVED";
 
 export interface Tenant {

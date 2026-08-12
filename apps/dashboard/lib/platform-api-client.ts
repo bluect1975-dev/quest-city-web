@@ -1,5 +1,13 @@
 import { PlatformApiError } from "./platform-api-error";
-import type { AuditEventSummary, PlatformContext, SchoolAdminActivationResponse, TenantSummary } from "./platform-api-types";
+import type {
+  AuditEventSummary,
+  IndependentEducatorActivationResponse,
+  IndependentEducatorStatusResponse,
+  IndependentEducatorSummary,
+  PlatformContext,
+  SchoolAdminActivationResponse,
+  TenantSummary,
+} from "./platform-api-types";
 
 /**
  * Consumer for `contracts/quest-city-platform-openapi-v1_8.yaml`
@@ -117,5 +125,38 @@ export async function activateSchoolAdmin(input: {
 
 export async function listAuditEvents(): Promise<AuditEventSummary[]> {
   const envelope = await request<Envelope<AuditEventSummary[]>>("/platform/audit");
+  return envelope.data;
+}
+
+export async function listIndependentEducators(): Promise<IndependentEducatorSummary[]> {
+  const envelope = await request<Envelope<IndependentEducatorSummary[]>>("/platform/independent-educators");
+  return envelope.data;
+}
+
+/** `Idempotency-Key` required (02_26 v1.13 §35.9) — pass a fresh `generateIdempotencyKey()` value per distinct user action. */
+export async function activateIndependentEducator(input: {
+  email: string;
+  tenantName: string;
+  csrfToken: string;
+  idempotencyKey: string;
+}): Promise<IndependentEducatorActivationResponse> {
+  const envelope = await request<Envelope<IndependentEducatorActivationResponse>>("/platform/independent-educators", {
+    method: "POST",
+    body: { email: input.email, tenantName: input.tenantName },
+    csrfToken: input.csrfToken,
+    idempotencyKey: input.idempotencyKey,
+  });
+  return envelope.data;
+}
+
+export async function setIndependentEducatorStatus(input: {
+  tenantId: string;
+  status: "ACTIVE" | "SUSPENDED";
+  csrfToken: string;
+}): Promise<IndependentEducatorStatusResponse> {
+  const envelope = await request<Envelope<IndependentEducatorStatusResponse>>(
+    `/platform/independent-educators/${encodeURIComponent(input.tenantId)}/status`,
+    { method: "PATCH", body: { status: input.status }, csrfToken: input.csrfToken },
+  );
   return envelope.data;
 }

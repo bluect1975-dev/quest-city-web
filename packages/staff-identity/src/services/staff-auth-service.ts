@@ -148,12 +148,24 @@ export class StaffAuthService {
       throw new StaffIdentityError("STAFF_AUTH_REQUIRED", "Credenziali staff non valide.");
     }
 
-    const activeMemberships = (await this.memberships.findByStaffAccount(account.id)).filter((m) => m.status === "ACTIVE");
+    // Resolved over ALL memberships, not just ACTIVE ones: an account
+    // whose sole membership was suspended (e.g. School Pilot Readiness
+    // Tranche C §11ter.8 contextual Independent Educator suspension,
+    // which -- unlike the School tenant.suspend path -- flips both
+    // tenant.status AND the membership row together) must still resolve
+    // to that membership so the TENANT_SUSPENDED/membership-inactive
+    // checks below can run, instead of looking like zero resolvable
+    // memberships and falling into the "ambiguous, tenantId required"
+    // branch with a misleading error.
+    const allMemberships = await this.memberships.findByStaffAccount(account.id);
+    const activeMemberships = allMemberships.filter((m) => m.status === "ACTIVE");
     const membership = input.tenantId
-      ? activeMemberships.find((m) => m.tenantId === input.tenantId)
-      : activeMemberships.length === 1
-        ? activeMemberships[0]
-        : undefined;
+      ? allMemberships.find((m) => m.tenantId === input.tenantId)
+      : allMemberships.length === 1
+        ? allMemberships[0]
+        : activeMemberships.length === 1
+          ? activeMemberships[0]
+          : undefined;
     if (!membership) {
       await this.recordLoginFailure(account.id, "NO_RESOLVABLE_TENANT_MEMBERSHIP");
       throw new StaffIdentityError(
@@ -165,10 +177,17 @@ export class StaffAuthService {
     // School Pilot Readiness Tranche A (02_38 §10): a SUSPENDED tenant
     // rejects staff login outright, server-side, not merely hidden in a
     // UI (02_24 §11.1 — tenant scope enforcement is always server-side).
+    // Checked before the membership's own status so a contextually
+    // suspended tenant always reports TENANT_SUSPENDED, never a generic
+    // credentials-invalid code (02_26 v1.13 §35.4).
     const tenant = await this.tenants.findById(membership.tenantId);
     if (!tenant || tenant.status !== "ACTIVE") {
       await this.recordLoginFailure(account.id, "TENANT_NOT_ACTIVE");
       throw new StaffIdentityError("TENANT_SUSPENDED", "Questo tenant è sospeso.");
+    }
+    if (membership.status !== "ACTIVE") {
+      await this.recordLoginFailure(account.id, "MEMBERSHIP_NOT_ACTIVE");
+      throw new StaffIdentityError("STAFF_AUTH_REQUIRED", "Credenziali staff non valide.");
     }
 
     const sessionToken = generateToken(SESSION_TOKEN_BYTES);
@@ -290,20 +309,25 @@ export class StaffAuthService {
     if (!session) {
       throw new StaffIdentityError("STAFF_AUTH_REQUIRED");
     }
-    const membership = await this.memberships.findById(session.staffTenantMembershipId, session.tenantId);
-    if (!membership || membership.status !== "ACTIVE") {
-      throw new StaffIdentityError("STAFF_AUTH_REQUIRED");
-    }
-
     // School Pilot Readiness Tranche A (02_38 §10): enforced on every
     // request, not only at login — a tenant suspended mid-session must
     // reject that session's very next use, revoked with the same
     // ADMIN_REVOKED reason already used for other administrative
     // session terminations (migration 0004's revoked_reason enum).
+    // Checked before the membership's own status: Tranche C §11ter.8
+    // contextual Independent Educator suspension flips both tenant.status
+    // and the membership row in the same transaction, so this session
+    // must still be found and revoked here rather than short-circuiting
+    // on the (now also SUSPENDED) membership with a generic code.
     const tenant = await this.tenants.findById(session.tenantId);
     if (!tenant || tenant.status !== "ACTIVE") {
       await this.sessions.revoke(session.id, session.tenantId, "ADMIN_REVOKED");
       throw new StaffIdentityError("TENANT_SUSPENDED", "Questo tenant è sospeso.");
+    }
+
+    const membership = await this.memberships.findById(session.staffTenantMembershipId, session.tenantId);
+    if (!membership || membership.status !== "ACTIVE") {
+      throw new StaffIdentityError("STAFF_AUTH_REQUIRED");
     }
     await this.sessions.touchLastSeen(session.id, session.tenantId);
 

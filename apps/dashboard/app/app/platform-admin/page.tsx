@@ -44,6 +44,9 @@ function PlatformAdminHomeView({ context }: { context: PlatformContext }) {
   return (
     <main>
       <nav>
+        <Link href="/app/platform-admin/independent-educators">
+          {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.independentEducators")}
+        </Link>{" "}
         {canReadAudit ? <Link href="/app/platform-admin/audit">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.audit")}</Link> : null}
         <Button type="button" onClick={handleLogout}>
           {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.logout")}

@@ -39,7 +39,14 @@ interface ClassDetailData {
   staffMembers: StaffMember[];
 }
 
-/** `/app/classes/{classId}` (02_35 §5-6, v1.2 §11bis.6-9). SCHOOL_ADMIN can rename/archive/manage teachers; both roles can manage roster and assign content within scope. */
+/**
+ * `/app/classes/{classId}` (02_35 §5-6, v1.2 §11bis.6-9, v1.4 §11ter.4-5).
+ * SCHOOL_ADMIN and INDEPENDENT_EDUCATOR (tenant-wide `class.manage`) can
+ * rename/archive/regenerate the access code; teacher assignment
+ * (`class.teacher.assign`) is SCHOOL_ADMIN-only -- INDEPENDENT_EDUCATOR
+ * has no co-educator in this tranche (§11ter.9). All staff roles with
+ * scope on this class can manage roster and assign content.
+ */
 export default function StaffClassDetailPage() {
   const params = useParams<{ classId: string }>();
   const classId = params.classId;
@@ -49,17 +56,18 @@ export default function StaffClassDetailPage() {
 
 function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }) {
   const { csrfToken } = useStaffAuth();
-  const canManageClass = role === "SCHOOL_ADMIN";
+  const canManageClass = role === "SCHOOL_ADMIN" || role === "INDEPENDENT_EDUCATOR";
+  const canManageTeachers = role === "SCHOOL_ADMIN";
 
   const result = useAsync<ClassDetailData>(async () => {
     const [schoolClass, roster, progress, staffMembers] = await Promise.all([
       getClass(classId),
       listClassStudents(classId),
       getClassProgress(classId),
-      canManageClass ? listStaffMembers() : Promise.resolve<StaffMember[]>([]),
+      canManageTeachers ? listStaffMembers() : Promise.resolve<StaffMember[]>([]),
     ]);
     return { schoolClass, roster, progress, staffMembers };
-  }, [classId, canManageClass]);
+  }, [classId, canManageTeachers]);
 
   const [renameValue, setRenameValue] = useState("");
   const [renameBusy, setRenameBusy] = useState(false);
@@ -288,7 +296,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
             </p>
           </section>
 
-          {canManageClass ? (
+          {canManageTeachers ? (
             <section>
               <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.teachersTitle")}</h2>
               {(() => {
