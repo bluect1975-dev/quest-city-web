@@ -114,6 +114,26 @@ export async function getWebM4Activity(): Promise<WebM4Activity> {
   return envelope.data;
 }
 
+/**
+ * `GET /me/assignments` (`listMyAssignments`, OpenAPI v1.10 — 02_26 v1.12
+ * §34.5). Dynamic `STAFF_GENERAL` assignment discovery for `/w/home` —
+ * distinct from the per-tranche hardcoded `WebM4Activity`-shaped reads
+ * above, which remain for regression/dev and are not replaced here.
+ */
+export interface MyAssignment {
+  assignmentId: string;
+  contentBundleId: string;
+  title: string;
+  completionStatus: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+  latestAttemptId: string | null;
+  dueAt: string | null;
+}
+
+export async function getMyAssignments(): Promise<MyAssignment[]> {
+  const envelope = await request<Envelope<MyAssignment[]>>("/me/assignments");
+  return envelope.data;
+}
+
 /** M06 Web Full Vertical Slice Tranche 1 (`07_26 v1.0` §14) — same shape as `WebM4Activity`, resolved from the second real assignment. */
 export type WebTranche1Activity = WebM4Activity;
 

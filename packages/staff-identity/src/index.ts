@@ -45,6 +45,7 @@ export {
   type TeacherFeedbackPublicationStatus,
   type TeacherFeedbackDeliveryStatus,
 } from "./repository/teacher-feedback-repository";
+export { StaffInvitationRepository, type StaffInvitation } from "./repository/staff-invitation-repository";
 
 export {
   StaffAuthService,
@@ -57,3 +58,29 @@ export { ReviewService } from "./services/review-service";
 export { FeedbackService } from "./services/feedback-service";
 export { RecoveryAssignmentService, type RecoveryAssignmentResult } from "./services/recovery-assignment-service";
 export { assertClassInScope, isClassInScope } from "./services/authorization";
+export { STAFF_CAPABILITIES, type StaffCapability, hasStaffCapability, assertStaffCapability } from "./services/capability";
+export {
+  StaffInvitationService,
+  type CreateStaffInvitationResult,
+  type AcceptStaffInvitationResult,
+} from "./services/staff-invitation-service";
+export {
+  StaffMembershipService,
+  type StaffMemberSummary,
+  type MembershipStatusAction,
+  type StaffMembershipStatusResult,
+} from "./services/staff-membership-service";
+export {
+  SchoolClassManagementService,
+  type SchoolClassResult,
+  type SchoolClassCreatedResult,
+  type ClassAccessCodeResult,
+  type TeacherClassAssignmentResult,
+} from "./services/school-class-management-service";
+export {
+  RosterManagementService,
+  type RosterMemberResult,
+  type RemoveRosterMemberResult,
+  type RosterMode,
+} from "./services/roster-management-service";
+export { GeneralAssignmentService, type GeneralAssignmentResult } from "./services/general-assignment-service";

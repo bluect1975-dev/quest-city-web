@@ -116,7 +116,25 @@ export class SchoolEnrollmentRepository {
     return this.findById(id, tenantId);
   }
 
-  /** Administrative provisioning only (seed). */
+  /**
+   * `DELETE /classes/{classId}/students/{studentProfileId}` (02_35 v1.2
+   * §11bis.7) — always a soft transition, never a delete. Only legal
+   * source states are INVITED/ACTIVE/SUSPENDED (checked by the caller,
+   * which raises ENROLLMENT_NOT_ACTIVE for LEFT/ARCHIVED); this method
+   * itself is a plain unconditional status write, since the precondition
+   * check already happened against the freshly-read row.
+   */
+  async setStatus(id: string, tenantId: string, status: SchoolEnrollmentStatus): Promise<SchoolEnrollment | null> {
+    const result = await this.db.query<SchoolEnrollmentRow>(
+      `UPDATE school_enrollment SET status = $3 WHERE id = $1 AND tenant_id = $2
+       RETURNING ${SELECT_COLUMNS}`,
+      [id, tenantId, status],
+    );
+    const [row] = result.rows;
+    return row ? mapEnrollment(row) : null;
+  }
+
+  /** Administrative provisioning only (seed), plus School Onboarding + Staff Membership's `addStudentToRoster` (02_35 §11bis.7). */
   async create(input: {
     tenantId: string;
     classId: string;

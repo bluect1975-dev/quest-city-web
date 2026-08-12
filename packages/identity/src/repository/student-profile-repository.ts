@@ -41,6 +41,16 @@ export class StudentProfileRepository {
     return row ? mapStudentProfile(row) : null;
   }
 
+  /** `student_public_id` is globally unique (migration 0002) — same lookup-by-public-id shape as `SchoolClassRepository.findByPublicId`. Callers must still verify `tenantId` matches (School Onboarding + Staff Membership's `addStudentToRoster` mode=EXISTING, 02_35 §11bis.7). */
+  async findByPublicId(studentPublicId: string): Promise<StudentProfile | null> {
+    const result = await this.db.query<StudentProfileRow>(
+      `SELECT id, tenant_id, student_public_id, status, created_at FROM student_profile WHERE student_public_id = $1`,
+      [studentPublicId],
+    );
+    const [row] = result.rows;
+    return row ? mapStudentProfile(row) : null;
+  }
+
   /** Administrative provisioning only (seed). */
   async create(input: { tenantId: string; studentPublicId: string; status: StudentProfileStatus }): Promise<StudentProfile> {
     const result = await this.db.query<StudentProfileRow>(

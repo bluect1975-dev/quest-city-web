@@ -13,7 +13,9 @@ import {
   getWebTranche3Activity,
   getWebTranche4Activity,
   getWebTranche5Activity,
+  getMyAssignments,
   type WebM4Activity,
+  type MyAssignment,
 } from "../../../lib/student-api-client";
 import { StudentApiError } from "../../../lib/student-api-error";
 
@@ -49,6 +51,9 @@ export default function StudentHomePage() {
   const [tranche5Activity, setTranche5Activity] = useState<WebM4Activity | null>(null);
   const [tranche5ActivityError, setTranche5ActivityError] = useState<string | null>(null);
   const [loadingTranche5Activity, setLoadingTranche5Activity] = useState(true);
+  const [myAssignments, setMyAssignments] = useState<MyAssignment[] | null>(null);
+  const [myAssignmentsError, setMyAssignmentsError] = useState<string | null>(null);
+  const [loadingMyAssignments, setLoadingMyAssignments] = useState(true);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -206,6 +211,39 @@ export default function StudentHomePage() {
     };
   }, [status]);
 
+  /**
+   * `GET /me/assignments` (02_26 v1.12 §34.5): the dynamic replacement for
+   * the hardcoded per-tranche sections above — a School Admin-assigned
+   * `STAFF_GENERAL` activity appears here with no code change, unlike the
+   * sections above which each require a dedicated route/section per
+   * tranche. The hardcoded sections stay for regression/dev; this is the
+   * pilot-ready path.
+   */
+  useEffect(() => {
+    if (status !== "authenticated" && status !== "authenticated-read-only") {
+      return;
+    }
+    let cancelled = false;
+    getMyAssignments()
+      .then((result) => {
+        if (!cancelled) setMyAssignments(result);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setMyAssignmentsError(
+          caught instanceof StudentApiError
+            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
+            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMyAssignments(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
   async function handleLogout() {
     await logout();
     router.replace("/w/login");
@@ -225,6 +263,53 @@ export default function StudentHomePage() {
       {status === "authenticated-read-only" && (
         <StatusMessage kind="unauthorized">{t(STUDENT_WEB_CATALOG_IT_IT, "home.readOnlySessionWarning")}</StatusMessage>
       )}
+
+      <section>
+        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsSectionTitle")}</h2>
+        {loadingMyAssignments && (
+          <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsLoading")}</StatusMessage>
+        )}
+        {!loadingMyAssignments && myAssignmentsError && (
+          <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsError")}</StatusMessage>
+        )}
+        {!loadingMyAssignments && !myAssignmentsError && myAssignments && myAssignments.length === 0 && (
+          <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsEmpty")}</StatusMessage>
+        )}
+        {!loadingMyAssignments && !myAssignmentsError && myAssignments && myAssignments.length > 0 && (
+          <ul>
+            {myAssignments.map((assignment) => (
+              <li key={assignment.assignmentId}>
+                <p>{assignment.title}</p>
+                <p>
+                  {t(
+                    STUDENT_WEB_CATALOG_IT_IT,
+                    assignment.completionStatus === "COMPLETED"
+                      ? "home.assignmentStatusCompleted"
+                      : assignment.completionStatus === "IN_PROGRESS"
+                        ? "home.assignmentStatusInProgress"
+                        : "home.assignmentStatusNotStarted",
+                  )}
+                </p>
+                {assignment.dueAt && (
+                  <p>{t(STUDENT_WEB_CATALOG_IT_IT, "home.assignmentDueAt", { params: { dueAt: new Date(assignment.dueAt).toLocaleDateString() } })}</p>
+                )}
+                <Link href={`/w/activity/${encodeURIComponent(assignment.assignmentId)}`}>
+                  <Button type="button">
+                    {t(
+                      STUDENT_WEB_CATALOG_IT_IT,
+                      assignment.completionStatus === "COMPLETED"
+                        ? "home.reviewAssignmentButton"
+                        : assignment.completionStatus === "IN_PROGRESS"
+                          ? "home.resumeAssignmentButton"
+                          : "home.startAssignmentButton",
+                    )}
+                  </Button>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section>
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>

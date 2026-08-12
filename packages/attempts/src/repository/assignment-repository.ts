@@ -6,10 +6,14 @@ export type CreatedByActorType = "ADMIN_SEED_SCRIPT" | "SYSTEM" | "STAFF";
 /**
  * WEB-M3B (02_35 §11.3, migration 0004): ADMIN_SEED is the pre-existing,
  * unchanged behaviour (class-wide, targetStudentProfileId null).
- * RECOVERY_FROM_REVIEW is the sole new, narrowly-scoped creation path —
- * never generic assignment authoring.
+ * RECOVERY_FROM_REVIEW is the narrowly-scoped, single-student-targeted
+ * creation path. STAFF_GENERAL (School Onboarding + Staff Membership,
+ * 02_35 v1.2 §11bis.9, migration 0008) is the second, narrowly-scoped
+ * exception to AGENTS.md rule 16 — class-wide like ADMIN_SEED
+ * (targetStudentProfileId stays null), distinct from
+ * RECOVERY_FROM_REVIEW. No fourth value without a dedicated ADR.
  */
-export type AssignmentOriginType = "ADMIN_SEED" | "RECOVERY_FROM_REVIEW";
+export type AssignmentOriginType = "ADMIN_SEED" | "RECOVERY_FROM_REVIEW" | "STAFF_GENERAL";
 
 export interface Assignment {
   id: string;
@@ -92,6 +96,28 @@ export class AssignmentRepository {
     const [row] = result.rows;
     if (!row) return null;
     return mapRow(row, await this.runtimeChannelsFor(row.id));
+  }
+
+  /**
+   * `GET /me/assignments` (OpenAPI v1.10, 02_26 v1.12 §34.5). Deliberately
+   * narrow: `originType = STAFF_GENERAL` only (`ADMIN_SEED` and
+   * `RECOVERY_FROM_REVIEW` are out of scope for this endpoint — their own
+   * `classId` semantics were not part of this contract's verification),
+   * `status = PUBLISHED` only. Ordering is deterministic (`due_at` first —
+   * nulls last — then `created_at`) per the canonical contract.
+   */
+  async findByClassIdForStudentDiscovery(classId: string, tenantId: string): Promise<Assignment[]> {
+    const result = await this.db.query<AssignmentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM assignment
+       WHERE tenant_id = $1 AND class_id = $2 AND origin_type = 'STAFF_GENERAL' AND status = 'PUBLISHED'
+       ORDER BY (due_at IS NULL) ASC, due_at ASC, created_at ASC`,
+      [tenantId, classId],
+    );
+    const assignments: Assignment[] = [];
+    for (const row of result.rows) {
+      assignments.push(mapRow(row, await this.runtimeChannelsFor(row.id)));
+    }
+    return assignments;
   }
 
   async findByPublicIdAndTenant(publicId: string, tenantId: string): Promise<Assignment | null> {

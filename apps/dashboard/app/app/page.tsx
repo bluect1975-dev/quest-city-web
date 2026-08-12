@@ -27,6 +27,11 @@ export default function StaffHomePage() {
           </p>
           <nav>
             <Link href="/app/classes">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToClasses")}</Link>{" "}
+            {context.role === "SCHOOL_ADMIN" ? (
+              <>
+                <Link href="/app/staff">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToStaff")}</Link>{" "}
+              </>
+            ) : null}
             <Link href="/app/review">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToReview")}</Link>
           </nav>
           <Button variant="secondary" onClick={() => void logout()}>

@@ -40,9 +40,30 @@ export const STAFF_ERROR_CODES = [
   "ETAG_MISMATCH",
   "RATE_LIMITED",
   "IDEMPOTENCY_CONFLICT",
+  "IDEMPOTENCY_IN_PROGRESS",
   // School Pilot Readiness Tranche A (02_38 §10): a suspended tenant's
   // staff cannot authenticate or keep using an existing session.
   "TENANT_SUSPENDED",
+  // School Pilot Readiness Tranche B (02_35 v1.2 §11bis.13, 02_26 v1.11
+  // §33.6, contracts/quest-city-platform-openapi-v1_9.yaml) — 17 new
+  // codes, all domain PLATFORM, same ErrorEnvelope shape.
+  "INVITATION_ALREADY_PENDING",
+  "INVITATION_NOT_FOUND",
+  "INVITATION_EXPIRED",
+  "INVITATION_ALREADY_CONSUMED",
+  "TEACHER_ACCOUNT_SUSPENDED",
+  "MEMBERSHIP_ALREADY_ACTIVE",
+  "MEMBERSHIP_SUSPENDED_USE_REACTIVATE",
+  "MEMBERSHIP_NOT_FOUND",
+  "MEMBERSHIP_STATUS_UNCHANGED",
+  "LAST_SCHOOL_ADMIN_PROTECTED",
+  "CLASS_ALREADY_ARCHIVED",
+  "TEACHER_MEMBERSHIP_NOT_ACTIVE",
+  "TEACHER_ALREADY_ASSIGNED",
+  "STUDENT_NOT_FOUND",
+  "STUDENT_ALREADY_ENROLLED",
+  "ENROLLMENT_NOT_ACTIVE",
+  "ASSIGNMENT_CONTENT_NOT_PUBLISHED",
 ] as const;
 
 export type StaffErrorCode = (typeof STAFF_ERROR_CODES)[number];
@@ -61,6 +82,24 @@ const HTTP_STATUS_BY_CODE: Record<StaffErrorCode, number> = {
   RATE_LIMITED: 429,
   TENANT_SUSPENDED: 409,
   IDEMPOTENCY_CONFLICT: 409,
+  IDEMPOTENCY_IN_PROGRESS: 409,
+  INVITATION_ALREADY_PENDING: 409,
+  INVITATION_NOT_FOUND: 404,
+  INVITATION_EXPIRED: 409,
+  INVITATION_ALREADY_CONSUMED: 409,
+  TEACHER_ACCOUNT_SUSPENDED: 409,
+  MEMBERSHIP_ALREADY_ACTIVE: 409,
+  MEMBERSHIP_SUSPENDED_USE_REACTIVATE: 409,
+  MEMBERSHIP_NOT_FOUND: 404,
+  MEMBERSHIP_STATUS_UNCHANGED: 409,
+  LAST_SCHOOL_ADMIN_PROTECTED: 409,
+  CLASS_ALREADY_ARCHIVED: 409,
+  TEACHER_MEMBERSHIP_NOT_ACTIVE: 409,
+  TEACHER_ALREADY_ASSIGNED: 409,
+  STUDENT_NOT_FOUND: 404,
+  STUDENT_ALREADY_ENROLLED: 409,
+  ENROLLMENT_NOT_ACTIVE: 409,
+  ASSIGNMENT_CONTENT_NOT_PUBLISHED: 409,
 };
 
 export class StaffIdentityError extends Error {
@@ -90,7 +129,7 @@ export class StaffIdentityError extends Error {
       httpStatus: this.httpStatus,
       message: this.message,
       correlationId,
-      retryable: this.code === "RATE_LIMITED",
+      retryable: this.code === "RATE_LIMITED" || this.code === "IDEMPOTENCY_IN_PROGRESS",
       ...(this.safeDetails ? { safeDetails: this.safeDetails } : {}),
     };
   }

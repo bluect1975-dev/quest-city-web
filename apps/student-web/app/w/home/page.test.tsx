@@ -24,6 +24,7 @@ const getWebTranche2Activity = vi.fn();
 const getWebTranche3Activity = vi.fn();
 const getWebTranche4Activity = vi.fn();
 const getWebTranche5Activity = vi.fn();
+const getMyAssignments = vi.fn();
 
 vi.mock("../../../lib/student-api-client", () => ({
   getWebM4Activity: (...args: unknown[]) => getWebM4Activity(...args),
@@ -32,6 +33,7 @@ vi.mock("../../../lib/student-api-client", () => ({
   getWebTranche3Activity: (...args: unknown[]) => getWebTranche3Activity(...args),
   getWebTranche4Activity: (...args: unknown[]) => getWebTranche4Activity(...args),
   getWebTranche5Activity: (...args: unknown[]) => getWebTranche5Activity(...args),
+  getMyAssignments: (...args: unknown[]) => getMyAssignments(...args),
 }));
 
 describe("StudentHomePage", () => {
@@ -45,6 +47,7 @@ describe("StudentHomePage", () => {
     getWebTranche3Activity.mockReset();
     getWebTranche4Activity.mockReset();
     getWebTranche5Activity.mockReset();
+    getMyAssignments.mockReset();
     // Default: Tranche 1/2/3/4/5's own sections are exercised separately below;
     // other tests only assert on the WEB-M4 section, so keep these calls
     // pending/rejected to avoid extra identical "Inizia l'attività" links
@@ -54,6 +57,11 @@ describe("StudentHomePage", () => {
     getWebTranche3Activity.mockRejectedValue(new Error("not stubbed for this test"));
     getWebTranche4Activity.mockRejectedValue(new Error("not stubbed for this test"));
     getWebTranche5Activity.mockRejectedValue(new Error("not stubbed for this test"));
+    // Default: the §34.5 dynamic assignments section (GET /me/assignments)
+    // is not under test here — resolve empty so it renders "no assignments"
+    // and never produces a link that could collide with getByRole lookups
+    // for the hardcoded per-tranche sections above.
+    getMyAssignments.mockResolvedValue([]);
   });
 
   it("redirects to /w/login when unauthenticated", () => {

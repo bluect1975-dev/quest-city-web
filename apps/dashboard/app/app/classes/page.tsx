@@ -1,28 +1,67 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { EmptyState, StatusMessage, Table } from "@quest-city-web/ui";
+import { Button, EmptyState, FormField, StatusMessage, Table } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../../lib/RequireStaffAuth";
+import { useStaffAuth } from "../../../lib/staff-auth-context";
 import { useAsync } from "../../../lib/useAsync";
-import { listClasses } from "../../../lib/staff-api-client";
+import { staffErrorText } from "../../../lib/staff-error-text";
+import { createClass, listClasses } from "../../../lib/staff-api-client";
 import type { ClassSummary } from "../../../lib/staff-api-types";
 
-/** `/app/classes` (02_35 §5, §3.2). TEACHER sees its explicit scope; SCHOOL_ADMIN sees the whole tenant. */
+/** `/app/classes` (02_35 §5, §3.2, v1.2 §11bis.6). TEACHER sees its explicit scope; SCHOOL_ADMIN sees the whole tenant and can create classes (class.create). */
 export default function StaffClassesPage() {
   return (
     <RequireStaffAuth>
-      {() => <ClassesView />}
+      {(context) => <ClassesView canCreate={context.role === "SCHOOL_ADMIN"} />}
     </RequireStaffAuth>
   );
 }
 
-function ClassesView() {
+function ClassesView({ canCreate }: { canCreate: boolean }) {
+  const { csrfToken } = useStaffAuth();
   const result = useAsync<ClassSummary[]>(() => listClasses(), []);
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!csrfToken) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await createClass({ name, csrfToken });
+      setName("");
+      result.reload();
+    } catch (error) {
+      setCreateError(staffErrorText(error));
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <main>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.classes.title")}</h1>
+
+      {canCreate ? (
+        <section>
+          <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classes.createTitle")}</h2>
+          <form onSubmit={handleCreate}>
+            <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classes.createNameLabel")}>
+              {(fieldProps) => <input {...fieldProps} type="text" required value={name} onChange={(e) => setName(e.target.value)} />}
+            </FormField>
+            <Button type="submit" disabled={creating || !csrfToken}>
+              {creating ? t(DASHBOARD_CATALOG_IT_IT, "app.classes.createSubmitting") : t(DASHBOARD_CATALOG_IT_IT, "app.classes.createSubmit")}
+            </Button>
+          </form>
+          {createError ? <StatusMessage kind="error">{createError}</StatusMessage> : null}
+        </section>
+      ) : null}
+
       {result.status === "loading" ? <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage> : null}
       {result.status === "error" ? <StatusMessage kind="error">{result.message}</StatusMessage> : null}
       {result.status === "success" && result.data.length === 0 ? (

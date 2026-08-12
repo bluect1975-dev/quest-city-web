@@ -4,7 +4,13 @@ import {
   ReviewService,
   FeedbackService,
   RecoveryAssignmentService,
+  StaffInvitationService,
+  StaffMembershipService,
+  SchoolClassManagementService,
+  RosterManagementService,
+  GeneralAssignmentService,
   type StaffSessionSecurityConfig,
+  StaffAccountRepository,
 } from "@quest-city-web/staff-identity";
 import { AuditRepository, SchoolClassRepository, SchoolEnrollmentRepository, StudentProfileRepository } from "@quest-city-web/identity";
 import { loadEnv } from "./env";
@@ -52,6 +58,31 @@ export function getFeedbackService(): FeedbackService {
 
 export function getRecoveryAssignmentService(): RecoveryAssignmentService {
   return new RecoveryAssignmentService(getStaffIdentityPool());
+}
+
+export function getStaffInvitationService(): StaffInvitationService {
+  return new StaffInvitationService(getStaffIdentityPool());
+}
+
+export function getStaffMembershipService(): StaffMembershipService {
+  return new StaffMembershipService(getStaffIdentityPool());
+}
+
+export function getSchoolClassManagementService(): SchoolClassManagementService {
+  return new SchoolClassManagementService(getStaffIdentityPool(), loadEnv().classCodeHashPepper);
+}
+
+export function getRosterManagementService(): RosterManagementService {
+  return new RosterManagementService(getStaffIdentityPool());
+}
+
+export function getGeneralAssignmentService(): GeneralAssignmentService {
+  return new GeneralAssignmentService(getStaffIdentityPool());
+}
+
+/** Used by `GET /staff/members` to project `email` alongside each `StaffTenantMembershipRepository` row (StaffMembershipService.list's emailByAccountId callback). */
+export function getStaffAccountRepository(): StaffAccountRepository {
+  return new StaffAccountRepository(getStaffIdentityPool());
 }
 
 /** Read-only class/roster composition (02_35 §5) reuses WEB-M1's own repositories — never a copy of school_class/student_profile/school_enrollment. */

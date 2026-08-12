@@ -1,7 +1,15 @@
 import type { Queryable } from "./types";
 
 export type StaffRole = "TEACHER" | "SCHOOL_ADMIN";
-export type StaffTenantMembershipStatus = "ACTIVE" | "SUSPENDED";
+/**
+ * INVITED and REVOKED added by School Onboarding + Staff Membership
+ * (02_35 v1.2 §11bis.2, migration 0008). INVITED = invited, not yet
+ * accepted; REVOKED = terminal until a fresh invitation. Both are
+ * enforcement-equivalent to SUSPENDED (no capability may be exercised on
+ * this tenant) but are tracked as distinct states — see
+ * `StaffAuthService.resolveInternalIdentity`.
+ */
+export type StaffTenantMembershipStatus = "INVITED" | "ACTIVE" | "SUSPENDED" | "REVOKED";
 
 export interface StaffTenantMembership {
   id: string;
@@ -65,6 +73,24 @@ export class StaffTenantMembershipRepository {
     );
     const [row] = result.rows;
     return row ? mapRow(row) : null;
+  }
+
+  /** `GET /staff/members` (02_35 §11bis.4/§11bis.14) — every membership in the tenant, including INVITED and non-ACTIVE rows; never didactic data. */
+  async findByTenant(tenantId: string, pagination: { limit: number; offset: number }): Promise<StaffTenantMembership[]> {
+    const result = await this.db.query<StaffTenantMembershipRow>(
+      `SELECT ${SELECT_COLUMNS} FROM staff_tenant_membership WHERE tenant_id = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3`,
+      [tenantId, pagination.limit, pagination.offset],
+    );
+    return result.rows.map(mapRow);
+  }
+
+  /** Count of ACTIVE SCHOOL_ADMIN memberships in a tenant — used by the LAST_SCHOOL_ADMIN_PROTECTED check (02_35 §11bis.2). */
+  async countActiveSchoolAdmins(tenantId: string): Promise<number> {
+    const result = await this.db.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM staff_tenant_membership WHERE tenant_id = $1 AND role = 'SCHOOL_ADMIN' AND status = 'ACTIVE'`,
+      [tenantId],
+    );
+    return Number.parseInt(result.rows[0]?.count ?? "0", 10);
   }
 
   /** Administrative provisioning only (02_35 §4.2) — no self-service membership creation exists. */

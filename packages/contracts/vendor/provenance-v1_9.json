@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-school-onboarding-staff-membership",
+  "artifactVersion": "1.9.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "0f4be149ec095c2143240a3d51a32af943720e59",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_9.yaml",
+  "sourceDocument": "02_35_Quest_City_Staff_Identity_Authorization_and_Dashboard_Review_Contract_v1_2 / 02_26_Quest_City_API_and_Integration_Contracts_v1_11",
+  "checksum": "sha256:77643d40b457307ca918fe65531625427a0c01b13ef98ca706c9c277bed04c63",
+  "syncedAt": "2026-08-11",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_6.yaml and v1_8.yaml, all unmodified and independently tracked (v1_7.yaml was never vendored, same as noted in provenance-v1_8.json). Adds 12 School Onboarding + Staff Membership paths (02_35 v1.2 §11bis, 02_26 v1.11 §33): staff invitation issue/accept, staff membership list/status-update, class create/update/archive, class-teacher assign/unassign, roster add/remove, general assignment create (STAFF_GENERAL). Vendored from the canonical merge commit (0f4be149ec095c2143240a3d51a32af943720e59, which already includes a follow-up fix correcting three internal cross-references misnumbered during drafting -- 02_35 section citations, purely citation-level, no schema/path change). No existing path or schema from v1.2-v1.8 is touched. Do not edit vendor/quest-city-platform-openapi-v1_9.yaml directly.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_9.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_9.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

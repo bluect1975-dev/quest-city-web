@@ -107,6 +107,88 @@ export interface TeacherFeedback {
   version: number;
 }
 
+/** School Onboarding + Staff Membership (02_35 v1.2 §11bis, contracts/quest-city-platform-openapi-v1_9.yaml). */
+export type StaffTenantMembershipStatus = "INVITED" | "ACTIVE" | "SUSPENDED" | "REVOKED";
+
+export interface StaffMember {
+  staffTenantMembershipId: string;
+  staffAccountId: string;
+  email: string;
+  role: StaffRole;
+  status: StaffTenantMembershipStatus;
+  classScope: string[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateStaffInvitationResult {
+  invitationId: string;
+  staffTenantMembershipId: string;
+  email: string;
+  role: "TEACHER";
+  status: "INVITED";
+  expiresAt: string;
+  acceptanceToken: string;
+  identityReused: boolean;
+  createdAt: string;
+}
+
+export interface AcceptStaffInvitationResult {
+  staffTenantMembershipId: string;
+  status: "ACTIVE";
+  email: string;
+}
+
+export type MembershipStatusAction = "SUSPEND" | "REACTIVATE" | "REVOKE";
+
+export interface StaffMembershipStatusResult {
+  staffTenantMembershipId: string;
+  status: StaffTenantMembershipStatus;
+  updatedAt: string;
+}
+
+export type SchoolClassStatus = "ACTIVE" | "ARCHIVED";
+
+export interface SchoolClassDetail {
+  classId: string;
+  name: string;
+  status: SchoolClassStatus;
+  createdAt: string;
+}
+
+export interface TeacherClassAssignment {
+  staffTenantMembershipId: string;
+  classId: string;
+  createdAt: string;
+}
+
+export type RosterMode = "NEW" | "EXISTING";
+
+export interface RosterMember {
+  studentProfileId: string;
+  studentPublicId: string;
+  classId: string;
+  accessAlias: string;
+  pin: string | undefined;
+  status: string;
+  createdAt: string;
+}
+
+export interface RemoveRosterMemberResult {
+  studentProfileId: string;
+  classId: string;
+  status: "LEFT";
+}
+
+export interface GeneralAssignment {
+  assignmentId: string;
+  classId: string;
+  title: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  originType: "STAFF_GENERAL";
+  createdAt: string;
+}
+
 export interface RecoveryAssignment {
   assignmentId: string;
   originTeacherFeedbackId: string;

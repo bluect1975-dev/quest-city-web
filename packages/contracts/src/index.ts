@@ -12,6 +12,23 @@
  * `vendor/provenance-v1_3.json`) is a separate, additive artifact — it adds
  * only the WEB-M1 `/web-auth/*` and `/me/student-context` paths and does
  * not replace or modify the v1.2 baseline.
+ *
+ * `vendor/quest-city-platform-openapi-v1_9.yaml` (provenance in
+ * `vendor/provenance-v1_9.json`) is the School Onboarding + Staff
+ * Membership contract (School Pilot Readiness Tranche B): 12 paths for
+ * staff invitation/membership lifecycle, class + roster management, and
+ * general content assignment (`STAFF_GENERAL` origin type). Additive to
+ * v1.2 through v1.8; no existing path or schema is touched.
+ *
+ * `vendor/quest-city-platform-openapi-v1_10.yaml` (provenance in
+ * `vendor/provenance-v1_10.json`) is the Student Access + Assignment
+ * Discovery contract (School Pilot Readiness Tranche B, final Web
+ * compliance patch): redeclares `POST /classes` to emit a one-time
+ * `class_access_code` in the same transaction as class creation, adds
+ * `POST /classes/{classId}/access-code` (regeneration) and
+ * `GET /me/assignments` (student-scoped `STAFF_GENERAL` assignment
+ * discovery). Additive to v1.2 through v1.9; no existing path or schema
+ * is touched.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";

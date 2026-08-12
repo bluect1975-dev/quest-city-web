@@ -1,0 +1,450 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.10.0
+  description: >-
+    Quest City API contract formalization for Tranche B Student Access and
+    Assignment Discovery (02_26 v1.12 §34). This file is additive: v1.2.0
+    through v1.9.0 remain available unchanged as separate immutable
+    artifacts; no prior path or schema is removed or altered.
+
+    This is a CONTRACTS-ONLY release. It closes the two architectural gaps
+    identified by the Tranche B "School Onboarding and Staff Membership" Web
+    implementation final report (2026-08-11): (1) a school_class created via
+    createSchoolClass (v1.9.0) has no class_access_code, so students can
+    never log in to it without an offline seed; (2) there is no student-scoped
+    endpoint to discover active STAFF_GENERAL assignments, so /w/home cannot
+    dynamically present pilot-created content. Both gaps are closed here by
+    reusing existing mechanisms only — the class_access_code table (02_25
+    v1.8 §6.11), the existing class-code generation/hashing implementation,
+    and the existing student session/assignment/attempt model (v1.3.0,
+    v1.7.0) — no second access system and no new runtime learning surface
+    are introduced. No endpoint in this file has been implemented in
+    quest-city-web at the time of writing.
+servers:
+- url: /api/v1
+  description: Quest City Platform API (staff-session-scoped, tenant-scoped
+    and student-session-scoped resources)
+security: []
+paths:
+  /classes:
+    post:
+      summary: SCHOOL_ADMIN creates a school_class in their own tenant
+        (capability class.create) and, in the same atomic operation, issues
+        its initial class_access_code — superseding createSchoolClass
+        (v1.9.0), which created only the school_class row and left the class
+        unusable for student login. No students, teachers, or demo content
+        are ever auto-created; only the one class_access_code row is added
+        to the write set. The plaintext code is generated using the
+        existing, unchanged class-code algorithm (packages/identity/src/crypto/class-code.ts,
+        formalized by 02_25 v1.8 §6.11) and is present exactly once, in this
+        response only.
+      operationId: createSchoolClass
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClassRequest'
+      responses:
+        '201':
+          description: Class created with an ACTIVE class_access_code already
+            issued. accessCode is never retrievable again after this
+            response — use issueClassAccessCode to regenerate it if lost.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchoolClassCreatedResponse'
+        '400':
+          description: VALIDATION_ERROR — name must be 1-120 non-empty characters
+            (unchanged from v1.9.0).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — session role is not SCHOOL_ADMIN, or CSRF
+            token invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: IDEMPOTENCY_CONFLICT or IDEMPOTENCY_IN_PROGRESS. The single
+            Idempotency-Key covers both the school_class and the
+            class_access_code write in the same transaction — a retried
+            request never produces a second class or a second code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /classes/{classId}/access-code:
+    post:
+      summary: SCHOOL_ADMIN issues a brand-new class_access_code for a class
+        in their own tenant (capability class.manage — same capability
+        already governing updateSchoolClass/archiveSchoolClass, no new
+        capability string). Covers both the "no code yet" case (defensive
+        recovery, e.g. a class provisioned before this endpoint existed, or
+        an operational failure that left the class without one) and
+        explicit regeneration (07_16 §7.2/§9 — code lost, suspected leak, or
+        routine rotation). Always revokes any existing ACTIVE
+        class_access_code for this class in the same transaction before
+        inserting the new one, so at most one ACTIVE code ever exists per
+        class (02_25 v1.8 §6.11). Does not touch roster, enrollment, PIN, or
+        attempt data.
+      operationId: issueClassAccessCode
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: New class_access_code issued and immediately ACTIVE; any
+            previously ACTIVE code for this class is now REVOKED and can no
+            longer be used to log in. accessCode is present exactly once, in
+            this response only.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassAccessCodeResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN or CLASS_ACCESS_DENIED (session role is not
+            SCHOOL_ADMIN of this class's tenant, or CSRF token invalid).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          $ref: '#/components/responses/ClassAccessDenied'
+        '409':
+          description: CLASS_ALREADY_ARCHIVED (the class's status is ARCHIVED —
+            reused with its existing meaning, "the requested state/action is
+            not applicable to an archived class"; an archived class must
+            never regain a usable login code), IDEMPOTENCY_CONFLICT, or
+            IDEMPOTENCY_IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /me/assignments:
+    get:
+      summary: Student lists their own currently active, published,
+        class-wide general assignments (originType STAFF_GENERAL only — the
+        assignments createGeneralAssignment, v1.9.0, creates). Scope is
+        resolved entirely server-side from the student session cookie —
+        the caller's tenantId, and the set of classId values from the caller's
+        own ACTIVE school_enrollment rows. No path or query parameter
+        accepts a tenant, class or student identifier — this structurally
+        prevents cross-tenant or cross-class enumeration, matching the
+        anti-enumeration posture of getStudentContext (v1.3.0). Assignments
+        with originType ADMIN_SEED or RECOVERY_FROM_REVIEW are deliberately
+        out of scope for this endpoint and continue to be served,
+        unchanged, by the existing single-purpose /me/web-*-activity
+        endpoints (07_25/07_26) — this endpoint exists solely to give
+        /w/home a real, data-driven discovery path for STAFF_GENERAL
+        assignments (02_26 v1.12 §34), it replaces no prior endpoint and
+        duplicates no runtime learning logic; the content is still played
+        through the existing launch-context/attempt/sequence pipeline
+        unchanged.
+      operationId: listMyAssignments
+      security:
+      - studentSessionCookie: []
+      responses:
+        '200':
+          description: Zero or more assignments, ordered deterministically by
+            dueAt ascending (assignments with no dueAt sort last), then
+            createdAt ascending, then assignmentId ascending as a final
+            tie-break.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListStudentAssignmentsResponse'
+        '401':
+          $ref: '#/components/responses/StudentUnauthorized'
+components:
+  securitySchemes:
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_6.yaml — HttpOnly, Secure,
+        SameSite=Lax, scoped to exactly one tenant for its entire lifetime,
+        never accessible to client-side JavaScript. Redeclared here only
+        because each versioned contract file is self-contained for its own
+        $ref resolution (same convention as v1.9.0).
+    staffCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Same synchronizer-token mechanism and header name as
+        csrfHeader (v1.3.0), platformCsrfHeader (v1.8.0) and staffCsrfHeader
+        (v1.9.0), issued and validated independently for staff sessions.
+    studentSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_web_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_3.yaml — HttpOnly, Secure,
+        SameSite=Lax, scoped to exactly one student_profile for its entire
+        lifetime. Redeclared here only because each versioned contract file
+        is self-contained for its own $ref resolution. listMyAssignments is
+        a read, so no csrfHeader parameter is required (same posture as
+        getStudentContext, v1.3.0).
+  parameters:
+    ClassId:
+      name: classId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required on every mutating endpoint in this file (02_26
+        v1.12 §8.1, extended by this same version to name each one
+        explicitly — school class creation with access-code issuance, class
+        access-code issuance). Same header, same
+        idempotency_record/IdempotencyRecordRepository mechanism already in
+        use for every prior scope — no second mechanism. Not required by
+        listMyAssignments, which is read-only.
+  responses:
+    StaffUnauthorized:
+      description: STAFF_AUTH_REQUIRED — no valid staff session (PLATFORM domain,
+        same domain used by every staff-facing error in this corpus).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    StudentUnauthorized:
+      description: STUDENT_AUTH_REQUIRED — no valid student session
+        (CONTENT_RUNTIME domain, same domain already used for other
+        student-runtime-facing errors, e.g. WEB_M4_ACTIVITY_NOT_AVAILABLE).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ClassAccessDenied:
+      description: CLASS_ACCESS_DENIED — the class does not exist or is not in
+        the caller's scope. Same response for both cases (02_35 §13,
+        anti-enumeration; unchanged from v1.9.0).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - STAFF_AUTH_REQUIRED
+          - STAFF_FORBIDDEN
+          - CLASS_ACCESS_DENIED
+          - VALIDATION_ERROR
+          - RATE_LIMITED
+          - IDEMPOTENCY_CONFLICT
+          - IDEMPOTENCY_IN_PROGRESS
+          - CLASS_ALREADY_ARCHIVED
+          - STUDENT_AUTH_REQUIRED
+          description: Carries forward every code from v1.9.0's ErrorEnvelope that
+            remains reachable through paths redeclared or added by this
+            file, plus one genuinely new addition — STUDENT_AUTH_REQUIRED
+            (no prior file needed a student-facing 401 in this envelope
+            shape, since v1.3.0 predates it and uses the older
+            ErrorResponse shape instead). No other code is new.
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+
+    CreateClassRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+
+    SchoolClassCreatedResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - classId
+      - name
+      - status
+      - createdAt
+      - accessCode
+      properties:
+        classId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ARCHIVED
+          description: Always ACTIVE in this response — a class is never created
+            already archived. Kept as an enum, not a const, only to stay a
+            strict structural subset of SchoolClassResponse (v1.9.0), which
+            this response extends with accessCode.
+        createdAt:
+          type: string
+          format: date-time
+        accessCode:
+          type: string
+          minLength: 8
+          maxLength: 8
+          description: Plaintext class_access_code, present exactly once, in this
+            response only (same one-time-disclosure posture as
+            acceptanceToken/pin/temporaryPassword, v1.9.0/v1.8.0). Format —
+            8 characters drawn from a 33-symbol CSPRNG alphabet that
+            excludes visually ambiguous characters (0/O, 1/I) —
+            unchanged, existing implementation
+            (packages/identity/src/crypto/class-code.ts), formalized as
+            canonical by 02_25 v1.8 §6.11. Persisted only as code_hash
+            (HMAC-SHA-256 keyed by CLASS_CODE_HASH_PEPPER, same mechanism as
+            every other WEB-M1 class_access_code row) — this exact value is
+            never retrievable again through any endpoint; call
+            issueClassAccessCode to obtain a new one if it is lost. Does not
+            expire on its own (class_access_code.expires_at is left null by
+            this endpoint, 02_25 v1.8 §6.11) — it stays ACTIVE until
+            explicitly revoked by issueClassAccessCode or by the class being
+            archived.
+
+    ClassAccessCodeResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - classId
+      - accessCode
+      - issuedAt
+      properties:
+        classId:
+          type: string
+        accessCode:
+          type: string
+          minLength: 8
+          maxLength: 8
+          description: Same format, hashing, one-time-disclosure and
+            non-expiring posture as SchoolClassCreatedResponse.accessCode.
+            Any code returned by a prior call to createSchoolClass or
+            issueClassAccessCode for this class is now REVOKED and no
+            longer usable, whether or not it was ever used.
+        issuedAt:
+          type: string
+          format: date-time
+
+    StudentAssignmentCompletionStatus:
+      type: string
+      enum:
+      - NOT_STARTED
+      - IN_PROGRESS
+      - COMPLETED
+      description: Derived server-side from the caller's own attempt history
+        for this assignment (existing attempt/sequence_runtime_state model,
+        R3C.3) — never duplicated or recomputed by this endpoint, only
+        read.
+
+    StudentAssignmentSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - assignmentId
+      - contentBundleId
+      - title
+      - completionStatus
+      - latestAttemptId
+      - dueAt
+      properties:
+        assignmentId:
+          type: string
+        contentBundleId:
+          type: string
+        title:
+          type: string
+          description: Student-facing label. Reuses assignment.title exactly as
+            already stored (createGeneralAssignment, v1.9.0) — no separate
+            student-facing title field exists or is introduced.
+        completionStatus:
+          $ref: '#/components/schemas/StudentAssignmentCompletionStatus'
+        latestAttemptId:
+          type: string
+          nullable: true
+          description: Present when at least one attempt exists for this
+            (assignment, student) pair; null when completionStatus is
+            NOT_STARTED. When present and completionStatus is IN_PROGRESS,
+            the student-web client resumes it through the existing GET
+            /attempts/{attemptId} durable-resume path (R3C.3) — this field
+            is a pointer only, this endpoint never returns attempt or
+            sequence state itself.
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ListStudentAssignmentsResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentAssignmentSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'

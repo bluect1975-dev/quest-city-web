@@ -112,3 +112,74 @@ export function validateNonEmptyString(value: unknown, fieldName: string): strin
   }
   return value;
 }
+
+/** School Onboarding + Staff Membership (02_35 v1.2 §11bis) — same shape as `platform-validation.ts`'s `validatePaginationQuery`, kept per-domain per this repo's convention. */
+export function validateStaffPaginationQuery(url: URL): { limit: number; offset: number } {
+  const limitRaw = url.searchParams.get("limit");
+  const offsetRaw = url.searchParams.get("offset");
+  const limit = limitRaw ? Number.parseInt(limitRaw, 10) : 50;
+  const offset = offsetRaw ? Number.parseInt(offsetRaw, 10) : 0;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new StaffIdentityError("VALIDATION_ERROR", "limit must be an integer between 1 and 100");
+  }
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new StaffIdentityError("VALIDATION_ERROR", "offset must be a non-negative integer");
+  }
+  return { limit, offset };
+}
+
+export function validateClassName(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0 || value.length > 120) {
+    throw new StaffIdentityError("VALIDATION_ERROR", "name must be 1-120 non-empty characters");
+  }
+  return value;
+}
+
+const MEMBERSHIP_STATUS_ACTIONS = new Set(["SUSPEND", "REACTIVATE", "REVOKE"]);
+
+export function validateMembershipStatusAction(value: unknown): "SUSPEND" | "REACTIVATE" | "REVOKE" {
+  if (typeof value !== "string" || !MEMBERSHIP_STATUS_ACTIONS.has(value)) {
+    throw new StaffIdentityError("VALIDATION_ERROR", "action must be one of SUSPEND, REACTIVATE, REVOKE");
+  }
+  return value as "SUSPEND" | "REACTIVATE" | "REVOKE";
+}
+
+const ROSTER_MODES = new Set(["NEW", "EXISTING"]);
+
+export function validateRosterMode(value: unknown): "NEW" | "EXISTING" {
+  if (typeof value !== "string" || !ROSTER_MODES.has(value)) {
+    throw new StaffIdentityError("VALIDATION_ERROR", "mode must be one of NEW, EXISTING");
+  }
+  return value as "NEW" | "EXISTING";
+}
+
+export function validateOptionalString(value: unknown, fieldName: string, maxLength: number): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "string" || value.length === 0 || value.length > maxLength) {
+    throw new StaffIdentityError("VALIDATION_ERROR", `${fieldName} must be a non-empty string up to ${maxLength} characters when provided`);
+  }
+  return value;
+}
+
+export function validateAssignmentTitle(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0 || value.length > 200) {
+    throw new StaffIdentityError("VALIDATION_ERROR", "title must be 1-200 non-empty characters");
+  }
+  return value;
+}
+
+export function validateOptionalDateTime(value: unknown, fieldName: string): Date | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new StaffIdentityError("VALIDATION_ERROR", `${fieldName} must be an ISO date-time string when provided`);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new StaffIdentityError("VALIDATION_ERROR", `${fieldName} must be a valid ISO date-time string`);
+  }
+  return parsed;
+}

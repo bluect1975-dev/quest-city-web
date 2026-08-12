@@ -60,6 +60,15 @@ export class StaffClassAssignmentRepository {
     return row ? mapRow(row) : null;
   }
 
+  /** `DELETE /classes/{classId}/teachers/{staffTenantMembershipId}` (02_35 §11bis.6): hard delete — the row is purely an access-scope grant, not a historical record. Returns true iff a row was actually removed. */
+  async delete(staffTenantMembershipId: string, classId: string, tenantId: string): Promise<boolean> {
+    const result = await this.db.query(
+      `DELETE FROM staff_class_assignment WHERE staff_tenant_membership_id = $1 AND class_id = $2 AND tenant_id = $3`,
+      [staffTenantMembershipId, classId, tenantId],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   /** Administrative provisioning only (02_35 §4.2). Fails via DB trigger if the membership is not role = TEACHER. */
   async create(input: { staffTenantMembershipId: string; tenantId: string; classId: string }): Promise<StaffClassAssignment> {
     const result = await this.db.query<StaffClassAssignmentRow>(
