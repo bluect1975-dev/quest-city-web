@@ -34,9 +34,29 @@ export type StaffCapability = (typeof STAFF_CAPABILITIES)[number];
 /** Held by TEACHER (classScope-limited) in addition to SCHOOL_ADMIN (tenant-wide); every other capability is SCHOOL_ADMIN-only. */
 const TEACHER_CAPABILITIES: ReadonlySet<StaffCapability> = new Set(["roster.manage", "assignment.create"]);
 
+/**
+ * INDEPENDENT_EDUCATOR (02_35 v1.4 §11ter.5): tenant-wide reuse of
+ * class.create/class.manage/roster.manage/assignment.create, the same
+ * four capabilities SCHOOL_ADMIN already holds — but never
+ * staff.invite/staff.member.read/staff.membership.suspend/
+ * staff.membership.revoke/class.teacher.assign (§11ter.9: no co-educator
+ * invitation in this tranche). Deliberately not "all" (unlike
+ * SCHOOL_ADMIN): an explicit set, so a future capability added to
+ * SCHOOL_ADMIN does not silently leak to INDEPENDENT_EDUCATOR.
+ */
+const INDEPENDENT_EDUCATOR_CAPABILITIES: ReadonlySet<StaffCapability> = new Set([
+  "class.create",
+  "class.manage",
+  "roster.manage",
+  "assignment.create",
+]);
+
 export function hasStaffCapability(identity: StaffInternalIdentity, capability: StaffCapability): boolean {
   if (identity.role === "SCHOOL_ADMIN") {
     return true;
+  }
+  if (identity.role === "INDEPENDENT_EDUCATOR") {
+    return INDEPENDENT_EDUCATOR_CAPABILITIES.has(capability);
   }
   return TEACHER_CAPABILITIES.has(capability);
 }

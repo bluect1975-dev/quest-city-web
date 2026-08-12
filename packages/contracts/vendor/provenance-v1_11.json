@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-independent-educator-foundation",
+  "artifactVersion": "1.11.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "f2d99ade28199805743c677c63bc9e51a72458a7",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_11.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_13 / 02_25_Quest_City_Backend_Services_Database_and_API_Specification_v1_9 / 02_35_Quest_City_Staff_Identity_Authorization_and_Dashboard_Review_Contract_v1_4 / 02_38_Quest_City_Platform_Administration_School_Tenancy_Independent_Educator_and_Account_Tenant_Convergence_Specification_v1_3",
+  "checksum": "sha256:79fe65e6783ae9877bd5ec4a42637bf5fc8928efa5bcb5863bcf28627155fe50",
+  "syncedAt": "2026-08-12",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_6.yaml, v1_8.yaml, v1_9.yaml and v1_10.yaml, all unmodified and independently tracked (v1_7.yaml was never vendored, same as noted in provenance-v1_8.json/v1_9.json/v1_10.json). Formalizes Tranche C Independent Educator Foundation: PLATFORM_ADMIN-driven activation (POST /platform/independent-educators), read (GET list/detail), suspend/reactivate (PATCH .../status) of an INDEPENDENT_EDUCATOR tenant + staff_tenant_membership, reusing tenant/staff_account/staff_tenant_membership exactly as already implemented for Tranche A/B. tenant.type vocabulary reconciled to SCHOOL/INDEPENDENT_EDUCATOR (ORGANIZATION retired at the contract level; the Web-side CHECK constraint change is implemented by this same change set's migration 0010, not deferred further). No IndependentEducatorProfile or other new domain table. This is the first vendored version to have completed the Web implementation phase in the same change set that vendors it (feature/school-pilot-independent-educator-foundation).",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_11.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_11.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

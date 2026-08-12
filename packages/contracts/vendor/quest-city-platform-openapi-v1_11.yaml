@@ -1,0 +1,593 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.11.0
+  description: >-
+    Quest City API contract formalization for Tranche C Independent Educator
+    Foundation — contracts only (02_26 v1.13 §35, 02_38 v1.3 §4.4/§7/§21).
+    This file is additive: v1.2.0 through v1.10.0 remain available unchanged
+    as separate immutable artifacts; no prior path or schema is removed or
+    altered.
+
+    This is a CONTRACTS-ONLY release, authored in quest-city-roblox. It
+    formalizes the PLATFORM_ADMIN-driven activation of an INDEPENDENT_EDUCATOR
+    tenant and staff role — reusing tenant, staff_account and
+    staff_tenant_membership exactly as already implemented for Tranche A
+    (Platform Admin + Tenant Foundation, v1.8.0) and Tranche B (School
+    Onboarding + Staff Membership, v1.9.0/v1.10.0). No IndependentEducatorProfile
+    or other new domain table is introduced (02_25 v1.9 §6.13, 02_38 v1.3
+    §20): the same precedent already set by the SCHOOL tenant type applies —
+    no dedicated `school` profile table was ever implemented either; `tenant`
+    alone, typed, is sufficient. No endpoint in this file has been
+    implemented in quest-city-web at the time of writing, and none may be
+    implemented until this contract change set's own closure (merge to
+    quest-city-roblox canonical main) completes, per the two-phase
+    contracts-then-implementation pattern already used for Tranche A and
+    Tranche B.
+
+    Convergence (Tranche D), Licensing and co-educator invitation are
+    explicitly out of scope of this file — none of their endpoints
+    (convergence-requests/*, content/*/promote, license transition) are
+    defined here.
+servers:
+- url: /api/v1
+  description: Quest City Platform API (platform-session-scoped resources)
+security: []
+paths:
+  /platform/independent-educators:
+    get:
+      summary: List Independent Educator tenants (capability
+        independent_educator.read). Paginated, no didactic data of any kind
+        — same posture as listTenants (v1.8.0), scoped to
+        tenant.type=INDEPENDENT_EDUCATOR only.
+      operationId: listIndependentEducators
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Independent Educator list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndependentEducatorListResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+    post:
+      summary: Activate an Independent Educator (capability
+        independent_educator.activate). One call performs, in a single
+        transaction — identity resolution (reuse an existing staff_account
+        by email or create a new one; ONE HUMAN -> ONE PLATFORM IDENTITY,
+        02_38 v1.3 §9), tenant provisioning (a new tenant row,
+        type=INDEPENDENT_EDUCATOR, no classes/students/demo content
+        auto-created, same principle as createTenant v1.8.0), membership
+        creation (staff_tenant_membership, role=INDEPENDENT_EDUCATOR,
+        status=ACTIVE), controlled credential bootstrap (temporaryPassword
+        present only for a brand-new identity, returned exactly once), and
+        audit (independent_educator_activated, independent_educator_tenant_provisioned).
+        An identity that already holds an ACTIVE SCHOOL staff_tenant_membership
+        is explicitly allowed to also become an Independent Educator — this
+        creates a second, independent staff_tenant_membership row on a new
+        tenant, never a second staff_account (02_38 v1.3 §13, mixed-identity
+        preparation for the future Tranche D).
+      operationId: activateIndependentEducator
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateIndependentEducatorRequest'
+      responses:
+        '201':
+          description: Independent Educator activated. A retry with the same
+            Idempotency-Key and the same payload (DUPLICATE_SAME_PAYLOAD)
+            replays this exact response byte-for-byte, including this same
+            201 status — no second tenant or membership is ever created
+            (same architecture as platform_tenant_create, 02_26 v1.10 §32.4,
+            extended by this version with the new scope
+            platform_independent_educator_activate).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndependentEducatorActivationResponse'
+        '400':
+          description: VALIDATION_ERROR — email must be a valid email address;
+            tenantName must be 1-200 non-empty characters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (CSRF token non valido) or
+            CAPABILITY_DENIED (missing independent_educator.activate).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: INDEPENDENT_EDUCATOR_ALREADY_ACTIVE (this identity
+            already holds an ACTIVE INDEPENDENT_EDUCATOR membership — no
+            duplicate tenant/membership is ever created, this is a rejected
+            no-op, same pattern as 02_38 v1.3 §22 "docente già membro della
+            scuola"), INDEPENDENT_EDUCATOR_IDENTITY_SUSPENDED (the resolved
+            staff_account is SUSPENDED or DEACTIVATED — a suspended identity
+            cannot be activated into any new role), IDEMPOTENCY_CONFLICT, or
+            IDEMPOTENCY_IN_PROGRESS (Retry-After header present).
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /platform/independent-educators/{tenantId}:
+    get:
+      summary: Read a single Independent Educator tenant (capability
+        independent_educator.read) — tenant status, the resolved staff
+        identity (email, staffAccountId), and the associated membership
+        status. No didactic data (02_38 v1.3 §18.1).
+      operationId: getIndependentEducator
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Independent Educator detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndependentEducatorResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: INDEPENDENT_EDUCATOR_NOT_FOUND — no
+            tenant.type=INDEPENDENT_EDUCATOR with this id, or the tenant
+            exists but is not of that type (same anti-enumeration posture
+            already used elsewhere in this corpus — never distinguished from
+            a genuinely missing id).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /platform/independent-educators/{tenantId}/status:
+    patch:
+      summary: Suspend or reactivate an Independent Educator (capability
+        independent_educator.status.manage, governs both directions — same
+        "one capability, two directions" pattern as tenant.suspend, v1.8.0).
+        A single transaction sets both tenant.status and the status of every
+        staff_tenant_membership row with role=INDEPENDENT_EDUCATOR on that
+        tenant together (02_38 v1.3 §18, suspension model) — staff login is
+        blocked, every existing staff_session on the tenant is revoked
+        immediately, and student access to every class in the tenant is
+        blocked by the pre-existing tenant.status=SUSPENDED enforcement
+        (02_38 v1.3 §4.1, unchanged, reused without modification). Never a
+        hard delete.
+      operationId: setIndependentEducatorStatus
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetIndependentEducatorStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndependentEducatorStatusResponse'
+        '400':
+          description: VALIDATION_ERROR — status must be one of ACTIVE,
+            SUSPENDED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (CSRF token non valido) or
+            CAPABILITY_DENIED (missing independent_educator.status.manage).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: INDEPENDENT_EDUCATOR_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: INDEPENDENT_EDUCATOR_STATUS_UNCHANGED (the requested
+            status equals the tenant's current status), IDEMPOTENCY_CONFLICT,
+            or IDEMPOTENCY_IN_PROGRESS.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  securitySchemes:
+    platformSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_platform_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_8.yaml. Redeclared here
+        only because each versioned contract file is self-contained for its
+        own $ref resolution (same convention as v1.9.0/v1.10.0).
+    platformCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Same synchronizer-token mechanism and header name as
+        every prior *CsrfHeader scheme in this corpus, issued and validated
+        independently for platform sessions.
+  parameters:
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required on POST /platform/independent-educators (new
+        idempotency_record scope platform_independent_educator_activate,
+        tenant_id NULL — same architecture as platform_tenant_create, 02_26
+        v1.10 §32.4, since no tenant exists yet at request time; scope_key =
+        (actingPlatformAdminStaffAccountId, this header value)) and on PATCH
+        /platform/independent-educators/{tenantId}/status (critical state
+        transition, same class as tenant.suspend/staff.membership.suspend).
+        Same header, same idempotency_record/IdempotencyRecordRepository
+        mechanism already in use for every prior scope — no second
+        mechanism (02_26 v1.13 §35.9).
+  responses:
+    PlatformUnauthorized:
+      description: PLATFORM_AUTH_REQUIRED — no valid platform session
+        (PLATFORM domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    CapabilityDenied:
+      description: CAPABILITY_DENIED — authenticated as a platform admin but
+        lacking the specific capability this operation requires (02_27 §5.3
+        capability-first authorization).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain,
+        RATE_LIMITED)
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - PLATFORM_AUTH_REQUIRED
+          - PLATFORM_FORBIDDEN
+          - CAPABILITY_DENIED
+          - INDEPENDENT_EDUCATOR_NOT_FOUND
+          - INDEPENDENT_EDUCATOR_ALREADY_ACTIVE
+          - INDEPENDENT_EDUCATOR_IDENTITY_SUSPENDED
+          - INDEPENDENT_EDUCATOR_STATUS_UNCHANGED
+          - VALIDATION_ERROR
+          - RATE_LIMITED
+          - IDEMPOTENCY_CONFLICT
+          - IDEMPOTENCY_IN_PROGRESS
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+
+    PlatformCapability:
+      type: string
+      enum:
+      - tenant.create
+      - tenant.read
+      - tenant.suspend
+      - school_admin.activate
+      - audit.read.global
+      - independent_educator.activate
+      - independent_educator.read
+      - independent_educator.status.manage
+      description: Granular, explicitly-named capabilities only (02_27 §5.3,
+        02_38 §4.1). No implicit "all" capability exists or is permitted.
+        Extends the v1.8.0 list (Tranche A) with the three Independent
+        Educator capabilities this file introduces — already anticipated as
+        illustrative examples by v1.8.0's own PlatformCapability
+        description. Still illustrative-additive, not a closed enumeration.
+
+    TenantType:
+      type: string
+      enum:
+      - SCHOOL
+      - INDEPENDENT_EDUCATOR
+      description: Reconciled canonical vocabulary (02_38 v1.3 §5.1, 02_25
+        v1.9 §6.13). Supersedes, for every schema in this and future files,
+        the SCHOOL/ORGANIZATION vocabulary v1.8.0 formalized around the
+        as-implemented migration 0002 CHECK constraint — ORGANIZATION was
+        never assigned any meaning by any authority and was never used to
+        create a single tenant row in quest-city-web (confirmed — no
+        creation path references it anywhere in the codebase). This is a
+        contracts-only reconciliation; the Web-side CHECK constraint change
+        (drop ORGANIZATION, add INDEPENDENT_EDUCATOR, additive migration) is
+        implementation and is deferred to the future Tranche C
+        implementation phase, out of scope of this file.
+
+    IndependentEducatorSummary:
+      type: object
+      required:
+      - tenantId
+      - tenantPublicId
+      - tenantStatus
+      - tenantName
+      - staffAccountId
+      - email
+      - membershipStatus
+      - createdAt
+      properties:
+        tenantId:
+          type: string
+        tenantPublicId:
+          type: string
+        tenantStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+          - ARCHIVED
+          description: Only ACTIVE and SUSPENDED are settable via PATCH
+            /platform/independent-educators/{tenantId}/status. ARCHIVED
+            exists in the column's domain but is not reachable through any
+            endpoint in this file (same posture as TenantStatus, v1.8.0).
+        tenantName:
+          type: string
+        staffAccountId:
+          type: string
+        email:
+          type: string
+          format: email
+        membershipStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+          description: The staff_tenant_membership.status for the
+            role=INDEPENDENT_EDUCATOR row on this tenant. INVITED/REVOKED
+            (02_35 §11bis.2) do not apply here — this activation is always
+            performed directly by PLATFORM_ADMIN, never via the Teacher
+            invitation flow, so the membership is always created ACTIVE.
+        createdAt:
+          type: string
+          format: date-time
+
+    IndependentEducatorListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/IndependentEducatorSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    IndependentEducatorResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/IndependentEducatorSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ActivateIndependentEducatorRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      - tenantName
+      properties:
+        email:
+          type: string
+          format: email
+          description: Identity resolution key. An existing staff_account
+            with this email is reused (02_38 v1.3 §9); a new one is created
+            only when none exists.
+        tenantName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Display name for the new INDEPENDENT_EDUCATOR tenant.
+            Creates only the tenant row and the membership — no classes,
+            students, or demo content are ever auto-created (same principle
+            as CreateTenantRequest, v1.8.0).
+
+    IndependentEducatorActivationResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - tenantId
+          - tenantPublicId
+          - staffAccountId
+          - email
+          - temporaryPassword
+          - identityReused
+          properties:
+            tenantId:
+              type: string
+            tenantPublicId:
+              type: string
+            staffAccountId:
+              type: string
+            email:
+              type: string
+              format: email
+            temporaryPassword:
+              type:
+              - string
+              - 'null'
+              description: Present only when a brand-new identity was
+                created; returned exactly once, never persisted in
+                retrievable form, never logged (same pattern as
+                SchoolAdminActivationResponse, v1.8.0).
+            identityReused:
+              type: boolean
+              description: True when an existing staff_account was reused by
+                email rather than a new one created (02_38 v1.3 §9, ONE
+                HUMAN -> ONE PLATFORM IDENTITY). True in particular when the
+                identity already holds an ACTIVE SCHOOL membership and is
+                now also becoming an Independent Educator (02_38 v1.3 §13).
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SetIndependentEducatorStatusRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+
+    IndependentEducatorStatusResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - tenantId
+          - tenantPublicId
+          - tenantStatus
+          - membershipStatus
+          properties:
+            tenantId:
+              type: string
+            tenantPublicId:
+              type: string
+            tenantStatus:
+              type: string
+              enum:
+              - ACTIVE
+              - SUSPENDED
+              - ARCHIVED
+            membershipStatus:
+              type: string
+              enum:
+              - ACTIVE
+              - SUSPENDED
+        meta:
+          $ref: '#/components/schemas/Meta'

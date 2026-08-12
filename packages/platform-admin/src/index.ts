@@ -37,3 +37,12 @@ export {
   SchoolAdminActivationService,
   type SchoolAdminActivationResult,
 } from "./services/school-admin-activation-service";
+export {
+  IndependentEducatorActivationService,
+  type IndependentEducatorSummary,
+  type IndependentEducatorActivationResult,
+} from "./services/independent-educator-activation-service";
+export {
+  IndependentEducatorStatusService,
+  type IndependentEducatorStatusResult,
+} from "./services/independent-educator-status-service";

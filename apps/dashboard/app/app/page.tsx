@@ -19,7 +19,9 @@ export default function StaffHomePage() {
             {t(DASHBOARD_CATALOG_IT_IT, "app.home.welcome")}{" "}
             {context.role === "TEACHER"
               ? t(DASHBOARD_CATALOG_IT_IT, "app.home.roleTeacher")
-              : t(DASHBOARD_CATALOG_IT_IT, "app.home.roleSchoolAdmin")}
+              : context.role === "INDEPENDENT_EDUCATOR"
+                ? t(DASHBOARD_CATALOG_IT_IT, "app.home.roleIndependentEducator")
+                : t(DASHBOARD_CATALOG_IT_IT, "app.home.roleSchoolAdmin")}
           </p>
           <p>
             {t(DASHBOARD_CATALOG_IT_IT, "app.home.classScopeLabel")}:{" "}

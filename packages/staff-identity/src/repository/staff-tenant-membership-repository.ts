@@ -1,6 +1,13 @@
 import type { Queryable } from "./types";
 
-export type StaffRole = "TEACHER" | "SCHOOL_ADMIN";
+/**
+ * INDEPENDENT_EDUCATOR added (02_35 v1.4 §11ter.2 decision A, migration
+ * 0010): a third, explicit membership role, never behavior derived from
+ * tenant.type + TEACHER (capability-first authorization, 02_27 §5.3).
+ * Enforced coherent with tenant.type by a DB trigger (migration 0010),
+ * never by application code alone.
+ */
+export type StaffRole = "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR";
 /**
  * INVITED and REVOKED added by School Onboarding + Staff Membership
  * (02_35 v1.2 §11bis.2, migration 0008). INVITED = invited, not yet

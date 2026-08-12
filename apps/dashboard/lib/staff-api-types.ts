@@ -1,6 +1,6 @@
 /** TypeScript mirror of the WEB-M3B OpenAPI v1.6 schemas (contracts/quest-city-platform-openapi-v1_6.yaml). */
 
-export type StaffRole = "TEACHER" | "SCHOOL_ADMIN";
+export type StaffRole = "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR";
 
 export interface StaffContext {
   staffAccountId: string;
