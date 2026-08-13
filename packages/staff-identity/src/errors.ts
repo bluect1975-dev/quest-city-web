@@ -64,6 +64,25 @@ export const STAFF_ERROR_CODES = [
   "STUDENT_ALREADY_ENROLLED",
   "ENROLLMENT_NOT_ACTIVE",
   "ASSIGNMENT_CONTENT_NOT_PUBLISHED",
+  // School Pilot Readiness Tranche D (02_38 v1.4 §9-22, 02_26 v1.14 §36,
+  // 02_35 v1.5 §11quater, contracts/quest-city-platform-openapi-v1_12.yaml)
+  // -- codes raised by the staff-session-authed convergence endpoints
+  // (create/list/read, approve/reject, ownership promote, context
+  // switching). Same PLATFORM domain, same ErrorEnvelope shape.
+  "CONVERGENCE_REQUEST_NOT_FOUND",
+  "CONVERGENCE_ALREADY_MEMBER",
+  "TENANT_SUSPENDED_FOR_CONVERGENCE",
+  "CONVERGENCE_PREVIEW_STALE",
+  "CONVERGENCE_REQUEST_INVALID_TRANSITION",
+  "CONVERGENCE_ALREADY_TERMINAL",
+  "OWNERSHIP_PROMOTION_NOT_APPROVED",
+  // Disclosed limitation, not a canonical error code: 02_37 (Teacher and
+  // School No-Code Authoring) is not implemented, so no TEACHER_CONTENT
+  // -owning table exists yet in this schema. promoteContentOwnership is
+  // wired end to end (capability + approved-plan check) but every real
+  // contentId currently resolves to this -- see the Tranche D Web final
+  // report, "ownership transfer" gap.
+  "CONTENT_NOT_FOUND",
 ] as const;
 
 export type StaffErrorCode = (typeof STAFF_ERROR_CODES)[number];
@@ -100,6 +119,14 @@ const HTTP_STATUS_BY_CODE: Record<StaffErrorCode, number> = {
   STUDENT_ALREADY_ENROLLED: 409,
   ENROLLMENT_NOT_ACTIVE: 409,
   ASSIGNMENT_CONTENT_NOT_PUBLISHED: 409,
+  CONVERGENCE_REQUEST_NOT_FOUND: 404,
+  CONVERGENCE_ALREADY_MEMBER: 409,
+  TENANT_SUSPENDED_FOR_CONVERGENCE: 409,
+  CONVERGENCE_PREVIEW_STALE: 409,
+  CONVERGENCE_REQUEST_INVALID_TRANSITION: 409,
+  CONVERGENCE_ALREADY_TERMINAL: 409,
+  OWNERSHIP_PROMOTION_NOT_APPROVED: 409,
+  CONTENT_NOT_FOUND: 404,
 };
 
 export class StaffIdentityError extends Error {

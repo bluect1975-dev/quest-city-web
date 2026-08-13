@@ -199,3 +199,58 @@ export interface RecoveryAssignment {
   createdByStaffId: string;
   createdAt: string;
 }
+
+/**
+ * Account/Tenant Convergence (contracts/quest-city-platform-openapi-v1_12.yaml,
+ * `ConvergenceRequestSummary`/`ConvergenceRequestResponse` -- 02_38 v1.4
+ * §9-10/§10.2bis, 02_35 v1.5 §11quater). Eleven-value closed state machine;
+ * COMPLETED/REJECTED/BLOCKED are terminal -- a new request row is created
+ * to retry, never a resurrection of a terminal row.
+ */
+export type ConvergenceRequestStatus =
+  | "REQUESTED"
+  | "PREVIEW_READY"
+  | "AWAITING_APPROVALS"
+  | "APPROVED"
+  | "READY_TO_EXECUTE"
+  | "EXECUTING"
+  | "COMPLETED"
+  | "REJECTED"
+  | "BLOCKED"
+  | "FAILED"
+  | "ROLLBACK_REVIEW_REQUIRED";
+
+export interface ConvergenceRequest {
+  id: string;
+  sourceTenantId: string;
+  targetTenantId: string;
+  educatorStaffAccountId: string;
+  status: ConvergenceRequestStatus;
+  requestedByStaffAccountId: string;
+  requestedAt: string;
+  teacherConfirmedAt: string | null;
+  schoolApprovedAt: string | null;
+  platformIdentityVerifiedAt: string | null;
+  currentMigrationPlanId: string | null;
+  currentMigrationExecutionId: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  failureCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Per-class decision, 02_38 v1.4 §12 options A (TRANSFER) and B (RETAIN) -- always explicit and audited per class, never a tenant-wide default. */
+export type ClassMigrationDecision = "TRANSFER" | "RETAIN";
+
+/** Per-resource decision, 02_38 v1.4 §14. Default in the absence of an explicit decision is RETAIN -- PROMOTE is never assumed. */
+export type OwnershipDecision = "PROMOTE" | "RETAIN";
+
+/** `GET /me/tenant-memberships` (02_35 v1.5 §11quater.5) -- self-read, no capability required. */
+export interface TenantMembership {
+  tenantId: string;
+  tenantType: "SCHOOL" | "INDEPENDENT_EDUCATOR";
+  tenantName?: string;
+  role: StaffRole;
+  membershipStatus: "ACTIVE";
+}

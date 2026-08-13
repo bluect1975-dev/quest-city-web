@@ -3,10 +3,13 @@ import type {
   AcceptStaffInvitationResult,
   AttemptHistoryEntry,
   AttemptReviewDetail,
+  ClassMigrationDecision,
   ClassSummary,
+  ConvergenceRequest,
   CreateStaffInvitationResult,
   GeneralAssignment,
   MembershipStatusAction,
+  OwnershipDecision,
   ProgressAggregate,
   RecoveryAssignment,
   RemoveRosterMemberResult,
@@ -24,6 +27,7 @@ import type {
   StudentRosterEntry,
   TeacherClassAssignment,
   TeacherFeedback,
+  TenantMembership,
 } from "./staff-api-types";
 
 /**
@@ -427,6 +431,114 @@ export async function createGeneralAssignment(input: {
     },
     csrfToken: input.csrfToken,
     idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/**
+ * `GET /convergence-requests` (contracts/quest-city-platform-openapi-v1_12.yaml,
+ * capability convergence.read). Scoped server-side to the caller's own
+ * tenant as sourceTenantId (INDEPENDENT_EDUCATOR) or targetTenantId
+ * (SCHOOL_ADMIN).
+ */
+export async function listConvergenceRequests(params: { limit?: number; offset?: number } = {}): Promise<ConvergenceRequest[]> {
+  const query = new URLSearchParams();
+  if (params.limit !== undefined) query.set("limit", String(params.limit));
+  if (params.offset !== undefined) query.set("offset", String(params.offset));
+  const queryString = query.toString();
+  const envelope = await request<Envelope<ConvergenceRequest[]>>(`/convergence-requests${queryString ? `?${queryString}` : ""}`);
+  return envelope.data;
+}
+
+/**
+ * `POST /convergence-requests` (capability convergence.request).
+ * Idempotency-Key required (02_26 v1.14 §36.13) -- a retry with the same
+ * key and payload replays the same created request, never a second row.
+ */
+export async function createConvergenceRequest(input: {
+  sourceTenantId: string;
+  targetTenantId: string;
+  educatorStaffAccountId: string;
+  csrfToken: string;
+}): Promise<ConvergenceRequest> {
+  const envelope = await request<Envelope<ConvergenceRequest>>("/convergence-requests", {
+    method: "POST",
+    body: {
+      sourceTenantId: input.sourceTenantId,
+      targetTenantId: input.targetTenantId,
+      educatorStaffAccountId: input.educatorStaffAccountId,
+    },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `GET /convergence-requests/{id}` (capability convergence.read). */
+export async function getConvergenceRequest(id: string): Promise<ConvergenceRequest> {
+  const envelope = await request<Envelope<ConvergenceRequest>>(`/convergence-requests/${encodeURIComponent(id)}`);
+  return envelope.data;
+}
+
+/**
+ * `POST /convergence-requests/{id}/approve` (capability
+ * convergence.approve.school or convergence.approve.teacher, depending on
+ * the caller's tenant role). `migrationPlanFingerprint` must match the
+ * current migration plan's fingerprint exactly (CONVERGENCE_PREVIEW_STALE
+ * otherwise) -- classDecisions/ownershipDecisions are optional (02_38 v1.4
+ * §12/§14). No Idempotency-Key on this route.
+ */
+export async function approveConvergenceRequest(input: {
+  id: string;
+  migrationPlanFingerprint: string;
+  classDecisions?: Array<{ classId: string; decision: ClassMigrationDecision }>;
+  ownershipDecisions?: Array<{ resourceId: string; decision: OwnershipDecision }>;
+  csrfToken: string;
+}): Promise<ConvergenceRequest> {
+  const envelope = await request<Envelope<ConvergenceRequest>>(`/convergence-requests/${encodeURIComponent(input.id)}/approve`, {
+    method: "POST",
+    body: {
+      migrationPlanFingerprint: input.migrationPlanFingerprint,
+      classDecisions: input.classDecisions,
+      ownershipDecisions: input.ownershipDecisions,
+    },
+    csrfToken: input.csrfToken,
+  });
+  return envelope.data;
+}
+
+/** `POST /convergence-requests/{id}/reject` (same capability as approve, for the current step). No Idempotency-Key on this route. */
+export async function rejectConvergenceRequest(input: {
+  id: string;
+  rejectionReason?: string | null;
+  csrfToken: string;
+}): Promise<ConvergenceRequest> {
+  const envelope = await request<Envelope<ConvergenceRequest>>(`/convergence-requests/${encodeURIComponent(input.id)}/reject`, {
+    method: "POST",
+    body: { rejectionReason: input.rejectionReason ?? null },
+    csrfToken: input.csrfToken,
+  });
+  return envelope.data;
+}
+
+/** `GET /me/tenant-memberships` (02_35 v1.5 §11quater.5) -- self-read, no capability required. Foundation for tenant context switching. */
+export async function listMyTenantMemberships(): Promise<TenantMembership[]> {
+  const envelope = await request<Envelope<TenantMembership[]>>("/me/tenant-memberships");
+  return envelope.data;
+}
+
+/**
+ * `POST /staff-auth/session/switch-tenant` (02_35 v1.5 §11quater.5, 02_38
+ * v1.4 §13.2). tenantId is verified server-side against the caller's own
+ * ACTIVE memberships; a new session cookie is issued and the prior one
+ * revoked. Callers must re-fetch the staff auth context (or reload) after
+ * this succeeds, same as after any other session-mutating action.
+ */
+export async function switchSessionTenant(input: { tenantId: string; csrfToken: string }): Promise<{ tenantId: string; role: StaffRole }> {
+  const envelope = await request<Envelope<{ tenantId: string; role: StaffRole }>>("/staff-auth/session/switch-tenant", {
+    method: "POST",
+    body: { tenantId: input.tenantId },
+    csrfToken: input.csrfToken,
   });
   return envelope.data;
 }

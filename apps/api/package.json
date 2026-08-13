@@ -15,6 +15,7 @@
   "dependencies": {
     "@quest-city-web/attempts": "workspace:*",
     "@quest-city-web/content-runtime": "workspace:*",
+    "@quest-city-web/convergence": "workspace:*",
     "@quest-city-web/content-schema": "workspace:*",
     "@quest-city-web/i18n": "workspace:*",
     "@quest-city-web/identity": "workspace:*",

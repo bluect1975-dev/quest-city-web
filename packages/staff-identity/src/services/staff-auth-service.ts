@@ -52,6 +52,8 @@ export interface StaffInternalIdentity extends StaffContext {
   staffTenantMembershipId: string;
   /** The active session's CSRF token hash — lets callers verify an `x-csrf-token` header without a second session lookup (02_35 §4.4). */
   csrfTokenHash: string;
+  /** The active session's own row id (Tranche D, 02_35 v1.5 §11quater.5) -- lets `TenantContextService.switchTenant` revoke exactly this session without a second session lookup by token. */
+  sessionId: string;
 }
 
 function normalizeEmail(raw: string): string {
@@ -344,6 +346,7 @@ export class StaffAuthService {
       role: membership.role,
       classScope,
       csrfTokenHash: session.csrfTokenHash,
+      sessionId: session.id,
     };
   }
 

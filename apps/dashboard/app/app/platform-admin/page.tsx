@@ -47,7 +47,10 @@ function PlatformAdminHomeView({ context }: { context: PlatformContext }) {
         <Link href="/app/platform-admin/independent-educators">
           {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.independentEducators")}
         </Link>{" "}
-        {canReadAudit ? <Link href="/app/platform-admin/audit">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.audit")}</Link> : null}
+        {canReadAudit ? <Link href="/app/platform-admin/audit">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.audit")}</Link> : null}{" "}
+        <Link href="/app/platform-admin/convergence-requests">
+          {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.convergenceRequests")}
+        </Link>{" "}
         <Button type="button" onClick={handleLogout}>
           {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.logout")}
         </Button>

@@ -1,0 +1,28 @@
+{
+  "name": "@quest-city-web/convergence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "School Pilot Readiness Tranche D: Account/Tenant Convergence (02_38 v1.4 §9-10/§10.2bis/§12-15/§17-18/§20-22, 02_25 v1.10 §6.15, 02_35 v1.5 §11quater, 02_26 v1.14 §36, contracts/quest-city-platform-openapi-v1_12.yaml). Reuses tenant/staff_account/staff_tenant_membership from @quest-city-web/identity and @quest-city-web/staff-identity without duplication; reuses idempotency from @quest-city-web/attempts.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --config ../config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"no package-level unit tests: every code path in this package requires a live Postgres connection (repository queries, deferred-constraint class transfers, idempotency-wrapped transactions) and this repo's own rule is never to mock the database -- covered instead by the 28-scenario real-Postgres suite in tests/integration/account-tenant-convergence-security.test.ts\" && exit 0"
+  },
+  "dependencies": {
+    "@quest-city-web/attempts": "workspace:*",
+    "@quest-city-web/identity": "workspace:*",
+    "@quest-city-web/platform-admin": "workspace:*",
+    "@quest-city-web/staff-identity": "workspace:*",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/pg": "8.11.10",
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

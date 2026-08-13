@@ -11,6 +11,7 @@ function identity(role: StaffInternalIdentity["role"]): StaffInternalIdentity {
     role,
     classScope: role === "TEACHER" ? [] : null,
     csrfTokenHash: "unused-in-these-tests",
+    sessionId: "session-unused-in-these-tests",
   };
 }
 

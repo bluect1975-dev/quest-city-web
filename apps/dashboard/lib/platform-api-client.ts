@@ -1,10 +1,14 @@
 import { PlatformApiError } from "./platform-api-error";
 import type {
   AuditEventSummary,
+  ConvergenceRequest,
   IndependentEducatorActivationResponse,
   IndependentEducatorStatusResponse,
   IndependentEducatorSummary,
+  MigrationExecution,
+  MigrationPlan,
   PlatformContext,
+  RollbackReviewDecision,
   SchoolAdminActivationResponse,
   TenantSummary,
 } from "./platform-api-types";
@@ -157,6 +161,72 @@ export async function setIndependentEducatorStatus(input: {
   const envelope = await request<Envelope<IndependentEducatorStatusResponse>>(
     `/platform/independent-educators/${encodeURIComponent(input.tenantId)}/status`,
     { method: "PATCH", body: { status: input.status }, csrfToken: input.csrfToken },
+  );
+  return envelope.data;
+}
+
+/**
+ * `GET /convergence-requests/{id}` (capability convergence.read). The
+ * OpenAPI contract documents PLATFORM_ADMIN seeing every request,
+ * unscoped, via this same read operation used by the staff-session surface
+ * (`staff-api-client.ts`) -- kept here as its own duplicate rather than a
+ * shared import, same domain-isolation discipline as the rest of this
+ * file.
+ */
+export async function getConvergenceRequest(id: string): Promise<ConvergenceRequest> {
+  const envelope = await request<Envelope<ConvergenceRequest>>(`/convergence-requests/${encodeURIComponent(id)}`);
+  return envelope.data;
+}
+
+/**
+ * `POST /convergence-requests/{id}/preview` (capability convergence.preview,
+ * PLATFORM_ADMIN-only, 02_38 v1.4 §9). No request body, no Idempotency-Key.
+ * IS the identity-verification step -- callable more than once, each call a
+ * fresh, independently fingerprinted snapshot.
+ */
+export async function previewConvergenceRequest(input: { id: string; csrfToken: string }): Promise<MigrationPlan> {
+  const envelope = await request<Envelope<MigrationPlan>>(`/convergence-requests/${encodeURIComponent(input.id)}/preview`, {
+    method: "POST",
+    csrfToken: input.csrfToken,
+  });
+  return envelope.data;
+}
+
+/**
+ * `POST /convergence-requests/{id}/execute` (capability convergence.execute,
+ * PLATFORM_ADMIN-only). Idempotency-Key required -- pass a fresh
+ * `generateIdempotencyKey()` value per distinct execute attempt; a retry
+ * with the same key resumes from the last checkpoint rather than
+ * restarting (02_38 v1.4 §10.4).
+ */
+export async function executeConvergenceRequest(input: {
+  id: string;
+  csrfToken: string;
+  idempotencyKey: string;
+}): Promise<MigrationExecution> {
+  const envelope = await request<Envelope<MigrationExecution>>(`/convergence-requests/${encodeURIComponent(input.id)}/execute`, {
+    method: "POST",
+    csrfToken: input.csrfToken,
+    idempotencyKey: input.idempotencyKey,
+  });
+  return envelope.data;
+}
+
+/**
+ * `POST /convergence-requests/{id}/rollback-review` (capability
+ * convergence.rollback.review, PLATFORM_ADMIN-only). ACCEPT_PARTIAL is
+ * terminal (COMPLETED, no unit already migrated is ever undone);
+ * RETRY_REMAINING moves back to READY_TO_EXECUTE for a follow-up execute
+ * call (02_38 v1.4 §10.5).
+ */
+export async function rollbackReviewConvergenceRequest(input: {
+  id: string;
+  decision: RollbackReviewDecision;
+  csrfToken: string;
+}): Promise<ConvergenceRequest> {
+  const envelope = await request<Envelope<ConvergenceRequest>>(
+    `/convergence-requests/${encodeURIComponent(input.id)}/rollback-review`,
+    { method: "POST", body: { decision: input.decision }, csrfToken: input.csrfToken },
   );
   return envelope.data;
 }
