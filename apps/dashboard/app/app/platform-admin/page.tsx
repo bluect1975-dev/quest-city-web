@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button, EmptyState, FormField, StatusMessage, Table } from "@quest-city-web/ui";
+import { Button, EmptyState, FormField, StatusBadge, StatusMessage, Table } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequirePlatformAuth } from "../../../lib/RequirePlatformAuth";
 import { usePlatformAuth } from "../../../lib/platform-auth-context";
@@ -28,33 +26,14 @@ function hasCapability(capabilities: Capability[], capability: Capability): bool
 }
 
 function PlatformAdminHomeView({ context }: { context: PlatformContext }) {
-  const { csrfToken, logout } = usePlatformAuth();
-  const router = useRouter();
+  const { csrfToken } = usePlatformAuth();
   const result = useAsyncPlatform<TenantSummary[]>(() => listTenants(), []);
   const canCreate = hasCapability(context.capabilities, "tenant.create");
   const canSuspend = hasCapability(context.capabilities, "tenant.suspend");
   const canActivateSchoolAdmin = hasCapability(context.capabilities, "school_admin.activate");
-  const canReadAudit = hasCapability(context.capabilities, "audit.read.global");
-
-  async function handleLogout() {
-    await logout();
-    router.replace("/app/platform-admin/login");
-  }
 
   return (
     <main>
-      <nav>
-        <Link href="/app/platform-admin/independent-educators">
-          {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.independentEducators")}
-        </Link>{" "}
-        {canReadAudit ? <Link href="/app/platform-admin/audit">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.audit")}</Link> : null}{" "}
-        <Link href="/app/platform-admin/convergence-requests">
-          {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.convergenceRequests")}
-        </Link>{" "}
-        <Button type="button" onClick={handleLogout}>
-          {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.logout")}
-        </Button>
-      </nav>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.title")}</h1>
 
       {result.status === "loading" ? <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage> : null}
@@ -74,10 +53,13 @@ function PlatformAdminHomeView({ context }: { context: PlatformContext }) {
             {
               key: "status",
               header: t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.columnStatus"),
-              render: (row) =>
-                row.status === "ACTIVE"
-                  ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.statusActive")
-                  : t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.statusSuspended"),
+              render: (row) => (
+                <StatusBadge tone={row.status === "ACTIVE" ? "success" : "neutral"}>
+                  {row.status === "ACTIVE"
+                    ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.statusActive")
+                    : t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.statusSuspended")}
+                </StatusBadge>
+              ),
             },
             {
               key: "createdAt",
@@ -132,7 +114,7 @@ function CreateTenantForm({ csrfToken, onCreated }: { csrfToken: string; onCreat
   }
 
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.createTitle")}</h2>
       <form onSubmit={handleSubmit}>
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.tenants.createNameLabel")}>
