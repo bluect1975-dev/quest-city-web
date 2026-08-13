@@ -1,4 +1,4 @@
-import type { ConvergenceRequest, MigrationExecution } from "@quest-city-web/convergence";
+import type { ConvergenceRequest, MigrationExecution, MigrationPlan } from "@quest-city-web/convergence";
 
 /**
  * OpenAPI v1.12 `ConvergenceRequestSummary` requires `requestedAt`; the
@@ -13,6 +13,22 @@ export function toConvergenceRequestSummary(request: ConvergenceRequest): Conver
 
 export function toConvergenceRequestSummaryList(requests: ConvergenceRequest[]): Array<ConvergenceRequest & { requestedAt: Date }> {
   return requests.map(toConvergenceRequestSummary);
+}
+
+/**
+ * Additive enrichment of `ConvergenceRequestSummary` for the staff-session
+ * detail read: includes the current `migrationPlan` (fingerprint,
+ * classesConsidered, already-recorded classDecisions/ownershipDecisions,
+ * ownershipDecisionsPending) so the approving party's UI can render
+ * per-class TRANSFER/RETAIN choices without a new endpoint -- this is the
+ * same data PLATFORM_ADMIN already sees via `POST .../preview`, just
+ * surfaced as a read on the request's already-generated plan.
+ */
+export function toConvergenceRequestSummaryWithPlan(
+  request: ConvergenceRequest,
+  migrationPlan: MigrationPlan | null,
+): ConvergenceRequest & { requestedAt: Date; migrationPlan: MigrationPlan | null } {
+  return { ...toConvergenceRequestSummary(request), migrationPlan };
 }
 
 /**

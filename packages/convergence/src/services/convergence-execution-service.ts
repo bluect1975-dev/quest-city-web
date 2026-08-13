@@ -71,25 +71,54 @@ export class ConvergenceExecutionService {
       throw new PlatformAdminError("IDEMPOTENCY_IN_PROGRESS", undefined, { retryAfterSeconds: 5 });
     }
 
-    const convergenceRunId = `run_${randomUUID()}`;
+    // Resume support (02_38 v1.4 §10.5, ConvergenceRollbackReviewService's
+    // own contract): RETRY_REMAINING leaves `currentMigrationExecutionId`
+    // pointing at the prior execution, now reset to status PENDING.
+    // `migration_execution.convergence_run_id` is UNIQUE, so "same
+    // convergence_run_id" (the contract's own wording) can only mean
+    // reusing that SAME row -- never a second INSERT. `priorCheckpoint`
+    // seeds the lookup below so every unit can skip re-processing anything
+    // already MIGRATED/RETAINED and retry only what previously FAILED (or
+    // was never attempted).
+    const priorExecution = request.currentMigrationExecutionId ? await this.executions.findById(request.currentMigrationExecutionId) : null;
+    const isResume = Boolean(priorExecution && priorExecution.status === "PENDING");
+    const priorCheckpoint: UnitCheckpointEntry[] = isResume ? priorExecution!.checkpoint : [];
+    const priorOutcome = (unitType: UnitCheckpointEntry["unitType"], unitId: string): UnitCheckpointEntry | undefined =>
+      priorCheckpoint.find((entry) => entry.unitType === unitType && entry.unitId === unitId);
+
     const unitsTotal = 1 + plan.classDecisions.length;
-    const execution = await this.executions.create({
-      migrationPlanId: plan.id,
-      convergenceRequestId: requestId,
-      convergenceRunId,
-      unitsTotal,
-    });
-    await this.requests.transition(requestId, "EXECUTING", "EXECUTING", { currentMigrationExecutionId: execution.id });
-    await this.audit.record({
-      tenantId: request.targetTenantId,
-      actorType: "PLATFORM_ADMIN",
-      actorId: identity.staffAccountId,
-      action: "convergence.execution_started",
-      targetType: "migration_execution",
-      targetId: execution.id,
-      result: "SUCCESS",
-      metadataRedacted: { unitsTotal },
-    });
+    let execution: MigrationExecution;
+    if (isResume) {
+      execution = await this.executions.markResumed(priorExecution!.id);
+      await this.audit.record({
+        tenantId: request.targetTenantId,
+        actorType: "PLATFORM_ADMIN",
+        actorId: identity.staffAccountId,
+        action: "convergence.execution_resumed",
+        targetType: "migration_execution",
+        targetId: execution.id,
+        result: "SUCCESS",
+        metadataRedacted: { convergenceRunId: execution.convergenceRunId },
+      });
+    } else {
+      execution = await this.executions.create({
+        migrationPlanId: plan.id,
+        convergenceRequestId: requestId,
+        convergenceRunId: `run_${randomUUID()}`,
+        unitsTotal,
+      });
+      await this.requests.transition(requestId, "EXECUTING", "EXECUTING", { currentMigrationExecutionId: execution.id });
+      await this.audit.record({
+        tenantId: request.targetTenantId,
+        actorType: "PLATFORM_ADMIN",
+        actorId: identity.staffAccountId,
+        action: "convergence.execution_started",
+        targetType: "migration_execution",
+        targetId: execution.id,
+        result: "SUCCESS",
+        metadataRedacted: { unitsTotal },
+      });
+    }
 
     const checkpoint: UnitCheckpointEntry[] = [];
     let unitsMigrated = 0;
@@ -98,40 +127,58 @@ export class ConvergenceExecutionService {
     // Unit 1: membership (must run before any TRANSFER class unit, since
     // staff_class_assignment must point to the new target membership).
     let targetMembershipId: string | null = null;
-    try {
+    const priorMembership = priorOutcome("MEMBERSHIP", "membership");
+    if (priorMembership && priorMembership.outcome !== "FAILED") {
       const existingTarget = await this.memberships.findByStaffAccountAndTenant(request.educatorStaffAccountId, request.targetTenantId);
-      if (existingTarget && existingTarget.status === "ACTIVE") {
-        targetMembershipId = existingTarget.id;
-        checkpoint.push({ unitType: "MEMBERSHIP", unitId: "membership", outcome: "RETAINED" });
-      } else {
-        const created = await this.memberships.create({
-          staffAccountId: request.educatorStaffAccountId,
-          tenantId: request.targetTenantId,
-          role: "TEACHER",
-          status: "ACTIVE",
-        });
-        targetMembershipId = created.id;
-        checkpoint.push({ unitType: "MEMBERSHIP", unitId: "membership", outcome: "MIGRATED" });
-        await this.audit.record({
-          tenantId: request.targetTenantId,
-          actorType: "PLATFORM_ADMIN",
-          actorId: identity.staffAccountId,
-          action: "convergence.unit_migrated",
-          targetType: "staff_tenant_membership",
-          targetId: created.id,
-          result: "SUCCESS",
-          metadataRedacted: { unitType: "MEMBERSHIP" },
-        });
-      }
+      targetMembershipId = existingTarget && existingTarget.status === "ACTIVE" ? existingTarget.id : null;
+      checkpoint.push(priorMembership);
       unitsMigrated += 1;
-    } catch (error) {
-      checkpoint.push({ unitType: "MEMBERSHIP", unitId: "membership", outcome: "FAILED", reason: error instanceof Error ? error.message : String(error) });
-      unitsFailed += 1;
+    } else {
+      try {
+        const existingTarget = await this.memberships.findByStaffAccountAndTenant(request.educatorStaffAccountId, request.targetTenantId);
+        if (existingTarget && existingTarget.status === "ACTIVE") {
+          targetMembershipId = existingTarget.id;
+          checkpoint.push({ unitType: "MEMBERSHIP", unitId: "membership", outcome: "RETAINED" });
+        } else {
+          const created = await this.memberships.create({
+            staffAccountId: request.educatorStaffAccountId,
+            tenantId: request.targetTenantId,
+            role: "TEACHER",
+            status: "ACTIVE",
+          });
+          targetMembershipId = created.id;
+          checkpoint.push({ unitType: "MEMBERSHIP", unitId: "membership", outcome: "MIGRATED" });
+          await this.audit.record({
+            tenantId: request.targetTenantId,
+            actorType: "PLATFORM_ADMIN",
+            actorId: identity.staffAccountId,
+            action: "convergence.unit_migrated",
+            targetType: "staff_tenant_membership",
+            targetId: created.id,
+            result: "SUCCESS",
+            metadataRedacted: { unitType: "MEMBERSHIP" },
+          });
+        }
+        unitsMigrated += 1;
+      } catch (error) {
+        checkpoint.push({ unitType: "MEMBERSHIP", unitId: "membership", outcome: "FAILED", reason: error instanceof Error ? error.message : String(error) });
+        unitsFailed += 1;
+      }
     }
     await this.executions.recordUnitOutcome(execution.id, checkpoint, unitsMigrated, unitsFailed);
 
-    // Unit N: one per class.
+    // Unit N: one per class. A class already MIGRATED/RETAINED by the
+    // prior (retried) execution is carried forward as-is -- never
+    // re-transferred, never re-audited -- only FAILED or never-attempted
+    // classes are (re)processed here.
     for (const decision of plan.classDecisions) {
+      const priorClass = priorOutcome("CLASS", decision.classId);
+      if (priorClass && priorClass.outcome !== "FAILED") {
+        checkpoint.push(priorClass);
+        unitsMigrated += 1;
+        await this.executions.recordUnitOutcome(execution.id, checkpoint, unitsMigrated, unitsFailed);
+        continue;
+      }
       if (decision.decision === "RETAIN") {
         checkpoint.push({ unitType: "CLASS", unitId: decision.classId, outcome: "RETAINED" });
         unitsMigrated += 1;
@@ -288,6 +335,22 @@ export class ConvergenceExecutionService {
       await client.query(
         `UPDATE staff_class_assignment SET staff_tenant_membership_id = $1, tenant_id = $2 WHERE class_id = $3 AND tenant_id = $4`,
         [targetMembershipId, targetTenantId, classId, sourceTenantId],
+      );
+
+      // The UPDATE above only repoints a row that already existed at the
+      // source tenant. An INDEPENDENT_EDUCATOR membership (this migration's
+      // primary case) has no staff_class_assignment row at all -- its scope
+      // is implicitly "all classes of the tenant" -- so without this,
+      // targetMembershipId (freshly provisioned as TEACHER, whose scope is
+      // per-class only, 02_35 §3.2) would end up with zero visible classes
+      // despite having just received this exact class. ON CONFLICT DO
+      // NOTHING makes this safe to run unconditionally alongside the UPDATE
+      // (idempotent whether or not a row already landed above).
+      await client.query(
+        `INSERT INTO staff_class_assignment (staff_tenant_membership_id, tenant_id, class_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (staff_tenant_membership_id, class_id) DO NOTHING`,
+        [targetMembershipId, targetTenantId, classId],
       );
 
       await client.query(`UPDATE school_class SET tenant_id = $1 WHERE id = $2 AND tenant_id = $3`, [targetTenantId, classId, sourceTenantId]);

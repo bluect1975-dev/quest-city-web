@@ -118,6 +118,22 @@ export class MigrationExecutionRepository {
     return mapRow(row);
   }
 
+  /**
+   * RETRY_REMAINING resume (02_38 v1.4 §10.5): moves a PENDING row (set by
+   * `resolveRollbackReview`) back to IN_PROGRESS on the SAME row --
+   * `convergence_run_id` is UNIQUE, so a retry can never be a second
+   * INSERT with the same run id, only a continuation of this one.
+   */
+  async markResumed(id: string): Promise<MigrationExecution> {
+    const result = await this.db.query<MigrationExecutionRow>(
+      `UPDATE migration_execution SET status = 'IN_PROGRESS' WHERE id = $1 AND status = 'PENDING' RETURNING ${SELECT_COLUMNS}`,
+      [id],
+    );
+    const [row] = result.rows;
+    if (!row) throw new Error("markResumed: row not found or not in PENDING status");
+    return mapRow(row);
+  }
+
   async recordUnitOutcome(id: string, checkpoint: UnitCheckpointEntry[], unitsMigrated: number, unitsFailed: number): Promise<void> {
     await this.db.query(
       `UPDATE migration_execution SET checkpoint_json = $2, units_migrated = $3, units_failed = $4 WHERE id = $1`,

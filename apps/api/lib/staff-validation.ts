@@ -32,10 +32,10 @@ export function validateOptionalTenantId(value: unknown): string | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
-  if (typeof value !== "string" || value.length === 0) {
+  if (typeof value !== "string" || value.trim().length === 0) {
     throw new StaffIdentityError("VALIDATION_ERROR", "tenantId must be a non-empty string when provided");
   }
-  return value;
+  return value.trim();
 }
 
 export function requireIdempotencyKey(request: Request): string {

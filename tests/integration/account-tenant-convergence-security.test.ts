@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { PlatformAuthService, type Capability, type PlatformAdminIdentity } from "@quest-city-web/platform-admin";
-import { hashPassword, type StaffInternalIdentity } from "@quest-city-web/staff-identity";
+import { hashPassword, StaffAuthService, type StaffInternalIdentity } from "@quest-city-web/staff-identity";
 import {
   ConvergenceRequestRepository,
   MigrationPlanRepository,
@@ -648,6 +648,23 @@ describe("Full happy path: create -> preview -> approve x2 -> execute -> COMPLET
       [fx.educator.staffAccountId, fx.targetTenantId],
     );
     expect(newMembership.rows[0]).toMatchObject({ role: "TEACHER", status: "ACTIVE" });
+
+    // Regression (bug found during Tranche D closure walkthrough): the
+    // educator's new membership is TEACHER, whose scope is per-class only
+    // (02_35 §3.2, enforced by the staff_class_assignment_teacher_only
+    // trigger) -- unlike the INDEPENDENT_EDUCATOR membership it came from,
+    // which had implicit access to every class and so never held a
+    // staff_class_assignment row to begin with. Without an explicit INSERT
+    // for the freshly transferred class, the newly provisioned teacher
+    // would see zero classes in the target school despite the class having
+    // just migrated to them.
+    const classAssignment = await pool.query<{ id: string }>(
+      `SELECT sca.id FROM staff_class_assignment sca
+       JOIN staff_tenant_membership stm ON stm.id = sca.staff_tenant_membership_id
+       WHERE stm.staff_account_id = $1 AND stm.tenant_id = $2 AND sca.class_id = $3`,
+      [fx.educator.staffAccountId, fx.targetTenantId, classId],
+    );
+    expect(classAssignment.rows).toHaveLength(1);
   });
 });
 
@@ -975,6 +992,150 @@ describe("Rollback review: partial failure -> ROLLBACK_REVIEW_REQUIRED -> ACCEPT
       : null;
     expect(finalExecution?.status).toBe("COMPLETED");
     expect(finalExecution?.rollbackReviewStatus).toBe("ACCEPTED_PARTIAL");
+  });
+});
+
+describe("RETRY_REMAINING resumes from checkpoint (02_38 v1.4 §10.5, ConvergenceRollbackReviewService's contract)", () => {
+  beforeEach(truncateAll);
+  afterAll(truncateAll);
+
+  it("a second execute() after RETRY_REMAINING reuses the same convergenceRunId, only retries the previously-FAILED class, and never re-migrates or re-audits the class that already succeeded", async () => {
+    const fx = await buildConvergenceFixture();
+
+    const classSucceed = await createClass(fx.sourceTenantId, "Succeeds first time");
+    const okStudent = await createStudent(fx.sourceTenantId);
+    await enrollStudent(fx.sourceTenantId, classSucceed, okStudent, "OkStudent");
+
+    // Same deterministic single-failure setup as the ACCEPT_PARTIAL test
+    // above: a third, undecided class shares a student with classFail so
+    // exactly classFail's transfer fails on the first execute() call.
+    const classFail = await createClass(fx.sourceTenantId, "Fails then retried");
+    const classUntouched = await createClass(fx.sourceTenantId, "Conflict source");
+    const conflictedStudent = await createStudent(fx.sourceTenantId);
+    const failEnrollmentId = await enrollStudent(fx.sourceTenantId, classFail, conflictedStudent, "ConflictedStudent");
+    await enrollStudent(fx.sourceTenantId, classUntouched, conflictedStudent, "ConflictedStudentElsewhere");
+
+    const created = await requestService.create(fx.educator, {
+      sourceTenantId: fx.sourceTenantId,
+      targetTenantId: fx.targetTenantId,
+      idempotencyKey: idempotencyKey(),
+    });
+    await createPlatformAdmin("retry-admin@example.org");
+    const platform = await platformIdentity("retry-admin@example.org");
+    const plan = await previewService.preview(platform, created.id);
+
+    await approvalService.approve(fx.educator, created.id, {
+      migrationPlanFingerprint: plan.fingerprint,
+      classDecisions: [
+        { classId: classSucceed, decision: "TRANSFER" },
+        { classId: classFail, decision: "TRANSFER" },
+      ],
+    });
+    await approvalService.approve(fx.schoolAdmin, created.id, { migrationPlanFingerprint: plan.fingerprint });
+
+    const firstExecution = await executeConvergence(platform, created.id, idempotencyKey());
+    expect(firstExecution.status).toBe("ROLLBACK_REVIEW_REQUIRED");
+    expect(firstExecution.unitsFailed).toBe(1);
+    expect(firstExecution.unitsMigrated).toBe(2); // membership + classSucceed
+
+    // classSucceed already migrated -- confirm exactly one audit event
+    // before the retry, so a post-retry re-check proves no duplicate.
+    const migratedAuditBeforeRetry = await pool.query<{ count: string }>(
+      `SELECT count(*)::text FROM audit_event WHERE action = 'convergence.unit_migrated' AND target_id = $1`,
+      [classSucceed],
+    );
+    expect(migratedAuditBeforeRetry.rows[0]!.count).toBe("1");
+
+    const reviewed = await rollbackService.resolve(platform, created.id, "RETRY_REMAINING");
+    expect(reviewed.status).toBe("READY_TO_EXECUTE");
+
+    // Resolve the real-world conflict an operator would fix before
+    // retrying: remove the student's enrollment from the OTHER class
+    // entirely (not merely flip its status) -- once classFail's transfer
+    // moves conflictedStudent's student_profile.tenant_id to the target
+    // tenant, ANY remaining school_enrollment row for that student still
+    // pointing at the source tenant (even a LEFT one) would permanently
+    // violate the composite FK school_enrollment(student_profile_id,
+    // tenant_id) -> student_profile(id, tenant_id), deferred or not.
+    await pool.query(`DELETE FROM school_enrollment WHERE class_id = $1 AND student_profile_id = $2`, [
+      classUntouched,
+      conflictedStudent,
+    ]);
+
+    const secondExecution = await executeConvergence(platform, created.id, idempotencyKey());
+    expect(secondExecution.status).toBe("COMPLETED");
+    expect(secondExecution.unitsFailed).toBe(0);
+    expect(secondExecution.unitsMigrated).toBe(3); // membership + classSucceed (carried forward) + classFail (now migrated)
+    expect(secondExecution.convergenceRunId).toBe(firstExecution.convergenceRunId);
+
+    // The retried class actually transferred this time.
+    const failClassRow = await pool.query<{ tenant_id: string }>(`SELECT tenant_id FROM school_class WHERE id = $1`, [classFail]);
+    expect(failClassRow.rows[0]!.tenant_id).toBe(fx.targetTenantId);
+    const failEnrollmentRow = await pool.query<{ tenant_id: string }>(`SELECT tenant_id FROM school_enrollment WHERE id = $1`, [
+      failEnrollmentId,
+    ]);
+    expect(failEnrollmentRow.rows[0]!.tenant_id).toBe(fx.targetTenantId);
+
+    // classSucceed was carried forward, never re-transferred/re-audited.
+    const migratedAuditAfterRetry = await pool.query<{ count: string }>(
+      `SELECT count(*)::text FROM audit_event WHERE action = 'convergence.unit_migrated' AND target_id = $1`,
+      [classSucceed],
+    );
+    expect(migratedAuditAfterRetry.rows[0]!.count).toBe("1");
+
+    // The membership unit was likewise carried forward, not re-created/re-audited.
+    const membershipAuditAfterRetry = await pool.query<{ count: string }>(
+      `SELECT count(*)::text FROM audit_event WHERE action = 'convergence.unit_migrated' AND target_type = 'staff_tenant_membership'`,
+    );
+    expect(membershipAuditAfterRetry.rows[0]!.count).toBe("1");
+  });
+});
+
+describe("StaffAuthService.start() tenantId disambiguation (multi-membership login, FVR-style bug found during Tranche D closure)", () => {
+  beforeEach(truncateAll);
+  afterAll(truncateAll);
+
+  async function seedTwoMembershipAccount(): Promise<{ email: string; sourceTenantId: string; targetTenantId: string }> {
+    const email = `multi-membership-${rnd()}@example.org`;
+    const sourceTenantId = await createTenant("INDEPENDENT_EDUCATOR", "Login Test Source");
+    const targetTenantId = await createTenant("SCHOOL", "Login Test Target");
+    const accountResult = await pool.query<{ id: string }>(
+      `INSERT INTO staff_account (email, password_hash, password_algorithm, status, created_by_actor_type, created_by_actor_id)
+       VALUES ($1, $2, 'scrypt', 'ACTIVE', 'ADMIN_SEED_SCRIPT', 'test-fixture') RETURNING id`,
+      [email, await hashPassword(PASSWORD)],
+    );
+    const staffAccountId = accountResult.rows[0]!.id;
+    await createMembership(staffAccountId, sourceTenantId, "INDEPENDENT_EDUCATOR");
+    await createMembership(staffAccountId, targetTenantId, "TEACHER");
+    return { email, sourceTenantId, targetTenantId };
+  }
+
+  it("resolves a real membership's tenantId even when the caller sends it uppercase (as many SQL clients render UUIDs)", async () => {
+    const authService = new StaffAuthService(pool);
+    const { email, targetTenantId } = await seedTwoMembershipAccount();
+
+    const result = await authService.start({ email, password: PASSWORD, tenantId: targetTenantId.toUpperCase(), clientIp: "127.0.0.1" });
+    expect(result.tenantId).toBe(targetTenantId);
+    expect(result.role).toBe("TEACHER");
+  });
+
+  it("resolves a real membership's tenantId even with surrounding whitespace", async () => {
+    const authService = new StaffAuthService(pool);
+    const { email, sourceTenantId } = await seedTwoMembershipAccount();
+
+    const result = await authService.start({ email, password: PASSWORD, tenantId: `  ${sourceTenantId}  `, clientIp: "127.0.0.1" });
+    expect(result.tenantId).toBe(sourceTenantId);
+    expect(result.role).toBe("INDEPENDENT_EDUCATOR");
+  });
+
+  it("still rejects a tenantId that genuinely does not match any of the account's memberships (control case)", async () => {
+    const authService = new StaffAuthService(pool);
+    const { email } = await seedTwoMembershipAccount();
+    const unrelatedTenantId = await createTenant("SCHOOL", "Genuinely Unrelated");
+
+    await expect(authService.start({ email, password: PASSWORD, tenantId: unrelatedTenantId, clientIp: "127.0.0.1" })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
   });
 });
 

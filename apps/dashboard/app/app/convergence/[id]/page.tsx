@@ -9,8 +9,9 @@ import { RequireStaffAuth } from "../../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../../lib/staff-auth-context";
 import { useAsync } from "../../../../lib/useAsync";
 import { staffErrorText } from "../../../../lib/staff-error-text";
+import { StaffApiError } from "../../../../lib/staff-api-error";
 import { approveConvergenceRequest, getConvergenceRequest, rejectConvergenceRequest } from "../../../../lib/staff-api-client";
-import type { ConvergenceRequest, ConvergenceRequestStatus } from "../../../../lib/staff-api-types";
+import type { ClassMigrationDecision, ConvergenceRequest, ConvergenceRequestStatus, MigrationPlan } from "../../../../lib/staff-api-types";
 
 const STATUS_KEY_BY_STATUS: Record<ConvergenceRequestStatus, string> = {
   REQUESTED: "app.convergence.statusRequested",
@@ -28,14 +29,16 @@ const STATUS_KEY_BY_STATUS: Record<ConvergenceRequestStatus, string> = {
 
 /**
  * `/app/convergence/{id}` staff-session detail/approval page (02_38 v1.4
- * §10.2bis/§12). There is no staff-session-reachable endpoint to fetch the
- * body of the current migration plan (only PLATFORM_ADMIN's `POST
- * .../preview` returns one) -- so, per this tranche's minimal-pass scope,
- * the approve form takes the migration plan fingerprint as a plain text
- * input (relayed out-of-band from whoever ran the preview step) rather
- * than a read-only auto-populated field, and never offers per-class /
- * per-resource decision controls (both optional on the wire per
- * `ApproveConvergenceRequestRequest`).
+ * §10.2bis/§12). `GET /convergence-requests/{id}` additively includes the
+ * current `migrationPlan` (see `apps/api/lib/convergence-serialization.ts`),
+ * so the approve form renders the real classesConsidered list and lets the
+ * approving party choose TRANSFER/RETAIN explicitly per class, with the
+ * fingerprint taken automatically from the fetched plan rather than typed
+ * in. `ownershipDecisions` are omitted here: `ConvergencePreviewService`
+ * never populates `ownershipDecisionsPending` in this tranche (no
+ * owned-content table yet, same disclosed gap as
+ * `ContentPromotionService.promote` always returning CONTENT_NOT_FOUND),
+ * so there is nothing for this UI to represent.
  */
 export default function StaffConvergenceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -88,7 +91,7 @@ function ConvergenceDetailView({ id }: { id: string }) {
           ) : null}
 
           {result.data.status === "PREVIEW_READY" || result.data.status === "AWAITING_APPROVALS" ? (
-            <ApproveForm id={id} csrfToken={csrfToken ?? ""} onDone={result.reload} />
+            <ApproveForm id={id} csrfToken={csrfToken ?? ""} migrationPlan={result.data.migrationPlan ?? null} onDone={result.reload} onReload={result.reload} />
           ) : null}
           {result.data.status === "AWAITING_APPROVALS" ? <RejectForm id={id} csrfToken={csrfToken ?? ""} onDone={result.reload} /> : null}
         </>
@@ -97,21 +100,62 @@ function ConvergenceDetailView({ id }: { id: string }) {
   );
 }
 
-function ApproveForm({ id, csrfToken, onDone }: { id: string; csrfToken: string; onDone: () => void }) {
-  const [fingerprint, setFingerprint] = useState("");
+function initialClassDecisions(migrationPlan: MigrationPlan): Record<string, ClassMigrationDecision> {
+  const decided = new Map(migrationPlan.classDecisions.map((entry) => [entry.classId, entry.decision]));
+  const initial: Record<string, ClassMigrationDecision> = {};
+  for (const cls of migrationPlan.classesConsidered) {
+    initial[cls.classId] = decided.get(cls.classId) ?? cls.suggestedDecision;
+  }
+  return initial;
+}
+
+function ApproveForm({
+  id,
+  csrfToken,
+  migrationPlan,
+  onDone,
+  onReload,
+}: {
+  id: string;
+  csrfToken: string;
+  migrationPlan: MigrationPlan | null;
+  onDone: () => void;
+  onReload: () => void;
+}) {
+  const [decisions, setDecisions] = useState<Record<string, ClassMigrationDecision>>(() => (migrationPlan ? initialClassDecisions(migrationPlan) : {}));
+  const [decisionsFingerprint, setDecisionsFingerprint] = useState<string | null>(migrationPlan?.fingerprint ?? null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isStale, setIsStale] = useState(false);
+
+  // Re-seed the per-class selection whenever a *different* plan is loaded
+  // (a fresh reload after a stale-fingerprint error, or the first load) --
+  // never on every render, so the approver's in-progress choices are not
+  // silently reset while they are still deciding.
+  if (migrationPlan && migrationPlan.fingerprint !== decisionsFingerprint) {
+    setDecisions(initialClassDecisions(migrationPlan));
+    setDecisionsFingerprint(migrationPlan.fingerprint);
+    setIsStale(false);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!csrfToken) return;
+    if (!csrfToken || !migrationPlan) return;
     setSubmitting(true);
     setError(null);
+    setIsStale(false);
     try {
-      await approveConvergenceRequest({ id, migrationPlanFingerprint: fingerprint, csrfToken });
-      setFingerprint("");
+      await approveConvergenceRequest({
+        id,
+        migrationPlanFingerprint: migrationPlan.fingerprint,
+        classDecisions: migrationPlan.classesConsidered.map((cls) => ({ classId: cls.classId, decision: decisions[cls.classId] ?? cls.suggestedDecision })),
+        csrfToken,
+      });
       onDone();
     } catch (caught) {
+      if (caught instanceof StaffApiError && caught.code === "CONVERGENCE_PREVIEW_STALE") {
+        setIsStale(true);
+      }
       setError(staffErrorText(caught));
     } finally {
       setSubmitting(false);
@@ -121,21 +165,59 @@ function ApproveForm({ id, csrfToken, onDone }: { id: string; csrfToken: string;
   return (
     <section>
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveTitle")}</h2>
-      <form onSubmit={handleSubmit}>
-        <FormField
-          label={t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveFingerprintLabel")}
-          hint={t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveFingerprintHint")}
-        >
-          {(fieldProps) => (
-            <input {...fieldProps} type="text" required value={fingerprint} onChange={(e) => setFingerprint(e.target.value)} />
-          )}
-        </FormField>
-        <Button type="submit" disabled={submitting || !csrfToken}>
-          {submitting
-            ? t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveSubmitting")
-            : t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveSubmit")}
-        </Button>
-      </form>
+      {!migrationPlan ? <StatusMessage kind="loading">{t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.noPlanMessage")}</StatusMessage> : null}
+      {migrationPlan ? (
+        <form onSubmit={handleSubmit}>
+          <h3>{t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.classesTitle")}</h3>
+          {migrationPlan.classesConsidered.map((cls) => (
+            <fieldset key={cls.classId}>
+              <legend>
+                {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.classIdLabel")}: {cls.classId} (
+                {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.studentsInClassLabel")}: {cls.studentsInClass})
+              </legend>
+              {cls.hasNonSchoolStudents ? (
+                <StatusMessage kind="error">{t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.hasNonSchoolStudentsWarning")}</StatusMessage>
+              ) : null}
+              <label>
+                <input
+                  type="radio"
+                  name={`decision-${cls.classId}`}
+                  value="TRANSFER"
+                  checked={decisions[cls.classId] === "TRANSFER"}
+                  onChange={() => setDecisions((prev) => ({ ...prev, [cls.classId]: "TRANSFER" }))}
+                />
+                {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.decisionTransfer")}
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`decision-${cls.classId}`}
+                  value="RETAIN"
+                  checked={decisions[cls.classId] === "RETAIN"}
+                  onChange={() => setDecisions((prev) => ({ ...prev, [cls.classId]: "RETAIN" }))}
+                />
+                {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.decisionRetain")}
+              </label>
+            </fieldset>
+          ))}
+          <p>
+            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.fingerprintCurrentLabel")}: {migrationPlan.fingerprint}
+          </p>
+          <Button type="submit" disabled={submitting || !csrfToken}>
+            {submitting
+              ? t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveSubmitting")
+              : t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveSubmit")}
+          </Button>
+        </form>
+      ) : null}
+      {isStale ? (
+        <StatusMessage kind="error">
+          {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveStaleFingerprintError")}
+          <Button type="button" variant="secondary" onClick={onReload}>
+            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.reloadPlanButton")}
+          </Button>
+        </StatusMessage>
+      ) : null}
       {error ? <StatusMessage kind="error">{error}</StatusMessage> : null}
     </section>
   );

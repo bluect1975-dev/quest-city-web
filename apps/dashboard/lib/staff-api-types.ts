@@ -238,6 +238,48 @@ export interface ConvergenceRequest {
   failureCode: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Only present on `GET /convergence-requests/{id}` (party-scoped detail read), never on the list endpoint. */
+  migrationPlan?: MigrationPlan | null;
+}
+
+export interface ClassConsidered {
+  classId: string;
+  suggestedDecision: ClassMigrationDecision;
+  studentsInClass: number;
+  hasNonSchoolStudents: boolean;
+}
+
+export interface ClassDecisionEntry {
+  classId: string;
+  decision: ClassMigrationDecision;
+}
+
+export interface OwnershipDecisionEntry {
+  resourceId: string;
+  decision: OwnershipDecision;
+}
+
+/**
+ * `MigrationPlanResponse.data` (contracts/quest-city-platform-openapi-v1_12.yaml).
+ * Surfaced additively on `GET /convergence-requests/{id}` for the approving
+ * party. `ownershipDecisionsPending` is part of the wire schema but is
+ * never populated by `ConvergencePreviewService` in this tranche -- there
+ * is no owned-content table yet (same disclosed gap as
+ * `ContentPromotionService.promote` always returning CONTENT_NOT_FOUND) --
+ * so it is intentionally not declared here; the approve UI renders no
+ * ownership-decision controls until a real pending resource can exist.
+ */
+export interface MigrationPlan {
+  id: string;
+  convergenceRequestId: string;
+  fingerprint: string;
+  status: "DRAFT" | "CONFIRMED" | "STALE";
+  classesConsidered: ClassConsidered[];
+  classDecisions: ClassDecisionEntry[];
+  ownershipDecisions: OwnershipDecisionEntry[];
+  warnings: string[];
+  blockers: string[];
+  generatedAt: string;
 }
 
 /** Per-class decision, 02_38 v1.4 §12 options A (TRANSFER) and B (RETAIN) -- always explicit and audited per class, never a tenant-wide default. */

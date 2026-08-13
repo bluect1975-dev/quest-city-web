@@ -1,0 +1,8 @@
+# Vendored canonical artifacts (contracts/, content-schema/schemas/vendor/) are
+# byte-exact copies verified by SHA-256 checksum against provenance.json. Any
+# EOL normalization (e.g. core.autocrlf=true converting LF -> CRLF on
+# checkout) silently changes their bytes without a semantic diff, breaking
+# checksum verification. Mark them binary so Git never rewrites their bytes,
+# regardless of the developer's global core.autocrlf setting.
+packages/contracts/vendor/** -text
+packages/content-schema/schemas/vendor/** -text
