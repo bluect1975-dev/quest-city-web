@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button, EmptyState, FormField, StatusMessage, Table } from "@quest-city-web/ui";
+import { Button, EmptyState, FormField, StatusBadge, StatusMessage, Table, type StatusBadgeTone } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../lib/staff-auth-context";
@@ -24,6 +24,20 @@ const STATUS_KEY_BY_STATUS: Record<ConvergenceRequestStatus, string> = {
   BLOCKED: "app.convergence.statusBlocked",
   FAILED: "app.convergence.statusFailed",
   ROLLBACK_REVIEW_REQUIRED: "app.convergence.statusRollbackReviewRequired",
+};
+
+const STATUS_TONE_BY_STATUS: Record<ConvergenceRequestStatus, StatusBadgeTone> = {
+  REQUESTED: "neutral",
+  PREVIEW_READY: "info",
+  AWAITING_APPROVALS: "warning",
+  APPROVED: "info",
+  READY_TO_EXECUTE: "info",
+  EXECUTING: "info",
+  COMPLETED: "success",
+  REJECTED: "danger",
+  BLOCKED: "danger",
+  FAILED: "danger",
+  ROLLBACK_REVIEW_REQUIRED: "warning",
 };
 
 /**
@@ -48,9 +62,6 @@ function ConvergenceView({ context }: { context: StaffContext }) {
 
   return (
     <main>
-      <nav>
-        <Link href="/app">{t(DASHBOARD_CATALOG_IT_IT, "app.nav.home")}</Link>
-      </nav>
       <TenantSwitcher csrfToken={csrfToken ?? ""} />
 
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.convergence.title")}</h1>
@@ -77,7 +88,11 @@ function ConvergenceView({ context }: { context: StaffContext }) {
             {
               key: "status",
               header: t(DASHBOARD_CATALOG_IT_IT, "app.convergence.columnStatus"),
-              render: (row) => t(DASHBOARD_CATALOG_IT_IT, STATUS_KEY_BY_STATUS[row.status]),
+              render: (row) => (
+                <StatusBadge tone={STATUS_TONE_BY_STATUS[row.status]}>
+                  {t(DASHBOARD_CATALOG_IT_IT, STATUS_KEY_BY_STATUS[row.status])}
+                </StatusBadge>
+              ),
             },
             {
               key: "open",
@@ -152,7 +167,7 @@ function CreateConvergenceRequestForm({
   }
 
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.convergence.createTitle")}</h2>
       <form onSubmit={handleSubmit}>
         <FormField
@@ -160,13 +175,20 @@ function CreateConvergenceRequestForm({
             DASHBOARD_CATALOG_IT_IT,
             role === "INDEPENDENT_EDUCATOR" ? "app.convergence.targetTenantIdLabel" : "app.convergence.sourceTenantIdLabel",
           )}
+          hint={t(
+            DASHBOARD_CATALOG_IT_IT,
+            role === "INDEPENDENT_EDUCATOR" ? "app.convergence.targetTenantIdHint" : "app.convergence.sourceTenantIdHint",
+          )}
         >
           {(fieldProps) => (
             <input {...fieldProps} type="text" required value={otherTenantId} onChange={(e) => setOtherTenantId(e.target.value)} />
           )}
         </FormField>
         {role === "SCHOOL_ADMIN" ? (
-          <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.convergence.educatorStaffAccountIdLabel")}>
+          <FormField
+            label={t(DASHBOARD_CATALOG_IT_IT, "app.convergence.educatorStaffAccountIdLabel")}
+            hint={t(DASHBOARD_CATALOG_IT_IT, "app.convergence.educatorStaffAccountIdHint")}
+          >
             {(fieldProps) => (
               <input
                 {...fieldProps}
@@ -213,7 +235,7 @@ function TenantSwitcher({ csrfToken }: { csrfToken: string }) {
   }
 
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.tenantSwitcher.title")}</h2>
       {result.status === "loading" ? <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage> : null}
       {result.status === "error" ? <StatusMessage kind="error">{result.message}</StatusMessage> : null}

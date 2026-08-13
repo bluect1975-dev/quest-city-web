@@ -143,17 +143,17 @@ function AttemptReviewView({
       {result.status === "error" ? <StatusMessage kind="error">{result.message}</StatusMessage> : null}
       {result.status === "success" ? (
         <>
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.studentAnswerTitle")}</h2>
             <pre>{JSON.stringify(result.data.studentAnswer, null, 2)}</pre>
           </section>
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.semanticActionsTitle")}</h2>
             <pre>{JSON.stringify(result.data.semanticActions ?? [], null, 2)}</pre>
           </section>
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.hintsTitle")}</h2>
             {(result.data.hints ?? []).length === 0 ? (
               <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.noHints")} />
@@ -163,13 +163,13 @@ function AttemptReviewView({
           </section>
 
           {result.data.validatorOutcome ? (
-            <section>
+            <section className="qc-card">
               <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.validatorOutcomeTitle")}</h2>
               <pre>{JSON.stringify(result.data.validatorOutcome, null, 2)}</pre>
             </section>
           ) : null}
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.previousAttemptsTitle")}</h2>
             {(result.data.previousAttempts ?? []).length === 0 ? (
               <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.noPreviousAttempts")} />
@@ -180,7 +180,7 @@ function AttemptReviewView({
         </>
       ) : null}
 
-      <section>
+      <section className="qc-card">
         <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.feedbackFormTitle")}</h2>
         {!feedback ? (
           <>
@@ -234,7 +234,7 @@ function AttemptReviewView({
       </section>
 
       {feedback?.publicationStatus === "PUBLISHED" ? (
-        <section>
+        <section className="qc-card">
           <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.recoveryAssignmentTitle")}</h2>
           {!recoveryAssignment ? (
             <>

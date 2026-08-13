@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Button, StatusMessage, Table } from "@quest-city-web/ui";
+import { Button, StatusBadge, StatusMessage, Table, type StatusBadgeTone } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequirePlatformAuth } from "../../../../../lib/RequirePlatformAuth";
 import { usePlatformAuth } from "../../../../../lib/platform-auth-context";
@@ -38,6 +38,20 @@ const STATUS_KEY_BY_STATUS: Record<ConvergenceRequestStatus, string> = {
   BLOCKED: "app.convergence.statusBlocked",
   FAILED: "app.convergence.statusFailed",
   ROLLBACK_REVIEW_REQUIRED: "app.convergence.statusRollbackReviewRequired",
+};
+
+const STATUS_TONE_BY_STATUS: Record<ConvergenceRequestStatus, StatusBadgeTone> = {
+  REQUESTED: "neutral",
+  PREVIEW_READY: "info",
+  AWAITING_APPROVALS: "warning",
+  APPROVED: "info",
+  READY_TO_EXECUTE: "info",
+  EXECUTING: "info",
+  COMPLETED: "success",
+  REJECTED: "danger",
+  BLOCKED: "danger",
+  FAILED: "danger",
+  ROLLBACK_REVIEW_REQUIRED: "warning",
 };
 
 function hasCapability(capabilities: Capability[], capability: Capability): boolean {
@@ -135,7 +149,9 @@ function ConvergenceRequestDetailView({ id, context }: { id: string; context: Pl
         <>
           <p>
             {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.statusLabel")}:{" "}
-            {t(DASHBOARD_CATALOG_IT_IT, STATUS_KEY_BY_STATUS[result.data.status])}
+            <StatusBadge tone={STATUS_TONE_BY_STATUS[result.data.status]}>
+              {t(DASHBOARD_CATALOG_IT_IT, STATUS_KEY_BY_STATUS[result.data.status])}
+            </StatusBadge>
           </p>
           <p>
             {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.sourceTenantIdLabel")}: {result.data.sourceTenantId}
@@ -153,7 +169,7 @@ function ConvergenceRequestDetailView({ id, context }: { id: string; context: Pl
           </p>
 
           {canPreview ? (
-            <section>
+            <section className="qc-card">
               <Button type="button" disabled={previewBusy || !csrfToken} onClick={() => void handlePreview()}>
                 {previewBusy
                   ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.previewSubmitting")
@@ -166,7 +182,7 @@ function ConvergenceRequestDetailView({ id, context }: { id: string; context: Pl
           {migrationPlan ? <MigrationPlanView plan={migrationPlan} /> : null}
 
           {canExecute && (result.data.status === "APPROVED" || result.data.status === "READY_TO_EXECUTE") ? (
-            <section>
+            <section className="qc-card">
               <Button type="button" disabled={executeBusy || !csrfToken} onClick={() => void handleExecute()}>
                 {executeBusy
                   ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.executeSubmitting")
@@ -179,7 +195,7 @@ function ConvergenceRequestDetailView({ id, context }: { id: string; context: Pl
           {migrationExecution ? <MigrationExecutionView execution={migrationExecution} /> : null}
 
           {canReviewRollback && result.data.status === "ROLLBACK_REVIEW_REQUIRED" ? (
-            <section>
+            <section className="qc-card">
               <h2>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.rollbackReviewTitle")}</h2>
               <Button
                 type="button"
@@ -207,7 +223,7 @@ function ConvergenceRequestDetailView({ id, context }: { id: string; context: Pl
 
 function MigrationPlanView({ plan }: { plan: MigrationPlan }) {
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.planTitle")}</h2>
       <p>
         {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.planFingerprintLabel")}: <code>{plan.fingerprint}</code>
@@ -277,7 +293,7 @@ function MigrationPlanView({ plan }: { plan: MigrationPlan }) {
 
 function MigrationExecutionView({ execution }: { execution: MigrationExecution }) {
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.executionTitle")}</h2>
       <p>
         {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequestDetail.executionStatusLabel")}: {execution.executionStatus}

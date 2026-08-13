@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
-import { Button, EmptyState, FormField, StatusMessage, Table } from "@quest-city-web/ui";
+import { Button, EmptyState, FormField, StatusBadge, StatusMessage, Table } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequirePlatformAuth } from "../../../../lib/RequirePlatformAuth";
 import { usePlatformAuth } from "../../../../lib/platform-auth-context";
@@ -38,9 +37,6 @@ function IndependentEducatorsView({ context }: { context: PlatformContext }) {
 
   return (
     <main>
-      <nav>
-        <Link href="/app/platform-admin">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.tenants")}</Link>
-      </nav>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.title")}</h1>
 
       {result.status === "loading" ? <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage> : null}
@@ -64,18 +60,24 @@ function IndependentEducatorsView({ context }: { context: PlatformContext }) {
             {
               key: "tenantStatus",
               header: t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.columnTenantStatus"),
-              render: (row) =>
-                row.tenantStatus === "ACTIVE"
-                  ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusActive")
-                  : t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusSuspended"),
+              render: (row) => (
+                <StatusBadge tone={row.tenantStatus === "ACTIVE" ? "success" : "neutral"}>
+                  {row.tenantStatus === "ACTIVE"
+                    ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusActive")
+                    : t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusSuspended")}
+                </StatusBadge>
+              ),
             },
             {
               key: "membershipStatus",
               header: t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.columnMembershipStatus"),
-              render: (row) =>
-                row.membershipStatus === "ACTIVE"
-                  ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusActive")
-                  : t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusSuspended"),
+              render: (row) => (
+                <StatusBadge tone={row.membershipStatus === "ACTIVE" ? "success" : "neutral"}>
+                  {row.membershipStatus === "ACTIVE"
+                    ? t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusActive")
+                    : t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.statusSuspended")}
+                </StatusBadge>
+              ),
             },
             {
               key: "createdAt",
@@ -172,7 +174,7 @@ function ActivateIndependentEducatorForm({ csrfToken, onCreated }: { csrfToken: 
   }
 
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.createTitle")}</h2>
       <form onSubmit={handleSubmit}>
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.independentEducators.createEmailLabel")}>

@@ -51,7 +51,8 @@ export default function StudentLoginPage() {
   }
 
   return (
-    <main>
+    <main className="qc-auth-page qc-student-auth-page">
+      <div className="qc-auth-brand">{t(STUDENT_WEB_CATALOG_IT_IT, "meta.title")}</div>
       <h1>{t(STUDENT_WEB_CATALOG_IT_IT, "login.title")}</h1>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "login.description")}</p>
       <form onSubmit={handleSubmit}>

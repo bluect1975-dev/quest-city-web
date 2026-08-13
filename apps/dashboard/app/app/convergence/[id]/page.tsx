@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Button, FormField, StatusMessage } from "@quest-city-web/ui";
+import { Button, FormField, StatusBadge, StatusMessage, type StatusBadgeTone } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../../lib/staff-auth-context";
@@ -25,6 +25,20 @@ const STATUS_KEY_BY_STATUS: Record<ConvergenceRequestStatus, string> = {
   BLOCKED: "app.convergence.statusBlocked",
   FAILED: "app.convergence.statusFailed",
   ROLLBACK_REVIEW_REQUIRED: "app.convergence.statusRollbackReviewRequired",
+};
+
+const STATUS_TONE_BY_STATUS: Record<ConvergenceRequestStatus, StatusBadgeTone> = {
+  REQUESTED: "neutral",
+  PREVIEW_READY: "info",
+  AWAITING_APPROVALS: "warning",
+  APPROVED: "info",
+  READY_TO_EXECUTE: "info",
+  EXECUTING: "info",
+  COMPLETED: "success",
+  REJECTED: "danger",
+  BLOCKED: "danger",
+  FAILED: "danger",
+  ROLLBACK_REVIEW_REQUIRED: "warning",
 };
 
 /**
@@ -61,34 +75,39 @@ function ConvergenceDetailView({ id }: { id: string }) {
       {result.status === "error" ? <StatusMessage kind="error">{result.message}</StatusMessage> : null}
       {result.status === "success" ? (
         <>
-          <p>
-            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.statusLabel")}: {t(DASHBOARD_CATALOG_IT_IT, STATUS_KEY_BY_STATUS[result.data.status])}
-          </p>
-          <p>
-            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.sourceTenantIdLabel")}: {result.data.sourceTenantId}
-          </p>
-          <p>
-            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.targetTenantIdLabel")}: {result.data.targetTenantId}
-          </p>
-          <p>
-            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.educatorStaffAccountIdLabel")}: {result.data.educatorStaffAccountId}
-          </p>
-          <p>
-            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.createdAtLabel")}: {new Date(result.data.createdAt).toLocaleString()}
-          </p>
-          <p>
-            {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.updatedAtLabel")}: {new Date(result.data.updatedAt).toLocaleString()}
-          </p>
-          {result.data.rejectionReason ? (
+          <section className="qc-card">
             <p>
-              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.rejectionReasonLabel")}: {result.data.rejectionReason}
+              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.statusLabel")}:{" "}
+              <StatusBadge tone={STATUS_TONE_BY_STATUS[result.data.status]}>
+                {t(DASHBOARD_CATALOG_IT_IT, STATUS_KEY_BY_STATUS[result.data.status])}
+              </StatusBadge>
             </p>
-          ) : null}
-          {result.data.failureCode ? (
             <p>
-              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.failureCodeLabel")}: {result.data.failureCode}
+              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.sourceTenantIdLabel")}: {result.data.sourceTenantId}
             </p>
-          ) : null}
+            <p>
+              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.targetTenantIdLabel")}: {result.data.targetTenantId}
+            </p>
+            <p>
+              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.educatorStaffAccountIdLabel")}: {result.data.educatorStaffAccountId}
+            </p>
+            <p>
+              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.createdAtLabel")}: {new Date(result.data.createdAt).toLocaleString()}
+            </p>
+            <p>
+              {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.updatedAtLabel")}: {new Date(result.data.updatedAt).toLocaleString()}
+            </p>
+            {result.data.rejectionReason ? (
+              <p>
+                {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.rejectionReasonLabel")}: {result.data.rejectionReason}
+              </p>
+            ) : null}
+            {result.data.failureCode ? (
+              <p>
+                {t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.failureCodeLabel")}: {result.data.failureCode}
+              </p>
+            ) : null}
+          </section>
 
           {result.data.status === "PREVIEW_READY" || result.data.status === "AWAITING_APPROVALS" ? (
             <ApproveForm id={id} csrfToken={csrfToken ?? ""} migrationPlan={result.data.migrationPlan ?? null} onDone={result.reload} onReload={result.reload} />
@@ -163,7 +182,7 @@ function ApproveForm({
   }
 
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.approveTitle")}</h2>
       {!migrationPlan ? <StatusMessage kind="loading">{t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.noPlanMessage")}</StatusMessage> : null}
       {migrationPlan ? (
@@ -245,7 +264,7 @@ function RejectForm({ id, csrfToken, onDone }: { id: string; csrfToken: string; 
   }
 
   return (
-    <section>
+    <section className="qc-card">
       <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.rejectTitle")}</h2>
       <form onSubmit={handleSubmit}>
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.convergenceDetail.rejectReasonLabel")}>

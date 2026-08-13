@@ -254,7 +254,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
           </h1>
 
           {canManageClass ? (
-            <section>
+            <section className="qc-card">
               <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.renameTitle")}</h2>
               <form onSubmit={handleRename}>
                 <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.renameLabel")}>
@@ -289,7 +289,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
             </section>
           ) : null}
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.progressTitle")}</h2>
             <p>
               {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.totalAttemptsLabel")}: {result.data.progress.totalAttempts}
@@ -297,7 +297,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
           </section>
 
           {canManageTeachers ? (
-            <section>
+            <section className="qc-card">
               <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.teachersTitle")}</h2>
               {(() => {
                 const assigned = result.data.staffMembers.filter(
@@ -363,7 +363,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
             </section>
           ) : null}
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.rosterTitle")}</h2>
             {result.data.roster.length === 0 ? (
               <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.emptyRoster")} />
@@ -451,7 +451,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
             ) : null}
           </section>
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentTitle")}</h2>
             <form onSubmit={handleAssignContent}>
               <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentBundleIdLabel")}>

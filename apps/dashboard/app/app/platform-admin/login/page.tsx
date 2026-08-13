@@ -40,7 +40,10 @@ export default function PlatformAdminLoginPage() {
   }
 
   return (
-    <main>
+    <main className="qc-auth-page qc-admin-auth-page">
+      <div className="qc-auth-brand">
+        {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.brandLabel")} · {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.brandBadge")}
+      </div>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.login.title")}</h1>
       <form onSubmit={handleSubmit}>
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.login.emailLabel")}>

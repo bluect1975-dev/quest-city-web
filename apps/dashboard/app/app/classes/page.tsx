@@ -52,7 +52,7 @@ function ClassesView({ canCreate }: { canCreate: boolean }) {
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.classes.title")}</h1>
 
       {canCreate ? (
-        <section>
+        <section className="qc-card">
           <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classes.createTitle")}</h2>
           <form onSubmit={handleCreate}>
             <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classes.createNameLabel")}>

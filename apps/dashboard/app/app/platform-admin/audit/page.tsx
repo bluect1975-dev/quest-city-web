@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { EmptyState, StatusMessage, Table } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequirePlatformAuth } from "../../../../lib/RequirePlatformAuth";
@@ -18,9 +17,6 @@ function PlatformAdminAuditView() {
 
   return (
     <main>
-      <nav>
-        <Link href="/app/platform-admin">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.tenants")}</Link>
-      </nav>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.audit.title")}</h1>
       {result.status === "loading" ? <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage> : null}
       {result.status === "error" ? <StatusMessage kind="error">{result.message}</StatusMessage> : null}
