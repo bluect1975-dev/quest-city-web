@@ -52,9 +52,25 @@ export interface StaffInternalIdentity extends StaffContext {
   staffTenantMembershipId: string;
   /** The active session's CSRF token hash — lets callers verify an `x-csrf-token` header without a second session lookup (02_35 §4.4). */
   csrfTokenHash: string;
+  /** The active session's own row id (Tranche D, 02_35 v1.5 §11quater.5) -- lets `TenantContextService.switchTenant` revoke exactly this session without a second session lookup by token. */
+  sessionId: string;
 }
 
 function normalizeEmail(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+/**
+ * UUIDs are case-insensitive at the database/wire level (a Postgres `uuid`
+ * column, and any SQL client that renders one uppercase for a manual
+ * lookup) -- but the `tenantId` disambiguation match below was a raw JS
+ * `===` with no normalization, unlike `email` two lines above. A
+ * legitimately-owned tenantId that merely differs in case or surrounding
+ * whitespace from what the caller has on hand silently fell into the same
+ * generic "ambiguous, tenantId required" VALIDATION_ERROR as truly having
+ * no matching membership (FVR-style bug, found during Tranche D closure).
+ */
+function normalizeTenantId(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
@@ -159,8 +175,9 @@ export class StaffAuthService {
     // branch with a misleading error.
     const allMemberships = await this.memberships.findByStaffAccount(account.id);
     const activeMemberships = allMemberships.filter((m) => m.status === "ACTIVE");
-    const membership = input.tenantId
-      ? allMemberships.find((m) => m.tenantId === input.tenantId)
+    const requestedTenantId = input.tenantId ? normalizeTenantId(input.tenantId) : undefined;
+    const membership = requestedTenantId
+      ? allMemberships.find((m) => normalizeTenantId(m.tenantId) === requestedTenantId)
       : allMemberships.length === 1
         ? allMemberships[0]
         : activeMemberships.length === 1
@@ -344,6 +361,7 @@ export class StaffAuthService {
       role: membership.role,
       classScope,
       csrfTokenHash: session.csrfTokenHash,
+      sessionId: session.id,
     };
   }
 

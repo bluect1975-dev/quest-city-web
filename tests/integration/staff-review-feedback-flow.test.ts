@@ -171,6 +171,7 @@ function identityFor(fixture: Fixture, role: "TEACHER" | "SCHOOL_ADMIN"): StaffI
     role,
     classScope: role === "TEACHER" ? [fixture.classId] : null,
     csrfTokenHash: "unused-in-these-tests",
+    sessionId: "session-unused-in-these-tests",
   };
 }
 

@@ -13,6 +13,12 @@ import {
   StaffAccountRepository,
 } from "@quest-city-web/staff-identity";
 import { AuditRepository, SchoolClassRepository, SchoolEnrollmentRepository, StudentProfileRepository } from "@quest-city-web/identity";
+import {
+  ConvergenceRequestService,
+  ConvergenceApprovalService,
+  ContentPromotionService,
+  TenantContextService,
+} from "@quest-city-web/convergence";
 import { loadEnv } from "./env";
 
 /**
@@ -101,4 +107,21 @@ export function getStudentProfileRepository(): StudentProfileRepository {
 /** For routes that audit a sensitive read directly (e.g. attempt review detail, AGENTS.md §4.22 rule 10) without going through a staff-identity service. */
 export function getStaffAuditRepository(): AuditRepository {
   return new AuditRepository(getStaffIdentityPool());
+}
+
+/** Account/Tenant Convergence (02_38, 02_35 v1.5 §11quater) — staff-session-authed surfaces, same pool-reuse convention as every other factory in this file. */
+export function getConvergenceRequestService(): ConvergenceRequestService {
+  return new ConvergenceRequestService(getStaffIdentityPool());
+}
+
+export function getConvergenceApprovalService(): ConvergenceApprovalService {
+  return new ConvergenceApprovalService(getStaffIdentityPool());
+}
+
+export function getContentPromotionService(): ContentPromotionService {
+  return new ContentPromotionService(getStaffIdentityPool());
+}
+
+export function getTenantContextService(): TenantContextService {
+  return new TenantContextService(getStaffIdentityPool());
 }

@@ -27,6 +27,16 @@ export const STAFF_CAPABILITIES = [
   "class.teacher.assign",
   "roster.manage",
   "assignment.create",
+  // School Pilot Readiness Tranche D (02_38 v1.4 §10.6, 02_35 v1.5
+  // §11quater.2-3): the four staff-role-derived convergence capabilities.
+  // convergence.preview/.execute/.rollback.review are deliberately NOT
+  // here -- those are PLATFORM_ADMIN-only, governed by capability_grant
+  // (@quest-city-web/platform-admin), never by role.
+  "convergence.request",
+  "convergence.read",
+  "convergence.approve.teacher",
+  "convergence.approve.school",
+  "ownership.transfer.approve",
 ] as const;
 
 export type StaffCapability = (typeof STAFF_CAPABILITIES)[number];
@@ -49,6 +59,15 @@ const INDEPENDENT_EDUCATOR_CAPABILITIES: ReadonlySet<StaffCapability> = new Set(
   "class.manage",
   "roster.manage",
   "assignment.create",
+  // Tranche D (02_35 v1.5 §11quater.3): as the source-tenant party, an
+  // INDEPENDENT_EDUCATOR may request a convergence, read their own
+  // requests, and confirm the teacher side of an approval. Never
+  // convergence.approve.school or ownership.transfer.approve (those are
+  // SCHOOL_ADMIN-only, the target-tenant party) and never
+  // convergence.preview/.execute/.rollback.review (PLATFORM_ADMIN-only).
+  "convergence.request",
+  "convergence.read",
+  "convergence.approve.teacher",
 ]);
 
 export function hasStaffCapability(identity: StaffInternalIdentity, capability: StaffCapability): boolean {

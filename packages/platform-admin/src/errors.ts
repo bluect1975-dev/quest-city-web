@@ -57,6 +57,17 @@ export const PLATFORM_ADMIN_ERROR_CODES = [
   "RATE_LIMITED",
   "IDEMPOTENCY_CONFLICT",
   "IDEMPOTENCY_IN_PROGRESS",
+  // School Pilot Readiness Tranche D (02_38 v1.4 §9-22, 02_26 v1.14 §36) --
+  // codes raised by the PLATFORM_ADMIN-only convergence endpoints (preview
+  // with integrated identity verification, execute, rollback-review).
+  "CONVERGENCE_REQUEST_NOT_FOUND",
+  "CONVERGENCE_IDENTITY_MISMATCH",
+  "TENANT_SUSPENDED_FOR_CONVERGENCE",
+  "CONVERGENCE_CONFLICT_UNRESOLVED",
+  "CONVERGENCE_ALREADY_TERMINAL",
+  "CONVERGENCE_ACTIVE_ATTEMPTS_PENDING",
+  "CONVERGENCE_EXECUTION_IN_PROGRESS",
+  "CONVERGENCE_REQUEST_INVALID_TRANSITION",
 ] as const;
 
 export type PlatformAdminErrorCode = (typeof PLATFORM_ADMIN_ERROR_CODES)[number];
@@ -79,6 +90,14 @@ const HTTP_STATUS_BY_CODE: Record<PlatformAdminErrorCode, number> = {
   RATE_LIMITED: 429,
   IDEMPOTENCY_CONFLICT: 409,
   IDEMPOTENCY_IN_PROGRESS: 409,
+  CONVERGENCE_REQUEST_NOT_FOUND: 404,
+  CONVERGENCE_IDENTITY_MISMATCH: 409,
+  TENANT_SUSPENDED_FOR_CONVERGENCE: 409,
+  CONVERGENCE_CONFLICT_UNRESOLVED: 409,
+  CONVERGENCE_ALREADY_TERMINAL: 409,
+  CONVERGENCE_ACTIVE_ATTEMPTS_PENDING: 409,
+  CONVERGENCE_EXECUTION_IN_PROGRESS: 409,
+  CONVERGENCE_REQUEST_INVALID_TRANSITION: 409,
 };
 
 export class PlatformAdminError extends Error {
@@ -108,7 +127,10 @@ export class PlatformAdminError extends Error {
       httpStatus: this.httpStatus,
       message: this.message,
       correlationId,
-      retryable: this.code === "RATE_LIMITED" || this.code === "IDEMPOTENCY_IN_PROGRESS",
+      retryable:
+        this.code === "RATE_LIMITED" ||
+        this.code === "IDEMPOTENCY_IN_PROGRESS" ||
+        this.code === "CONVERGENCE_EXECUTION_IN_PROGRESS",
       ...(this.safeDetails ? { safeDetails: this.safeDetails } : {}),
     };
   }

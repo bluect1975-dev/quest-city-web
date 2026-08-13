@@ -12,6 +12,18 @@ export const CAPABILITIES = [
   "independent_educator.activate",
   "independent_educator.read",
   "independent_educator.status.manage",
+  // School Pilot Readiness Tranche D (02_38 v1.4 §10.6, 02_26 v1.14 §36.12):
+  // convergence.preview/.execute/.rollback.review are PLATFORM_ADMIN-only
+  // by construction (identity verification, execution, and rollback
+  // decisions are never a party-side capability). convergence.read is
+  // shared with the staff-role-derived capability of the same name
+  // (@quest-city-web/staff-identity) -- here it grants the cross-tenant,
+  // unscoped list/detail view (02_38 v1.4 §4.1), always explicit and
+  // audited.
+  "convergence.read",
+  "convergence.preview",
+  "convergence.execute",
+  "convergence.rollback.review",
 ] as const;
 
 /** `Capability` is a closed union matching the DB CHECK on `capability_grant.capability` exactly (migration 0006). */

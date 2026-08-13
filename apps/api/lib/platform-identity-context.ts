@@ -9,6 +9,11 @@ import {
   type PlatformAdminSessionSecurityConfig,
 } from "@quest-city-web/platform-admin";
 import { AuditRepository } from "@quest-city-web/identity";
+import {
+  ConvergencePreviewService,
+  ConvergenceExecutionService,
+  ConvergenceRollbackReviewService,
+} from "@quest-city-web/convergence";
 import { loadEnv } from "./env";
 
 /** Own connection pool, same separation rationale as every prior milestone's own pool (lib/staff-identity-context.ts precedent). */
@@ -67,4 +72,17 @@ export function getPlatformAuditRepository(): AuditRepository {
 
 export function getPlatformAdminPoolForQueries(): Pool {
   return getPlatformAdminPool();
+}
+
+/** Account/Tenant Convergence (02_38, 02_26 v1.14 §36) — PLATFORM_ADMIN-authed surfaces, same pool-reuse convention as every other factory in this file. */
+export function getConvergencePreviewService(): ConvergencePreviewService {
+  return new ConvergencePreviewService(getPlatformAdminPool());
+}
+
+export function getConvergenceExecutionService(): ConvergenceExecutionService {
+  return new ConvergenceExecutionService(getPlatformAdminPool());
+}
+
+export function getConvergenceRollbackReviewService(): ConvergenceRollbackReviewService {
+  return new ConvergenceRollbackReviewService(getPlatformAdminPool());
 }

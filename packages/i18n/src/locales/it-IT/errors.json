@@ -35,5 +35,17 @@
   "TENANT_STATUS_UNCHANGED": "La scuola ha già questo stato.",
   "SCHOOL_ADMIN_ALREADY_ACTIVE": "Questa persona è già amministratore attivo di questa scuola.",
   "SCHOOL_ADMIN_IDENTITY_SUSPENDED": "L'identità collegata a questa email non è attiva.",
+  "CONVERGENCE_REQUEST_NOT_FOUND": "Questa richiesta di convergenza non è disponibile.",
+  "CONVERGENCE_ALREADY_MEMBER": "L'educatore è già membro attivo del tenant di destinazione.",
+  "CONVERGENCE_IDENTITY_MISMATCH": "L'identità verificata non corrisponde al titolare del tenant di origine.",
+  "CONVERGENCE_PREVIEW_STALE": "Il piano di migrazione è cambiato. Genera una nuova anteprima e riprova.",
+  "CONVERGENCE_CONFLICT_UNRESOLVED": "È stato rilevato un conflitto bloccante non risolto.",
+  "CONVERGENCE_ACTIVE_ATTEMPTS_PENDING": "Alcuni tentativi degli studenti sono ancora in corso. Riprova più tardi.",
+  "CONVERGENCE_EXECUTION_IN_PROGRESS": "Un'altra esecuzione per questa richiesta è già in corso.",
+  "CONVERGENCE_REQUEST_INVALID_TRANSITION": "Questa azione non è consentita nello stato attuale della richiesta.",
+  "CONVERGENCE_ALREADY_TERMINAL": "Questa richiesta ha già raggiunto uno stato finale.",
+  "OWNERSHIP_PROMOTION_NOT_APPROVED": "Questa risorsa non ha una decisione di promozione approvata.",
+  "TENANT_SUSPENDED_FOR_CONVERGENCE": "Uno dei tenant coinvolti è sospeso.",
+  "IDEMPOTENCY_IN_PROGRESS": "Una richiesta identica è già in elaborazione. Riprova tra qualche istante.",
   "UNKNOWN_ERROR": "Si è verificato un errore imprevisto. Riprova."
 }

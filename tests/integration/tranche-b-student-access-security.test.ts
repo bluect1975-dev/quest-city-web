@@ -115,7 +115,7 @@ function identity(overrides: {
   role: "TEACHER" | "SCHOOL_ADMIN";
   classScope: string[] | null;
 }): StaffInternalIdentity {
-  return { ...overrides, csrfTokenHash: "unused-in-these-tests" };
+  return { ...overrides, csrfTokenHash: "unused-in-these-tests", sessionId: "session-unused-in-these-tests" };
 }
 
 async function buildSchoolAdmin(fixture: Fixture, tenantId: string = fixture.tenantId): Promise<StaffInternalIdentity> {

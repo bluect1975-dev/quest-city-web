@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-account-tenant-convergence",
+  "artifactVersion": "1.12.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "f541061112a84b689e5a87be0a2aa17a5f108ff1",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_12.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_13 (now v1.14) / 02_25_Quest_City_Backend_Services_Database_and_API_Specification_v1_9 (now v1.10) / 02_35_Quest_City_Staff_Identity_Authorization_and_Dashboard_Review_Contract_v1_4 (now v1.5) / 02_38_Quest_City_Platform_Administration_School_Tenancy_Independent_Educator_and_Account_Tenant_Convergence_Specification_v1_3 (now v1.4)",
+  "checksum": "sha256:8174795f1d26eb3fc9da9ac04ab01e084bfaa7b04abf9583192ae130cf733ea2",
+  "syncedAt": "2026-08-13",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_6.yaml, v1_8.yaml through v1_11.yaml, all unmodified and independently tracked (v1_7.yaml was never vendored, same as noted in every prior provenance file). Formalizes Tranche D Account/Tenant Convergence: create/list/read a ConvergenceRequest, preview with integrated identity verification (PLATFORM_ADMIN-only), unified approve/reject, per-unit transactional execute, rollback-review (ACCEPT_PARTIAL/RETRY_REMAINING, never a total automatic rollback), tenant context switching (GET /me/tenant-memberships, POST /staff-auth/session/switch-tenant), and content ownership promotion scoped to an approved convergence (POST /content/{id}/promote). 11-state closed state machine. No new staff role -- reuses INDEPENDENT_EDUCATOR/SCHOOL_ADMIN/PLATFORM_ADMIN exactly as already implemented for Tranche A/B/C. Licensing (operation 4 of the conceptual workflow) is explicitly out of scope of this file and of this vendoring -- no endpoint, no schema.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_12.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_12.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

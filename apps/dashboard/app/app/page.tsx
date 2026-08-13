@@ -34,7 +34,10 @@ export default function StaffHomePage() {
                 <Link href="/app/staff">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToStaff")}</Link>{" "}
               </>
             ) : null}
-            <Link href="/app/review">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToReview")}</Link>
+            <Link href="/app/review">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToReview")}</Link>{" "}
+            {context.role === "INDEPENDENT_EDUCATOR" || context.role === "SCHOOL_ADMIN" ? (
+              <Link href="/app/convergence">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToConvergence")}</Link>
+            ) : null}
           </nav>
           <Button variant="secondary" onClick={() => void logout()}>
             {t(DASHBOARD_CATALOG_IT_IT, "app.nav.logout")}

@@ -11,6 +11,7 @@ function teacher(classScope: string[]): StaffInternalIdentity {
     role: "TEACHER",
     classScope,
     csrfTokenHash: "unused-in-these-tests",
+    sessionId: "session-unused-in-these-tests",
   };
 }
 
@@ -22,6 +23,7 @@ function schoolAdmin(): StaffInternalIdentity {
     role: "SCHOOL_ADMIN",
     classScope: null,
     csrfTokenHash: "unused-in-these-tests",
+    sessionId: "session-unused-in-these-tests",
   };
 }
 
@@ -33,6 +35,7 @@ function independentEducator(): StaffInternalIdentity {
     role: "INDEPENDENT_EDUCATOR",
     classScope: null,
     csrfTokenHash: "unused-in-these-tests",
+    sessionId: "session-unused-in-these-tests",
   };
 }
 

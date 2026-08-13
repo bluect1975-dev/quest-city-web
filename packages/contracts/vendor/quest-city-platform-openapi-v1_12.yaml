@@ -1,0 +1,1227 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.12.0
+  description: >-
+    Quest City API contract formalization for Tranche D Account/Tenant
+    Convergence — contracts only (02_26 v1.14 §36, 02_38 v1.4
+    §9-10/§10.2bis/§13.2/§14/§20-22, 02_25 v1.10 §6.15, 02_35 v1.5 §11quater).
+    This file is additive: v1.2.0 through v1.11.0 remain available unchanged
+    as separate immutable artifacts; no prior path or schema is removed or
+    altered.
+
+    This is a CONTRACTS-ONLY release, authored in quest-city-roblox. It
+    formalizes the full Account/Tenant Convergence workflow — an Independent
+    Educator's identity, classes, students and learning data converging into
+    a School tenant that adopts Quest City — governed by the primary
+    invariant ONE HUMAN -> ONE PLATFORM IDENTITY (02_38 v1.4 §9). No new
+    staff role is introduced: INDEPENDENT_EDUCATOR, SCHOOL_ADMIN and
+    PLATFORM_ADMIN (all already defined by prior contract files) are the
+    only actors. No endpoint in this file has been implemented in
+    quest-city-web at the time of writing, and none may be implemented
+    until this contract change set's own closure (merge to
+    quest-city-roblox canonical main) completes, per the two-phase
+    contracts-then-implementation pattern already used for Tranche A, B and
+    C.
+
+    Licensing is explicitly out of scope of this file, including within the
+    convergence workflow itself: operation 4 of 02_38 v1.4 §10.1
+    ("licensing transition") is not covered by any endpoint here — it
+    remains FUTURE_PLANNED / NOT_IMPLEMENTED (02_38 v1.4 §16, 02_25 v1.10
+    §6.15.1). Identity/membership convergence, class/resource migration and
+    ownership transfer never require or presuppose a licensing decision to
+    proceed. Co-educator invitation within an INDEPENDENT_EDUCATOR tenant
+    also remains out of scope (02_35 v1.4 §11ter.9, unchanged).
+servers:
+- url: /api/v1
+  description: Quest City Platform API (platform-session-scoped resources)
+security: []
+paths:
+  /convergence-requests:
+    get:
+      summary: List convergence requests (capability convergence.read).
+        Scoped to the calling session's tenant as sourceTenantId (when the
+        role is INDEPENDENT_EDUCATOR) or as targetTenantId (when the role
+        is SCHOOL_ADMIN). PLATFORM_ADMIN sees every request, unscoped —
+        cross-tenant visibility always explicit and audited (02_38 v1.4
+        §4.1). No didactic data of any kind.
+      operationId: listConvergenceRequests
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      - $ref: '#/components/parameters/StatusFilter'
+      responses:
+        '200':
+          description: Convergence request list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvergenceRequestListResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+    post:
+      summary: Create a convergence request (capability convergence.request).
+        Callable by an INDEPENDENT_EDUCATOR (own tenant becomes
+        sourceTenantId) or a SCHOOL_ADMIN (own tenant becomes
+        targetTenantId) — never by PLATFORM_ADMIN, which is only the
+        identity verifier/executor (02_38 v1.4 §10.3), never a party to the
+        relationship. Creates a single ConvergenceRequest row in status
+        REQUESTED. No preview, no migration, no mutation of any other
+        resource happens in this call.
+      operationId: createConvergenceRequest
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConvergenceRequestRequest'
+      responses:
+        '201':
+          description: Convergence request created. A retry with the same
+            Idempotency-Key and the same payload replays this exact
+            response byte-for-byte — no second row is ever created (same
+            architecture as platform_tenant_create, 02_26 v1.10 §32.4, and
+            platform_independent_educator_activate, 02_26 v1.13 §35.9).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvergenceRequestResponse'
+        '400':
+          description: VALIDATION_ERROR — sourceTenantId/targetTenantId
+            must reference existing tenants of the correct type
+            (INDEPENDENT_EDUCATOR / SCHOOL respectively).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (invalid CSRF token) or
+            CAPABILITY_DENIED (missing convergence.request, or the calling
+            session's tenant is neither the declared sourceTenantId nor
+            targetTenantId).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: CONVERGENCE_ALREADY_MEMBER (the educator identity
+            already holds an ACTIVE staff_tenant_membership on the target
+            tenant — rejected no-op, 02_38 v1.4 §22), TENANT_SUSPENDED_FOR_CONVERGENCE
+            (either tenant is SUSPENDED), IDEMPOTENCY_CONFLICT, or
+            IDEMPOTENCY_IN_PROGRESS (Retry-After header present). A
+            duplicate request for the same (source, target, educator)
+            triple while a non-terminal request already exists returns the
+            existing request, never a second row (partial unique index,
+            02_25 v1.10 §6.15).
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /convergence-requests/{id}:
+    get:
+      summary: Read a single convergence request (capability
+        convergence.read, same scoping as listConvergenceRequests).
+      operationId: getConvergenceRequest
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ConvergenceRequestId'
+      responses:
+        '200':
+          description: Convergence request detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvergenceRequestResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          $ref: '#/components/responses/ConvergenceRequestNotFound'
+  /convergence-requests/{id}/preview:
+    post:
+      summary: Generate (or regenerate) a non-mutating migration preview and
+        perform identity verification (capability convergence.preview,
+        PLATFORM_ADMIN-only). This single call IS the identity verification
+        step of 02_38 v1.4 §9 — no separate endpoint exists for it. Creates
+        a new, immutable migration_plan row (never mutates a prior one);
+        the request's currentMigrationPlanId always points to the most
+        recently generated plan. Transitions REQUESTED -> PREVIEW_READY (on
+        success) or REQUESTED/PREVIEW_READY -> BLOCKED (identity mismatch,
+        a suspended tenant, or an unresolvable conflict, 02_38 v1.4 §17).
+        Callable more than once — each call is a fresh, independent
+        snapshot with a new fingerprint.
+      operationId: previewConvergenceRequest
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ConvergenceRequestId'
+      responses:
+        '200':
+          description: Migration plan generated (or regenerated)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationPlanResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          $ref: '#/components/responses/ConvergenceRequestNotFound'
+        '409':
+          description: CONVERGENCE_IDENTITY_MISMATCH (the resolved educator
+            identity does not match the source tenant's holder — never a
+            heuristic name/email-only match, 02_38 v1.4 §9),
+            TENANT_SUSPENDED_FOR_CONVERGENCE, CONVERGENCE_CONFLICT_UNRESOLVED
+            (a blocking conflict from 02_38 v1.4 §13.3/§17 was detected —
+            the request moves to BLOCKED), or CONVERGENCE_ALREADY_TERMINAL
+            (the request is already COMPLETED, REJECTED or BLOCKED).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /convergence-requests/{id}/approve:
+    post:
+      summary: Approve a convergence request (capability
+        convergence.approve.school or convergence.approve.teacher,
+        depending on the caller's tenant role). A single call composes
+        membership confirmation, per-class decisions (02_38 v1.4 §12,
+        options A/B) and per-resource ownership decisions (02_38 v1.4 §14,
+        PROMOTE/RETAIN) against the current migrationPlan.fingerprint — no
+        three separate endpoints (avoid unnecessary API surface). Transitions
+        PREVIEW_READY ->
+        AWAITING_APPROVALS (first approval) or AWAITING_APPROVALS ->
+        APPROVED (last required approval collected, 02_38 v1.4 §10.2bis).
+      operationId: approveConvergenceRequest
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ConvergenceRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveConvergenceRequestRequest'
+      responses:
+        '200':
+          description: Approval recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvergenceRequestResponse'
+        '400':
+          description: VALIDATION_ERROR — every classId referenced in
+            classDecisions must appear in the current migration plan's
+            classesConsidered; every resourceId in ownershipDecisions must
+            appear in ownershipDecisionsPending.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          $ref: '#/components/responses/ConvergenceRequestNotFound'
+        '409':
+          description: CONVERGENCE_PREVIEW_STALE (fingerprint does not
+            match the current migration plan — a fresh POST .../preview is
+            required), CONVERGENCE_REQUEST_INVALID_TRANSITION (the request
+            is not in PREVIEW_READY or AWAITING_APPROVALS), or
+            CONVERGENCE_ALREADY_TERMINAL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /convergence-requests/{id}/reject:
+    post:
+      summary: Reject a convergence request (same capability as approve, for
+        the current step). Transitions AWAITING_APPROVALS -> REJECTED,
+        terminal — a rejected request is never resurrected; a new
+        ConvergenceRequest must be created to retry.
+      operationId: rejectConvergenceRequest
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ConvergenceRequestId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectConvergenceRequestRequest'
+      responses:
+        '200':
+          description: Request rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvergenceRequestResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          $ref: '#/components/responses/ConvergenceRequestNotFound'
+        '409':
+          description: CONVERGENCE_REQUEST_INVALID_TRANSITION or
+            CONVERGENCE_ALREADY_TERMINAL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /convergence-requests/{id}/execute:
+    post:
+      summary: Execute an approved convergence request (capability
+        convergence.execute, PLATFORM_ADMIN-only). First evaluates APPROVED
+        -> READY_TO_EXECUTE (no blocking IN_PROGRESS/CREATED learning_attempt
+        on any option-A unit, 02_38 v1.4 §10.2bis/§12) — if attempts are
+        blocking, the request stays APPROVED and this call returns 409
+        without any mutation. Otherwise proceeds READY_TO_EXECUTE ->
+        EXECUTING -> COMPLETED/FAILED, one transaction per migrated unit
+        (never one monolithic transaction, 02_38 v1.4 §10.4). A retry with
+        the same Idempotency-Key resumes from migration_execution.checkpoint_json
+        and never re-processes an already MIGRATED/RETAINED unit.
+      operationId: executeConvergenceRequest
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ConvergenceRequestId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Execution finished (COMPLETED) or requires review
+            (FAILED -> ROLLBACK_REVIEW_REQUIRED, same response body either
+            way — the executionStatus field distinguishes the outcome).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationExecutionResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          $ref: '#/components/responses/ConvergenceRequestNotFound'
+        '409':
+          description: CONVERGENCE_ACTIVE_ATTEMPTS_PENDING (blocking
+            attempts still in progress — no transition, safe to retry
+            later), CONVERGENCE_EXECUTION_IN_PROGRESS (a concurrent execute
+            call is already running for this request, Retry-After present
+            — never two parallel executions of the same request),
+            CONVERGENCE_REQUEST_INVALID_TRANSITION (not APPROVED or
+            READY_TO_EXECUTE), CONVERGENCE_ALREADY_TERMINAL,
+            IDEMPOTENCY_CONFLICT, or IDEMPOTENCY_IN_PROGRESS.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /convergence-requests/{id}/rollback-review:
+    post:
+      summary: Resolve a ROLLBACK_REVIEW_REQUIRED convergence request
+        (capability convergence.rollback.review, PLATFORM_ADMIN-only).
+        decision=ACCEPT_PARTIAL transitions to COMPLETED (the partial
+        state is accepted as final — no unit already migrated is ever
+        undone, 02_38 v1.4 §10.5, "no total automatic rollback is
+        promised"). decision=RETRY_REMAINING transitions to
+        READY_TO_EXECUTE (only units not yet MIGRATED/RETAINED will be
+        retried on the next executeConvergenceRequest call, same
+        convergence_run_id, same per-unit idempotency).
+      operationId: reviewConvergenceRollback
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/ConvergenceRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RollbackReviewRequest'
+      responses:
+        '200':
+          description: Rollback review resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvergenceRequestResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          $ref: '#/components/responses/ConvergenceRequestNotFound'
+        '409':
+          description: CONVERGENCE_REQUEST_INVALID_TRANSITION (not
+            ROLLBACK_REVIEW_REQUIRED).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /me/tenant-memberships:
+    get:
+      summary: List the authenticated identity's own ACTIVE tenant
+        memberships, across every tenant (02_35 v1.5 §11quater.5). Self-read
+        — requires only a valid staff_session, no capability. Foundation
+        for tenant context switching.
+      operationId: listMyTenantMemberships
+      security:
+      - platformSessionCookie: []
+      responses:
+        '200':
+          description: Active memberships for the current identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantMembershipListResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+  /staff-auth/session/switch-tenant:
+    post:
+      summary: Switch the current staff session to a different tenant
+        (02_35 v1.5 §11quater.5, 02_38 v1.4 §13.2). Terminates the current
+        staff_session and creates a new one scoped to tenantId. tenantId is
+        always resolved and verified server-side against the caller's own
+        ACTIVE memberships (listMyTenantMemberships) — never trusted from
+        the client without verification (same principle as tenant.type
+        resolution, AGENTS.md §4.22 rule 3). No session is ever created
+        with mixed or multi-tenant scope.
+      operationId: switchSessionTenant
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchSessionTenantRequest'
+      responses:
+        '200':
+          description: Session switched. A new qc_platform_session cookie is
+            issued, scoped to the requested tenant; the prior session is
+            revoked immediately.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwitchSessionTenantResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (invalid CSRF token) or
+            CAPABILITY_DENIED (the caller has no ACTIVE staff_tenant_membership
+            on the requested tenantId — never a session created on an
+            unauthorized tenant).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /content/{contentId}/promote:
+    post:
+      summary: Promote a TEACHER_CONTENT resource to SCHOOL_CONTENT
+        (capability ownership.transfer.approve, 02_38 v1.4 §14). Deliberately
+        narrow scope — this call always requires a convergenceRequestId
+        referencing a request in APPROVED, READY_TO_EXECUTE or EXECUTING
+        status whose current migration plan already contains an explicit
+        PROMOTE decision for this exact contentId (02_38 v1.4 §10.3). This
+        is not a freestanding, general-purpose content-promotion endpoint —
+        promotion independent of a convergence workflow remains exclusively
+        02_37 §9.3, not extended or duplicated here.
+      operationId: promoteContentOwnership
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - name: contentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromoteContentRequest'
+      responses:
+        '200':
+          description: Content ownership promoted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromoteContentResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: CONVERGENCE_REQUEST_NOT_FOUND, or the contentId does
+            not exist / is not TEACHER_CONTENT owned by the request's
+            educator.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: OWNERSHIP_PROMOTION_NOT_APPROVED (no matching PROMOTE
+            decision on the current migration plan), IDEMPOTENCY_CONFLICT,
+            or IDEMPOTENCY_IN_PROGRESS.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  securitySchemes:
+    platformSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_platform_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_8.yaml. Redeclared here
+        only because each versioned contract file is self-contained for its
+        own $ref resolution (same convention as v1.9.0-v1.11.0).
+    platformCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Same synchronizer-token mechanism and header name as
+        every prior *CsrfHeader scheme in this corpus, issued and validated
+        independently for platform sessions.
+  parameters:
+    ConvergenceRequestId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    StatusFilter:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/ConvergenceRequestStatus'
+      description: Optional filter on convergence_request.status. Omitted
+        returns every status the caller's scope can see.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required on POST /convergence-requests (new idempotency_record
+        scope convergence_request_create, scope_key = actorStaffAccountId +
+        sourceTenantId + targetTenantId), POST /convergence-requests/{id}/execute
+        (new scope convergence_execute, scope_key = convergenceRequestId +
+        executeCallCount — a retry with the same key resumes from
+        migration_execution.checkpoint_json rather than restarting), and
+        POST /content/{contentId}/promote (new scope
+        ownership_transfer_promote). Same header, same idempotency_record/
+        IdempotencyRecordRepository mechanism already in use for every
+        prior scope — no second mechanism (02_26 v1.14 §36.13).
+  responses:
+    PlatformUnauthorized:
+      description: PLATFORM_AUTH_REQUIRED — no valid platform session
+        (PLATFORM domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    CapabilityDenied:
+      description: CAPABILITY_DENIED — authenticated as a platform-scoped
+        session but lacking the specific capability this operation
+        requires, or the calling session's tenant is not a valid party to
+        this convergence request (02_27 §5.3 capability-first authorization).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ConvergenceRequestNotFound:
+      description: CONVERGENCE_REQUEST_NOT_FOUND — no convergence_request
+        with this id, or it exists but is outside the caller's scope (same
+        anti-enumeration posture used elsewhere in this corpus — never
+        distinguished from a genuinely missing id).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain,
+        RATE_LIMITED)
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - PLATFORM_AUTH_REQUIRED
+          - PLATFORM_FORBIDDEN
+          - CAPABILITY_DENIED
+          - VALIDATION_ERROR
+          - RATE_LIMITED
+          - IDEMPOTENCY_CONFLICT
+          - IDEMPOTENCY_IN_PROGRESS
+          - CONVERGENCE_REQUEST_NOT_FOUND
+          - CONVERGENCE_ALREADY_MEMBER
+          - CONVERGENCE_IDENTITY_MISMATCH
+          - CONVERGENCE_PREVIEW_STALE
+          - CONVERGENCE_CONFLICT_UNRESOLVED
+          - CONVERGENCE_ACTIVE_ATTEMPTS_PENDING
+          - CONVERGENCE_EXECUTION_IN_PROGRESS
+          - CONVERGENCE_REQUEST_INVALID_TRANSITION
+          - CONVERGENCE_ALREADY_TERMINAL
+          - OWNERSHIP_PROMOTION_NOT_APPROVED
+          - TENANT_SUSPENDED_FOR_CONVERGENCE
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+
+    PlatformCapability:
+      type: string
+      enum:
+      - tenant.create
+      - tenant.read
+      - tenant.suspend
+      - school_admin.activate
+      - audit.read.global
+      - independent_educator.activate
+      - independent_educator.read
+      - independent_educator.status.manage
+      - convergence.request
+      - convergence.read
+      - convergence.preview
+      - convergence.approve.school
+      - convergence.approve.teacher
+      - convergence.execute
+      - convergence.rollback.review
+      - ownership.transfer.approve
+      description: Granular, explicitly-named capabilities only (02_27 §5.3,
+        02_38 §4.1). No implicit "all" capability exists or is permitted.
+        Extends the v1.11.0 list (Tranche C) with the eight Account/Tenant
+        Convergence capabilities this file introduces (02_38 v1.4 §10.6,
+        02_35 v1.5 §11quater.2). Still illustrative-additive, not a closed
+        enumeration.
+
+    ConvergenceRequestStatus:
+      type: string
+      enum:
+      - REQUESTED
+      - PREVIEW_READY
+      - AWAITING_APPROVALS
+      - APPROVED
+      - READY_TO_EXECUTE
+      - EXECUTING
+      - COMPLETED
+      - REJECTED
+      - BLOCKED
+      - FAILED
+      - ROLLBACK_REVIEW_REQUIRED
+      description: Closed state machine, 11 values (02_38 v1.4 §10.2bis,
+        02_25 v1.10 §6.15). COMPLETED, REJECTED and BLOCKED are terminal —
+        a new ConvergenceRequest row must be created to retry, never a
+        resurrection of a terminal row.
+
+    ClassMigrationDecision:
+      type: string
+      enum:
+      - TRANSFER
+      - RETAIN
+      description: Per-class decision, 02_38 v1.4 §12 options A (TRANSFER)
+        and B (RETAIN). Always explicit and audited per class — never a
+        tenant-wide default.
+
+    OwnershipDecision:
+      type: string
+      enum:
+      - PROMOTE
+      - RETAIN
+      description: Per-resource decision, 02_38 v1.4 §14. Default in the
+        absence of an explicit decision is RETAIN (TEACHER_CONTENT stays
+        TEACHER_CONTENT) — PROMOTE is never assumed.
+
+    ConvergenceRequestSummary:
+      type: object
+      required:
+      - id
+      - sourceTenantId
+      - targetTenantId
+      - educatorStaffAccountId
+      - status
+      - requestedByStaffAccountId
+      - requestedAt
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+        sourceTenantId:
+          type: string
+        targetTenantId:
+          type: string
+        educatorStaffAccountId:
+          type: string
+        status:
+          $ref: '#/components/schemas/ConvergenceRequestStatus'
+        requestedByStaffAccountId:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        teacherConfirmedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        schoolApprovedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        platformIdentityVerifiedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        currentMigrationPlanId:
+          type:
+          - string
+          - 'null'
+        currentMigrationExecutionId:
+          type:
+          - string
+          - 'null'
+        rejectedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        rejectionReason:
+          type:
+          - string
+          - 'null'
+        failureCode:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ConvergenceRequestListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConvergenceRequestSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ConvergenceRequestResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/ConvergenceRequestSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateConvergenceRequestRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - sourceTenantId
+      - targetTenantId
+      - educatorStaffAccountId
+      properties:
+        sourceTenantId:
+          type: string
+          description: Must resolve to a tenant with type=INDEPENDENT_EDUCATOR.
+        targetTenantId:
+          type: string
+          description: Must resolve to a tenant with type=SCHOOL.
+        educatorStaffAccountId:
+          type: string
+          description: The staff_account holding the INDEPENDENT_EDUCATOR
+            membership on sourceTenantId. Identity resolution and
+            verification happen later, at preview time (02_38 v1.4 §9) —
+            this field only names the intended identity.
+
+    MigrationPlanResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - id
+          - convergenceRequestId
+          - fingerprint
+          - status
+          - classesConsidered
+          - conflicts
+          - warnings
+          - blockers
+          - generatedAt
+          properties:
+            id:
+              type: string
+            convergenceRequestId:
+              type: string
+            fingerprint:
+              type: string
+              description: Opaque content hash of this plan. Must be echoed
+                back unchanged in approveConvergenceRequest — a mismatch
+                means the plan has been regenerated since and produces
+                CONVERGENCE_PREVIEW_STALE.
+            status:
+              type: string
+              enum:
+              - DRAFT
+              - CONFIRMED
+              - STALE
+            classesConsidered:
+              type: array
+              items:
+                type: object
+                required:
+                - classId
+                - suggestedDecision
+                properties:
+                  classId:
+                    type: string
+                  suggestedDecision:
+                    $ref: '#/components/schemas/ClassMigrationDecision'
+                  studentsInClass:
+                    type: integer
+                  hasNonSchoolStudents:
+                    type: boolean
+                    description: True when the class contains a student not
+                      belonging to the target school — blocking for
+                      decision=TRANSFER (02_38 v1.4 §22) until resolved.
+            ownershipDecisionsPending:
+              type: array
+              items:
+                type: object
+                required:
+                - resourceId
+                - resourceType
+                properties:
+                  resourceId:
+                    type: string
+                  resourceType:
+                    type: string
+            studentsAffected:
+              type: array
+              items:
+                type: object
+                required:
+                - studentPublicId
+                - conflict
+                properties:
+                  studentPublicId:
+                    type: string
+                  conflict:
+                    type:
+                    - string
+                    - 'null'
+                    enum:
+                    - null
+                    - ALREADY_ENROLLED_IN_TARGET
+                    - DUAL_MEMBERSHIP
+            conflicts:
+              type: array
+              items:
+                type: object
+                required:
+                - code
+                - blocking
+                properties:
+                  code:
+                    type: string
+                  blocking:
+                    type: boolean
+                  description:
+                    type: string
+            activeAttemptsSnapshot:
+              type: array
+              items:
+                type: object
+                required:
+                - learningAttemptId
+                - classId
+                - attemptState
+                properties:
+                  learningAttemptId:
+                    type: string
+                  classId:
+                    type: string
+                  attemptState:
+                    type: string
+            warnings:
+              type: array
+              items:
+                type: string
+            blockers:
+              type: array
+              items:
+                type: string
+            generatedAt:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ApproveConvergenceRequestRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - migrationPlanFingerprint
+      properties:
+        migrationPlanFingerprint:
+          type: string
+          description: Must match the current migration plan's fingerprint
+            exactly — CONVERGENCE_PREVIEW_STALE otherwise.
+        classDecisions:
+          type: array
+          items:
+            type: object
+            required:
+            - classId
+            - decision
+            properties:
+              classId:
+                type: string
+              decision:
+                $ref: '#/components/schemas/ClassMigrationDecision'
+        ownershipDecisions:
+          type: array
+          items:
+            type: object
+            required:
+            - resourceId
+            - decision
+            properties:
+              resourceId:
+                type: string
+              decision:
+                $ref: '#/components/schemas/OwnershipDecision'
+
+    RejectConvergenceRequestRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        rejectionReason:
+          type:
+          - string
+          - 'null'
+          maxLength: 500
+          description: Free-text, optional. Never a didactic data field or
+            student PII.
+
+    MigrationExecutionResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - id
+          - migrationPlanId
+          - convergenceRequestId
+          - convergenceRunId
+          - executionStatus
+          - unitsTotal
+          - unitsMigrated
+          - unitsFailed
+          - startedAt
+          properties:
+            id:
+              type: string
+            migrationPlanId:
+              type: string
+            convergenceRequestId:
+              type: string
+            convergenceRunId:
+              type: string
+            executionStatus:
+              type: string
+              enum:
+              - COMPLETED
+              - FAILED
+              - ROLLBACK_REVIEW_REQUIRED
+            unitsTotal:
+              type: integer
+            unitsMigrated:
+              type: integer
+            unitsFailed:
+              type: integer
+            failureReason:
+              type:
+              - string
+              - 'null'
+            startedAt:
+              type: string
+              format: date-time
+            completedAt:
+              type:
+              - string
+              - 'null'
+              format: date-time
+            failedAt:
+              type:
+              - string
+              - 'null'
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    RollbackReviewRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - decision
+      properties:
+        decision:
+          type: string
+          enum:
+          - ACCEPT_PARTIAL
+          - RETRY_REMAINING
+        reviewNote:
+          type:
+          - string
+          - 'null'
+          maxLength: 500
+
+    TenantMembershipListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required:
+            - tenantId
+            - tenantType
+            - role
+            - membershipStatus
+            properties:
+              tenantId:
+                type: string
+              tenantType:
+                $ref: '#/components/schemas/TenantType'
+              tenantName:
+                type: string
+              role:
+                type: string
+                enum:
+                - TEACHER
+                - SCHOOL_ADMIN
+                - INDEPENDENT_EDUCATOR
+              membershipStatus:
+                type: string
+                enum:
+                - ACTIVE
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    TenantType:
+      type: string
+      enum:
+      - SCHOOL
+      - INDEPENDENT_EDUCATOR
+      description: Reconciled canonical vocabulary (02_38 v1.3 §5.1, 02_25
+        v1.9 §6.13), unchanged by this file — redeclared only for local
+        $ref resolution (same convention as v1.11.0).
+
+    SwitchSessionTenantRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - tenantId
+      properties:
+        tenantId:
+          type: string
+          description: Must match one of the caller's own ACTIVE
+            memberships (listMyTenantMemberships) — resolved and verified
+            exclusively server-side, never trusted as-is from the client.
+
+    SwitchSessionTenantResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - tenantId
+          - role
+          properties:
+            tenantId:
+              type: string
+            role:
+              type: string
+              enum:
+              - TEACHER
+              - SCHOOL_ADMIN
+              - INDEPENDENT_EDUCATOR
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    PromoteContentRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - convergenceRequestId
+      properties:
+        convergenceRequestId:
+          type: string
+          description: Must reference a request in APPROVED, READY_TO_EXECUTE
+            or EXECUTING status whose current migration plan already
+            contains an explicit PROMOTE decision for this contentId.
+
+    PromoteContentResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - contentId
+          - ownershipLevel
+          - promotedAt
+          properties:
+            contentId:
+              type: string
+            ownershipLevel:
+              type: string
+              enum:
+              - SCHOOL_CONTENT
+            promotedAt:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/Meta'
