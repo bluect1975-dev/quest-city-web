@@ -11,6 +11,7 @@ import type {
   EffectiveResolution,
   FacilitationProposal,
   FacilitationProposalStatus,
+  FacilitationProposalTargetLearningPath,
   FacilitationProposalType,
   GeneralAssignment,
   InvitableStaffRole,
@@ -794,18 +795,24 @@ export async function createSupportTeacherDifficultyOverride(input: {
   return envelope.data;
 }
 
-/** `POST /asacom/facilitation-proposals` or `POST /support-teacher/facilitation-proposals` (02_26 v1.16 §37.7). */
+/** `POST /asacom/facilitation-proposals` or `POST /support-teacher/facilitation-proposals` (02_26 v1.16 §37.7; targetLearningPath is required exactly when proposalType=LEARNING_PATH_ADJUSTMENT, 02_41 §22-23). */
 export async function createFacilitationProposal(input: {
   actorRole: "ASACOM" | "SUPPORT_TEACHER";
   studentPublicId: string;
   proposalType: FacilitationProposalType;
   targetCategory?: string;
+  targetLearningPath?: FacilitationProposalTargetLearningPath;
   csrfToken: string;
 }): Promise<FacilitationProposal> {
   const path = input.actorRole === "ASACOM" ? "/asacom/facilitation-proposals" : "/support-teacher/facilitation-proposals";
   const envelope = await request<Envelope<FacilitationProposal>>(path, {
     method: "POST",
-    body: { studentPublicId: input.studentPublicId, proposalType: input.proposalType, targetCategory: input.targetCategory ?? null },
+    body: {
+      studentPublicId: input.studentPublicId,
+      proposalType: input.proposalType,
+      targetCategory: input.targetCategory ?? null,
+      targetLearningPath: input.targetLearningPath ?? null,
+    },
     csrfToken: input.csrfToken,
     idempotencyKey: generateIdempotencyKey(),
   });

@@ -261,6 +261,7 @@
       "columnType": "Tipo",
       "typeFacilitation": "Facilitazione",
       "typeDifficulty": "Difficoltà",
+      "typeLearningPathAdjustment": "Adeguamento del percorso di apprendimento",
       "columnCategory": "Categoria",
       "columnCreatedAt": "Proposta il",
       "reviewNoteLabel": "Nota di revisione (facoltativa)",

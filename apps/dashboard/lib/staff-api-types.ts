@@ -401,8 +401,15 @@ export interface DifficultyOverrideResult {
   createdAt: string;
 }
 
-export type FacilitationProposalType = "FACILITATION" | "DIFFICULTY";
+export type FacilitationProposalType = "FACILITATION" | "DIFFICULTY" | "LEARNING_PATH_ADJUSTMENT";
 export type FacilitationProposalStatus = "SUBMITTED" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+
+export interface FacilitationProposalTargetLearningPath {
+  resourceType: LearningPathResourceType;
+  resourceRef: string;
+  requestedState: LearningPathState;
+  requestedAlternativeContentRef?: string;
+}
 
 export interface FacilitationProposal {
   id: string;
@@ -411,6 +418,7 @@ export interface FacilitationProposal {
   proposedByStaffAccountId?: string;
   proposalType: FacilitationProposalType;
   targetCategory: string | null;
+  targetLearningPath?: FacilitationProposalTargetLearningPath;
   status: FacilitationProposalStatus;
   reviewedByStaffAccountId?: string | null;
   reviewedAt?: string | null;
