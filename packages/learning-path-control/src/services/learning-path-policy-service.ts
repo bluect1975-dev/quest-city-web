@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { StaffIdentityError, assertClassInScope, assertStaffCapability, type StaffInternalIdentity } from "@quest-city-web/staff-identity";
 import { StudentProfileRepository, SchoolEnrollmentRepository, AuditRepository } from "@quest-city-web/identity";
+import { IdempotencyRecordRepository } from "@quest-city-web/attempts";
 import { SupportStudentAssignmentRepository, resolveStudentSupportScope, assertStudentSupportScope } from "@quest-city-web/student-support";
 import { LearningPathPolicyRepository, type LearningPathPolicy } from "../repository/learning-path-policy-repository";
 import { LearningPathAlternativeRepository } from "../repository/learning-path-alternative-repository";
@@ -18,8 +19,8 @@ import {
 export interface CreateLearningPathPolicyInput {
   identity: StaffInternalIdentity;
   scope: LearningPathScope;
-  scopeClassId?: string | null;
-  scopeStudentPublicId?: string | null;
+  scopeClassId?: string | null | undefined;
+  scopeStudentPublicId?: string | null | undefined;
   resourceType: LearningPathResourceType;
   resourceRef: string;
   state: LearningPathState;
@@ -27,7 +28,11 @@ export interface CreateLearningPathPolicyInput {
   reasonNotes?: string | null;
   alternativeContentRef?: string | null;
   deploymentYear?: string | null;
+  idempotencyKey: string;
 }
+
+const CREATE_IDEMPOTENCY_SCOPE = "learning_path_policy_upsert";
+const DELETE_IDEMPOTENCY_SCOPE = "learning_path_policy_delete";
 
 /**
  * `POST/GET/DELETE /learning-path-policies`, `GET /learning-path/effective`
@@ -49,6 +54,7 @@ export class LearningPathPolicyService {
   private readonly students: StudentProfileRepository;
   private readonly supportAssignments: SupportStudentAssignmentRepository;
   private readonly enrollments: SchoolEnrollmentRepository;
+  private readonly idempotency: IdempotencyRecordRepository;
   private readonly audit: AuditRepository;
 
   constructor(pool: Pool) {
@@ -57,6 +63,7 @@ export class LearningPathPolicyService {
     this.students = new StudentProfileRepository(pool);
     this.supportAssignments = new SupportStudentAssignmentRepository(pool);
     this.enrollments = new SchoolEnrollmentRepository(pool);
+    this.idempotency = new IdempotencyRecordRepository(pool);
     this.audit = new AuditRepository(pool);
   }
 
@@ -125,8 +132,8 @@ export class LearningPathPolicyService {
       }
     }
 
-    const created = await this.policies.upsert({
-      tenantId: identity.tenantId,
+    const scopeKey = input.idempotencyKey;
+    const requestHash = JSON.stringify({
       scope: input.scope,
       scopeClassId,
       scopeStudentProfileId,
@@ -135,26 +142,75 @@ export class LearningPathPolicyService {
       state: input.state,
       reasonCategory: input.reasonCategory,
       reasonNotes: input.reasonNotes ?? null,
-      alternativeContentRef: input.state === "DISABLED_WITH_ALTERNATIVE" ? (input.alternativeContentRef ?? null) : null,
+      alternativeContentRef: input.alternativeContentRef ?? null,
       deploymentYear: input.deploymentYear ?? null,
-      createdByStaffAccountId: identity.staffAccountId,
     });
+    const begin = await this.idempotency.begin({ tenantId: identity.tenantId, scope: CREATE_IDEMPOTENCY_SCOPE, scopeKey, requestHash });
+    if (begin.outcome === "DUPLICATE_SAME_PAYLOAD") {
+      return begin.response as LearningPathPolicy;
+    }
+    if (begin.outcome === "CONFLICT_DIFFERENT_PAYLOAD") {
+      throw new StaffIdentityError("IDEMPOTENCY_CONFLICT", "Idempotency-Key riutilizzata con un payload diverso.");
+    }
+    if (begin.outcome === "RETRY_TOO_SOON") {
+      throw new StaffIdentityError("IDEMPOTENCY_IN_PROGRESS", "Richiesta con la stessa Idempotency-Key già in corso.", {
+        retryAfterSeconds: begin.retryAfterSeconds,
+      });
+    }
+    if (begin.outcome === "FAILED_TERMINAL") {
+      throw new StaffIdentityError("IDEMPOTENCY_IN_PROGRESS", "La richiesta precedente con questa chiave è fallita in modo definitivo.");
+    }
 
-    await this.audit.record({
-      tenantId: identity.tenantId,
-      actorType: "STAFF",
-      actorId: identity.staffAccountId,
-      action: this.resolveAuditAction(input.scope, input.state),
-      targetType: "learning_path_policy",
-      targetId: created.id,
-      result: "SUCCESS",
-      metadataRedacted: { scope: input.scope, resourceType: input.resourceType, state: input.state, reasonCategory: input.reasonCategory },
-    });
+    try {
+      const created = await this.policies.upsert({
+        tenantId: identity.tenantId,
+        scope: input.scope,
+        scopeClassId,
+        scopeStudentProfileId,
+        resourceType: input.resourceType,
+        resourceRef: input.resourceRef,
+        state: input.state,
+        reasonCategory: input.reasonCategory,
+        reasonNotes: input.reasonNotes ?? null,
+        alternativeContentRef: input.state === "DISABLED_WITH_ALTERNATIVE" ? (input.alternativeContentRef ?? null) : null,
+        deploymentYear: input.deploymentYear ?? null,
+        createdByStaffAccountId: identity.staffAccountId,
+      });
 
-    return created;
+      await this.idempotency.complete({
+        tenantId: identity.tenantId,
+        scope: CREATE_IDEMPOTENCY_SCOPE,
+        scopeKey,
+        expectedGeneration: begin.generation,
+        response: created,
+      });
+
+      await this.audit.record({
+        tenantId: identity.tenantId,
+        actorType: "STAFF",
+        actorId: identity.staffAccountId,
+        action: this.resolveAuditAction(input.scope, input.state),
+        targetType: "learning_path_policy",
+        targetId: created.id,
+        result: "SUCCESS",
+        metadataRedacted: { scope: input.scope, resourceType: input.resourceType, state: input.state, reasonCategory: input.reasonCategory },
+      });
+
+      return created;
+    } catch (error) {
+      await this.idempotency.fail({
+        tenantId: identity.tenantId,
+        scope: CREATE_IDEMPOTENCY_SCOPE,
+        scopeKey,
+        expectedGeneration: begin.generation,
+        retryable: !(error instanceof StaffIdentityError),
+        response: { error: error instanceof Error ? error.message : String(error) },
+      });
+      throw error;
+    }
   }
 
-  async delete(identity: StaffInternalIdentity, publicId: string): Promise<void> {
+  async delete(identity: StaffInternalIdentity, publicId: string, idempotencyKey: string): Promise<void> {
     const existing = await this.policies.findByPublicId(publicId, identity.tenantId);
     if (!existing) throw new StaffIdentityError("VALIDATION_ERROR", "learning_path_policy not found.");
 
@@ -172,30 +228,133 @@ export class LearningPathPolicyService {
       throw new StaffIdentityError("LEARNING_PATH_POLICY_FORBIDDEN");
     }
 
-    const deleted = await this.policies.delete(publicId, identity.tenantId);
-    if (!deleted) throw new StaffIdentityError("VALIDATION_ERROR", "learning_path_policy not found.");
+    const scopeKey = idempotencyKey;
+    const requestHash = JSON.stringify({ publicId });
+    const begin = await this.idempotency.begin({ tenantId: identity.tenantId, scope: DELETE_IDEMPOTENCY_SCOPE, scopeKey, requestHash });
+    if (begin.outcome === "DUPLICATE_SAME_PAYLOAD") {
+      return;
+    }
+    if (begin.outcome === "CONFLICT_DIFFERENT_PAYLOAD") {
+      throw new StaffIdentityError("IDEMPOTENCY_CONFLICT", "Idempotency-Key riutilizzata con un payload diverso.");
+    }
+    if (begin.outcome === "RETRY_TOO_SOON") {
+      throw new StaffIdentityError("IDEMPOTENCY_IN_PROGRESS", "Richiesta con la stessa Idempotency-Key già in corso.", {
+        retryAfterSeconds: begin.retryAfterSeconds,
+      });
+    }
+    if (begin.outcome === "FAILED_TERMINAL") {
+      throw new StaffIdentityError("IDEMPOTENCY_IN_PROGRESS", "La richiesta precedente con questa chiave è fallita in modo definitivo.");
+    }
 
-    await this.audit.record({
-      tenantId: identity.tenantId,
-      actorType: "STAFF",
-      actorId: identity.staffAccountId,
-      action:
-        existing.scope === "SCHOOL"
-          ? "learning_path.school_changed"
-          : existing.scope === "CLASS"
-            ? "learning_path.class_changed"
-            : "learning_path.student_changed",
-      targetType: "learning_path_policy",
-      targetId: existing.id,
-      result: "SUCCESS",
-      metadataRedacted: { scope: existing.scope, action: "reverted_to_inherit" },
+    try {
+      const deleted = await this.policies.delete(publicId, identity.tenantId);
+      if (!deleted) throw new StaffIdentityError("VALIDATION_ERROR", "learning_path_policy not found.");
+
+      await this.idempotency.complete({
+        tenantId: identity.tenantId,
+        scope: DELETE_IDEMPOTENCY_SCOPE,
+        scopeKey,
+        expectedGeneration: begin.generation,
+        response: { deleted: true },
+      });
+
+      await this.audit.record({
+        tenantId: identity.tenantId,
+        actorType: "STAFF",
+        actorId: identity.staffAccountId,
+        action:
+          existing.scope === "SCHOOL"
+            ? "learning_path.school_changed"
+            : existing.scope === "CLASS"
+              ? "learning_path.class_changed"
+              : "learning_path.student_changed",
+        targetType: "learning_path_policy",
+        targetId: existing.id,
+        result: "SUCCESS",
+        metadataRedacted: { scope: existing.scope, action: "reverted_to_inherit" },
+      });
+    } catch (error) {
+      await this.idempotency.fail({
+        tenantId: identity.tenantId,
+        scope: DELETE_IDEMPOTENCY_SCOPE,
+        scopeKey,
+        expectedGeneration: begin.generation,
+        retryable: !(error instanceof StaffIdentityError),
+        response: { error: error instanceof Error ? error.message : String(error) },
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * `GET /learning-path-policies` -- capability `learning_path.preview`
+   * (read-only) or the corresponding `.manage` capability for the queried
+   * scope (OpenAPI v1.15.0 listLearningPathPolicies). Always scoped to the
+   * caller's tenant. `shadowed` (02_41 §11-12) is computed per row at read
+   * time, never persisted -- for each row, the full policy context up to
+   * and including that row's own scope is re-resolved and the row is
+   * marked shadowed iff the resolver recorded it in
+   * `shadowedLowerScopePolicyIds` (a blocked ENABLED attempt under a
+   * currently-effective higher restriction).
+   */
+  async list(
+    identity: StaffInternalIdentity,
+    filter: {
+      scope?: LearningPathScope | undefined;
+      scopeRef?: string | undefined;
+      resourceType?: LearningPathResourceType | undefined;
+      resourceRef?: string | undefined;
+    },
+    pagination: { limit: number; offset: number },
+  ): Promise<Array<LearningPathPolicy & { shadowed: boolean }>> {
+    assertStaffCapability(identity, "learning_path.preview");
+
+    let scopeRefId: string | undefined;
+    if (filter.scope === "CLASS" && filter.scopeRef) {
+      assertClassInScope(identity, filter.scopeRef);
+      scopeRefId = filter.scopeRef;
+    } else if (filter.scope === "STUDENT" && filter.scopeRef) {
+      const student = await this.requireStudentInManageScope(identity, filter.scopeRef);
+      scopeRefId = student.id;
+    }
+
+    const rows = await this.policies.listByScope(
+      identity.tenantId,
+      { scope: filter.scope, scopeRef: scopeRefId, resourceType: filter.resourceType, resourceRef: filter.resourceRef },
+      pagination,
+    );
+
+    return Promise.all(rows.map(async (row) => ({ ...row, shadowed: await this.computeShadowed(identity.tenantId, row) })));
+  }
+
+  private async computeShadowed(tenantId: string, row: LearningPathPolicy): Promise<boolean> {
+    let classId: string | null = row.scopeClassId;
+    if (row.scope === "STUDENT" && row.scopeStudentProfileId) {
+      const enrollment = await this.enrollments.findCurrentByStudent(row.scopeStudentProfileId, tenantId);
+      classId = enrollment?.classId ?? null;
+    }
+    const context = await this.policies.findForResource(tenantId, row.resourceType, row.resourceRef, {
+      classId,
+      studentProfileId: row.scopeStudentProfileId,
     });
+    const resolution = resolveEffectiveAvailability({
+      resourceType: row.resourceType,
+      resourceRef: row.resourceRef,
+      policiesByScope: toPoliciesByScope(context),
+    });
+    return resolution.shadowedLowerScopePolicyIds.includes(row.id);
   }
 
   /** `GET /learning-path/effective` -- single-resource resolution, server-authoritative (02_41 §22, §39, §51). Called before every content launch, not only by preview UI. */
   async resolveEffective(
     identity: StaffInternalIdentity,
-    input: { resourceType: LearningPathResourceType; resourceRef: string; classId?: string | null; studentPublicId?: string | null; pedagogicalRole?: PedagogicalRole },
+    input: {
+      resourceType: LearningPathResourceType;
+      resourceRef: string;
+      classId?: string | null | undefined;
+      studentPublicId?: string | null | undefined;
+      pedagogicalRole?: PedagogicalRole | undefined;
+    },
   ): Promise<EffectiveResolution> {
     let studentProfileId: string | undefined;
     let classId: string | null = input.classId ?? null;
@@ -227,19 +386,18 @@ export class LearningPathPolicyService {
   }
 
   /**
-   * `GET /classes/{classId}/learning-path/preview`, `GET
-   * /students/{studentPublicId}/learning-path/preview` (02_41 §32-34,
-   * mission §33-34 mandatory). `resources` is supplied by the API layer --
-   * the actual set of resource refs meaningfully assigned to the class/
-   * student (e.g. from `assignment`/`content_bundle`), never an invented
-   * full curriculum enumeration (no curriculum_profile/class_curriculum_module
-   * table exists in this schema -- see migration 0013 header).
+   * `GET /classes/{classId}/learning-path/preview` (02_41 §32-34, mission
+   * §33-34 mandatory, OpenAPI v1.15.0 getClassLearningPathPreview -- no
+   * request body, no resource list parameter). The node set previewed is
+   * every distinct (resourceType, resourceRef) that currently has at
+   * least one explicit `learning_path_policy` row reachable from this
+   * class (PLATFORM/SCHOOL, this CLASS, or its roster's STUDENT rows) --
+   * there is no curriculum_profile/class_curriculum_module table in this
+   * schema to enumerate a full curriculum tree from (migration 0013
+   * header). A pure-INHERIT node with no explicit policy anywhere has
+   * nothing to preview beyond the default and is correctly omitted.
    */
-  async previewClass(
-    identity: StaffInternalIdentity,
-    classId: string,
-    resources: { resourceType: LearningPathResourceType; resourceRef: string; pedagogicalRole?: PedagogicalRole }[],
-  ): Promise<EffectiveResolution[]> {
+  async previewClass(identity: StaffInternalIdentity, classId: string): Promise<EffectiveResolution[]> {
     assertStaffCapability(identity, "learning_path.preview");
     assertClassInScope(identity, classId);
     // Batched (02_41 §14-15, mission §14-15: never one query per unit
@@ -253,43 +411,30 @@ export class LearningPathPolicyService {
       classId,
       roster.map((e) => e.studentProfileId),
     );
-    return resources.map((r) => {
-      const relevant = allPolicies.filter(
-        (p) => p.resourceType === r.resourceType && p.resourceRef === r.resourceRef && p.scope !== "STUDENT",
-      );
-      return resolveEffectiveAvailability({
-        resourceType: r.resourceType,
-        resourceRef: r.resourceRef,
-        pedagogicalRole: r.pedagogicalRole,
-        policiesByScope: toPoliciesByScope(relevant),
-      });
+    return distinctResourceKeys(allPolicies).map(({ resourceType, resourceRef }) => {
+      const relevant = allPolicies.filter((p) => p.resourceType === resourceType && p.resourceRef === resourceRef && p.scope !== "STUDENT");
+      return resolveEffectiveAvailability({ resourceType, resourceRef, policiesByScope: toPoliciesByScope(relevant) });
     });
   }
 
-  async previewStudent(
-    identity: StaffInternalIdentity,
-    studentPublicId: string,
-    resources: { resourceType: LearningPathResourceType; resourceRef: string; pedagogicalRole?: PedagogicalRole }[],
-  ): Promise<EffectiveResolution[]> {
+  /**
+   * `GET /students/{studentPublicId}/learning-path/preview` (02_41 §32-34,
+   * mission §33-34 "Che cosa vedrà questo studente?" -- mandatory,
+   * OpenAPI v1.15.0 getStudentLearningPathPreview, no resource list
+   * parameter). Node set: every distinct resource with an explicit policy
+   * reachable from this student (PLATFORM/SCHOOL, their current CLASS, or
+   * their own STUDENT rows) -- same discovered-schema rationale as
+   * `previewClass`.
+   */
+  async previewStudent(identity: StaffInternalIdentity, studentPublicId: string): Promise<EffectiveResolution[]> {
     assertStaffCapability(identity, "learning_path.preview");
     const student = await this.requireStudentInManageScope(identity, studentPublicId);
     const enrollment = await this.enrollments.findCurrentByStudent(student.id, identity.tenantId);
-    const policies = await Promise.all(
-      resources.map((r) =>
-        this.policies.findForResource(identity.tenantId, r.resourceType, r.resourceRef, {
-          classId: enrollment?.classId ?? null,
-          studentProfileId: student.id,
-        }),
-      ),
-    );
-    return resources.map((r, i) =>
-      resolveEffectiveAvailability({
-        resourceType: r.resourceType,
-        resourceRef: r.resourceRef,
-        pedagogicalRole: r.pedagogicalRole,
-        policiesByScope: toPoliciesByScope(policies[i] ?? []),
-      }),
-    );
+    const allPolicies = await this.policies.findForClassAndStudents(identity.tenantId, enrollment?.classId ?? null, [student.id]);
+    return distinctResourceKeys(allPolicies).map(({ resourceType, resourceRef }) => {
+      const relevant = allPolicies.filter((p) => p.resourceType === resourceType && p.resourceRef === resourceRef);
+      return resolveEffectiveAvailability({ resourceType, resourceRef, policiesByScope: toPoliciesByScope(relevant) });
+    });
   }
 
   private async requireStudentInManageScope(identity: StaffInternalIdentity, studentPublicId: string) {
@@ -330,6 +475,14 @@ export class LearningPathPolicyService {
     if (scope === "CLASS") return "learning_path.class_changed";
     return "learning_path.student_changed";
   }
+}
+
+function distinctResourceKeys(policies: LearningPathPolicy[]): { resourceType: LearningPathResourceType; resourceRef: string }[] {
+  const seen = new Map<string, { resourceType: LearningPathResourceType; resourceRef: string }>();
+  for (const p of policies) {
+    seen.set(`${p.resourceType}:${p.resourceRef}`, { resourceType: p.resourceType, resourceRef: p.resourceRef });
+  }
+  return [...seen.values()];
 }
 
 function toPoliciesByScope(policies: LearningPathPolicy[]): Partial<Record<LearningPathScope, LearningPathPolicyInput>> {

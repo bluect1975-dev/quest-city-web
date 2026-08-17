@@ -26,6 +26,7 @@ import {
   FacilitationService,
   FacilitationProposalService,
 } from "@quest-city-web/student-support";
+import { LearningPathPolicyService, LearningPathAlternativeService } from "@quest-city-web/learning-path-control";
 import { loadEnv } from "./env";
 
 /**
@@ -152,4 +153,13 @@ export function getFacilitationService(): FacilitationService {
 
 export function getFacilitationProposalService(): FacilitationProposalService {
   return new FacilitationProposalService(getStaffIdentityPool());
+}
+
+/** Granular Learning Path Control (02_41 v1.1, contracts/quest-city-platform-openapi-v1_15.yaml) — same pool-reuse convention as every other factory in this file. */
+export function getLearningPathPolicyService(): LearningPathPolicyService {
+  return new LearningPathPolicyService(getStaffIdentityPool());
+}
+
+export function getLearningPathAlternativeService(): LearningPathAlternativeService {
+  return new LearningPathAlternativeService(getStaffIdentityPool());
 }

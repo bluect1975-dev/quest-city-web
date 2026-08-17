@@ -26,6 +26,12 @@
 --      reuses the existing proposal/review/anti-self-approval/atomicity
 --      machinery verbatim, no second proposal table (02_39 §3 discipline).
 --
+--   E. idempotency_record: three new scopes for the GLPC write operations
+--      that carry an IdempotencyKey parameter (OpenAPI v1.15.0
+--      createOrUpdateLearningPathPolicy, deleteLearningPathPolicy,
+--      createLearningPathAlternative). Table/mechanism reused unmodified
+--      (mission §41: no second idempotency mechanism).
+--
 -- DISCOVERED IMPLEMENTATION NOTE (not a canonical contract deviation):
 -- 02_25's conceptual curriculum_profile/class_curriculum_module/
 -- content_entity_index tables (§6.4-6.5) were never actually migrated into
@@ -173,5 +179,25 @@ ALTER TABLE facilitation_proposal ADD CONSTRAINT facilitation_proposal_target_le
   );
 ALTER TABLE facilitation_proposal ADD CONSTRAINT facilitation_proposal_target_alternative_ck
   CHECK ((target_requested_state = 'DISABLED_WITH_ALTERNATIVE') = (target_requested_alternative_content_ref IS NOT NULL));
+
+-- E. idempotency_record: extend with the 3 GLPC write scopes.
+ALTER TABLE idempotency_record DROP CONSTRAINT idempotency_record_scope_check;
+ALTER TABLE idempotency_record ADD CONSTRAINT idempotency_record_scope_check
+  CHECK (scope IN ('attempt_completion', 'staff_feedback_create', 'staff_feedback_publish',
+                    'staff_feedback_revoke', 'staff_review_transition', 'staff_recovery_assignment_create',
+                    'platform_school_admin_activate', 'platform_tenant_create',
+                    'staff_invitation_create', 'staff_membership_status_update',
+                    'staff_class_create', 'staff_class_update', 'staff_class_archive',
+                    'staff_class_teacher_assign', 'staff_class_teacher_unassign',
+                    'staff_roster_add', 'staff_roster_remove', 'staff_general_assignment_create',
+                    'staff_class_access_code_issue',
+                    'platform_independent_educator_activate', 'platform_independent_educator_status_update',
+                    'convergence_request_create', 'convergence_execute', 'ownership_transfer_promote',
+                    'support_student_assignment_create', 'learning_support_event_create',
+                    'learning_support_observation_create', 'facilitation_proposal_create',
+                    'facilitation_proposal_review', 'support_teacher_facilitation_apply',
+                    'difficulty_override_create',
+                    'learning_path_policy_upsert', 'learning_path_policy_delete',
+                    'learning_path_alternative_create'));
 
 COMMIT;

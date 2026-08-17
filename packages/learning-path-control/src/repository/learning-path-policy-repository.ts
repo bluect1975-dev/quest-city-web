@@ -140,8 +140,16 @@ export class LearningPathPolicyRepository {
     return result.rows.map(mapRow);
   }
 
-  /** Every explicit policy touching a class (its own CLASS-scope rows, plus every STUDENT-scope row for its roster) -- used to build a Class preview without one query per unit element. */
-  async findForClassAndStudents(tenantId: string, classId: string, studentProfileIds: string[]): Promise<LearningPathPolicy[]> {
+  /**
+   * Every explicit policy touching a class (its own CLASS-scope rows,
+   * plus every STUDENT-scope row for its roster) -- used to build a Class
+   * or Student preview without one query per unit element. `classId` may
+   * be `null` (student with no current enrollment, e.g. a
+   * SUPPORT_TEACHER/ASACOM cross-class support assignment) -- PLATFORM/
+   * SCHOOL rows are still returned; the CLASS clause simply never matches
+   * (SQL `scope_class_id = NULL` is never true).
+   */
+  async findForClassAndStudents(tenantId: string, classId: string | null, studentProfileIds: string[]): Promise<LearningPathPolicy[]> {
     const result = await this.db.query<Row>(
       `SELECT ${SELECT_COLUMNS} FROM learning_path_policy
        WHERE tenant_id = $1
@@ -155,7 +163,12 @@ export class LearningPathPolicyRepository {
 
   async listByScope(
     tenantId: string,
-    filter: { scope?: LearningPathScope; scopeRef?: string; resourceType?: LearningPathResourceType; resourceRef?: string },
+    filter: {
+      scope?: LearningPathScope | undefined;
+      scopeRef?: string | undefined;
+      resourceType?: LearningPathResourceType | undefined;
+      resourceRef?: string | undefined;
+    },
     pagination: { limit: number; offset: number },
   ): Promise<LearningPathPolicy[]> {
     const conditions: string[] = ["tenant_id = $1"];
