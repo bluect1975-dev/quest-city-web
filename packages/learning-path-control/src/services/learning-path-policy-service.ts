@@ -485,7 +485,7 @@ function distinctResourceKeys(policies: LearningPathPolicy[]): { resourceType: L
   return [...seen.values()];
 }
 
-function toPoliciesByScope(policies: LearningPathPolicy[]): Partial<Record<LearningPathScope, LearningPathPolicyInput>> {
+export function toPoliciesByScope(policies: LearningPathPolicy[]): Partial<Record<LearningPathScope, LearningPathPolicyInput>> {
   const result: Partial<Record<LearningPathScope, LearningPathPolicyInput>> = {};
   for (const p of policies) {
     result[p.scope] = { id: p.id, scope: p.scope, state: p.state, reasonCategory: p.reasonCategory, alternativeContentRef: p.alternativeContentRef };

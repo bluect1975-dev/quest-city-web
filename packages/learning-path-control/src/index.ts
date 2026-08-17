@@ -22,3 +22,4 @@ export { LearningPathSnapshotRepository, type LearningPathSnapshot } from "./rep
 
 export { LearningPathPolicyService, type CreateLearningPathPolicyInput } from "./services/learning-path-policy-service";
 export { LearningPathAlternativeService } from "./services/learning-path-alternative-service";
+export { applyLearningPathAdjustmentAcceptance } from "./services/apply-learning-path-adjustment";

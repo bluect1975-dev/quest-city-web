@@ -3,6 +3,7 @@ import { loadEnv } from "../../../../lib/env";
 import { requireStaffIdentity } from "../../../../lib/staff-request-context";
 import { staffErrorResponse } from "../../../../lib/staff-error-response";
 import { validateStaffPaginationQuery, validateOptionalEnumQueryParam } from "../../../../lib/staff-validation";
+import { toTargetLearningPathResponse } from "../../../../lib/learning-path-adjustment-request";
 import { getFacilitationProposalService } from "../../../../lib/staff-identity-context";
 
 const STATUS_VALUES = ["SUBMITTED", "ACCEPTED", "REJECTED", "WITHDRAWN"] as const;
@@ -33,6 +34,7 @@ export async function GET(request: Request): Promise<NextResponse> {
           proposedByStaffAccountId: proposal.proposedByStaffAccountId,
           proposalType: proposal.proposalType,
           targetCategory: proposal.targetCategory,
+          targetLearningPath: toTargetLearningPathResponse(proposal),
           status: proposal.status,
           createdAt: proposal.createdAt.toISOString(),
           version: proposal.version,

@@ -20,6 +20,8 @@ export {
   type FacilitationProposal,
   type FacilitationProposalType,
   type FacilitationProposalStatus,
+  type LearningPathTargetResourceType,
+  type LearningPathTargetState,
 } from "./repository/facilitation-proposal-repository";
 export {
   SupportProfileRepository,
@@ -36,4 +38,4 @@ export { SupportAssignmentService } from "./services/support-assignment-service"
 export { SupportEventService } from "./services/support-event-service";
 export { ObservationService, type ObservationHistoryEntry } from "./services/observation-service";
 export { FacilitationService } from "./services/facilitation-service";
-export { FacilitationProposalService } from "./services/facilitation-proposal-service";
+export { FacilitationProposalService, type LearningPathAdjustmentAcceptHook } from "./services/facilitation-proposal-service";
