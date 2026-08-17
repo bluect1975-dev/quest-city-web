@@ -83,6 +83,15 @@ export const STAFF_ERROR_CODES = [
   // contentId currently resolves to this -- see the Tranche D Web final
   // report, "ownership transfer" gap.
   "CONTENT_NOT_FOUND",
+  // Student Support Roles (02_35 v1.7 §13, 02_26 v1.16 §37.11, migration
+  // 0012) -- 6 new codes, all domain PLATFORM, same ErrorEnvelope shape,
+  // reused without modification by both ASACOM and SUPPORT_TEACHER.
+  "ASACOM_NOT_ASSIGNED",
+  "SUPPORT_STUDENT_NOT_ASSIGNED",
+  "SUPPORT_ASSIGNMENT_INACTIVE",
+  "FACILITATION_NOT_ALLOWED",
+  "SUPPORT_EVENT_INVALID_ATTEMPT",
+  "AMBIGUOUS_TENANT_MEMBERSHIP",
 ] as const;
 
 export type StaffErrorCode = (typeof STAFF_ERROR_CODES)[number];
@@ -127,6 +136,12 @@ const HTTP_STATUS_BY_CODE: Record<StaffErrorCode, number> = {
   CONVERGENCE_ALREADY_TERMINAL: 409,
   OWNERSHIP_PROMOTION_NOT_APPROVED: 409,
   CONTENT_NOT_FOUND: 404,
+  ASACOM_NOT_ASSIGNED: 403,
+  SUPPORT_STUDENT_NOT_ASSIGNED: 404,
+  SUPPORT_ASSIGNMENT_INACTIVE: 409,
+  FACILITATION_NOT_ALLOWED: 403,
+  SUPPORT_EVENT_INVALID_ATTEMPT: 409,
+  AMBIGUOUS_TENANT_MEMBERSHIP: 409,
 };
 
 export class StaffIdentityError extends Error {

@@ -41,6 +41,25 @@ export class StudentProfileRepository {
     return row ? mapStudentProfile(row) : null;
   }
 
+  /**
+   * Batch lookup for read projections that carry a raw `student_profile_id`
+   * FK and need to resolve it to the client-facing `studentPublicId` before
+   * a response is serialized (never expose the internal UUID, same
+   * discipline as every other public_id-bearing table in this codebase).
+   * Empty `ids` short-circuits to avoid an `= ANY('{}')` round trip.
+   */
+  async findByIds(ids: string[], tenantId: string): Promise<StudentProfile[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    const result = await this.db.query<StudentProfileRow>(
+      `SELECT id, tenant_id, student_public_id, status, created_at
+       FROM student_profile WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
+      [ids, tenantId],
+    );
+    return result.rows.map(mapStudentProfile);
+  }
+
   /** `student_public_id` is globally unique (migration 0002) — same lookup-by-public-id shape as `SchoolClassRepository.findByPublicId`. Callers must still verify `tenantId` matches (School Onboarding + Staff Membership's `addStudentToRoster` mode=EXISTING, 02_35 §11bis.7). */
   async findByPublicId(studentPublicId: string): Promise<StudentProfile | null> {
     const result = await this.db.query<StudentProfileRow>(

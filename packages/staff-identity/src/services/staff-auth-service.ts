@@ -113,6 +113,17 @@ export class StaffAuthService {
     email: string;
     password: string;
     tenantId?: string | undefined;
+    /**
+     * Same-tenant multi-role disambiguation (02_25 v1.12 §6.16.6, 02_35
+     * v1.7 §11sexies.7). The canonical contract change set formalized
+     * this parameter only for `POST /staff-auth/session/switch-tenant`
+     * (02_26 v1.16 §37bis) -- login itself has the identical latent
+     * ambiguity (a `tenantId` matching more than one ACTIVE membership),
+     * previously masked because no account could hold two memberships on
+     * one tenant before migration 0012. Extended here for internal
+     * consistency with the same rule, same error code, no new capability.
+     */
+    staffTenantMembershipId?: string | undefined;
     clientIp: string;
   }): Promise<StaffSessionStartResult> {
     const ipLimit = await checkFixedWindow(this.pool, STAFF_LOGIN_IP_RATE_LIMIT, input.clientIp);
@@ -176,13 +187,31 @@ export class StaffAuthService {
     const allMemberships = await this.memberships.findByStaffAccount(account.id);
     const activeMemberships = allMemberships.filter((m) => m.status === "ACTIVE");
     const requestedTenantId = input.tenantId ? normalizeTenantId(input.tenantId) : undefined;
-    const membership = requestedTenantId
-      ? allMemberships.find((m) => normalizeTenantId(m.tenantId) === requestedTenantId)
-      : allMemberships.length === 1
-        ? allMemberships[0]
-        : activeMemberships.length === 1
-          ? activeMemberships[0]
-          : undefined;
+
+    let membership: (typeof allMemberships)[number] | undefined;
+    if (input.staffTenantMembershipId) {
+      membership = allMemberships.find((m) => m.id === input.staffTenantMembershipId);
+    } else if (requestedTenantId) {
+      const matches = allMemberships.filter((m) => normalizeTenantId(m.tenantId) === requestedTenantId);
+      if (matches.length > 1) {
+        // Same-tenant multi-role (02_25 v1.12 §6.16.6): tenantId alone is
+        // ambiguous -- never a heuristic pick of "the first one found".
+        // safeDetails.candidates carries just {id, role} for each ambiguous
+        // membership so the login UI can render a role picker and resubmit
+        // with an explicit staffTenantMembershipId -- safe to expose here
+        // since email+password have already been verified above (this is
+        // the caller's own account), no cross-account information leak.
+        await this.recordLoginFailure(account.id, "AMBIGUOUS_TENANT_MEMBERSHIP");
+        throw new StaffIdentityError(
+          "AMBIGUOUS_TENANT_MEMBERSHIP",
+          "staffTenantMembershipId è obbligatorio: più membership attive su questo tenant.",
+          { safeDetails: { candidates: matches.map((m) => ({ staffTenantMembershipId: m.id, role: m.role })) } },
+        );
+      }
+      membership = matches[0];
+    } else {
+      membership = allMemberships.length === 1 ? allMemberships[0] : activeMemberships.length === 1 ? activeMemberships[0] : undefined;
+    }
     if (!membership) {
       await this.recordLoginFailure(account.id, "NO_RESOLVABLE_TENANT_MEMBERSHIP");
       throw new StaffIdentityError(
@@ -349,7 +378,11 @@ export class StaffAuthService {
     await this.sessions.touchLastSeen(session.id, session.tenantId);
 
     let classScope: string[] | null = null;
-    if (membership.role === "TEACHER") {
+    // SUPPORT_TEACHER reuses staff_class_assignment identically to
+    // TEACHER for class scope (02_39 v1.1 §3bis.2, 02_35 v1.7 §11sexies.4)
+    // -- ASACOM deliberately excluded, has no implicit class scope at all
+    // (§4.3, classScope stays null -- see authorization.ts).
+    if (membership.role === "TEACHER" || membership.role === "SUPPORT_TEACHER") {
       const assignments = await this.classAssignments.findByMembership(membership.id, membership.tenantId);
       classScope = assignments.map((a) => a.classId);
     }

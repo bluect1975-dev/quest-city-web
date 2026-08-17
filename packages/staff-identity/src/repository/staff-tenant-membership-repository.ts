@@ -4,10 +4,14 @@ import type { Queryable } from "./types";
  * INDEPENDENT_EDUCATOR added (02_35 v1.4 §11ter.2 decision A, migration
  * 0010): a third, explicit membership role, never behavior derived from
  * tenant.type + TEACHER (capability-first authorization, 02_27 §5.3).
- * Enforced coherent with tenant.type by a DB trigger (migration 0010),
- * never by application code alone.
+ * ASACOM and SUPPORT_TEACHER added (02_25 v1.12 §6.16.1, 02_35 v1.7
+ * §11quinquies/§11sexies, migration 0012): a fourth and fifth role, same
+ * discipline -- distinct professional mandates, never a collapse of one
+ * into the other (02_39 v1.1 §1, §3). Enforced coherent with tenant.type
+ * by a DB trigger (migration 0010, extended by migration 0012), never by
+ * application code alone.
  */
-export type StaffRole = "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR";
+export type StaffRole = "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR" | "ASACOM" | "SUPPORT_TEACHER";
 /**
  * INVITED and REVOKED added by School Onboarding + Staff Membership
  * (02_35 v1.2 §11bis.2, migration 0008). INVITED = invited, not yet
@@ -52,7 +56,15 @@ function mapRow(row: StaffTenantMembershipRow): StaffTenantMembership {
   };
 }
 
-/** Role/tenant scope resolution for a staff_account (02_35 §3). A staff_account may hold at most one membership per tenant (UNIQUE (staff_account_id, tenant_id)), but multiple memberships across tenants. */
+/**
+ * Role/tenant scope resolution for a staff_account (02_35 §3). A
+ * staff_account may hold multiple memberships across tenants, and (since
+ * migration 0012, 02_25 v1.12 §6.16.6) multiple memberships on the SAME
+ * tenant provided each has a distinct `role` (UNIQUE (staff_account_id,
+ * tenant_id, role)) -- e.g. one human as both TEACHER and SUPPORT_TEACHER
+ * in one school. Never two rows with the same (staff_account_id,
+ * tenant_id, role) triple, and never a single row carrying two roles.
+ */
 export class StaffTenantMembershipRepository {
   constructor(private readonly db: Queryable) {}
 
@@ -64,10 +76,42 @@ export class StaffTenantMembershipRepository {
     return result.rows.map(mapRow);
   }
 
+  /**
+   * Since migration 0012 this can legitimately match more than one row
+   * (same-tenant multi-role, 02_25 v1.12 §6.16.6) -- callers that need a
+   * SINGLE unambiguous membership (login tenant resolution, tenant
+   * switching) must use `findByStaffAccountTenantAndRole` when a role is
+   * known, or explicitly handle the multi-row case themselves
+   * (AMBIGUOUS_TENANT_MEMBERSHIP, 02_35 v1.7 §11sexies.7). This method
+   * itself still returns only the first row found -- kept only for call
+   * sites that pre-date multi-role and are provably single-role-only
+   * (e.g. a tenant that cannot yet have more than one role type in
+   * practice); do not add a new call site without checking that
+   * assumption still holds.
+   */
   async findByStaffAccountAndTenant(staffAccountId: string, tenantId: string): Promise<StaffTenantMembership | null> {
     const result = await this.db.query<StaffTenantMembershipRow>(
       `SELECT ${SELECT_COLUMNS} FROM staff_tenant_membership WHERE staff_account_id = $1 AND tenant_id = $2`,
       [staffAccountId, tenantId],
+    );
+    const [row] = result.rows;
+    return row ? mapRow(row) : null;
+  }
+
+  /** All ACTIVE memberships (rarely more than one) a staff_account holds on one tenant -- the disambiguation set for AMBIGUOUS_TENANT_MEMBERSHIP (02_35 v1.7 §11sexies.7). */
+  async findAllByStaffAccountAndTenant(staffAccountId: string, tenantId: string): Promise<StaffTenantMembership[]> {
+    const result = await this.db.query<StaffTenantMembershipRow>(
+      `SELECT ${SELECT_COLUMNS} FROM staff_tenant_membership WHERE staff_account_id = $1 AND tenant_id = $2 ORDER BY created_at ASC`,
+      [staffAccountId, tenantId],
+    );
+    return result.rows.map(mapRow);
+  }
+
+  /** Single-role lookup, safe under same-tenant multi-role (02_25 v1.12 §6.16.6) -- used by invitation creation, which must dedupe per (account, tenant, role), not per (account, tenant). */
+  async findByStaffAccountTenantAndRole(staffAccountId: string, tenantId: string, role: StaffRole): Promise<StaffTenantMembership | null> {
+    const result = await this.db.query<StaffTenantMembershipRow>(
+      `SELECT ${SELECT_COLUMNS} FROM staff_tenant_membership WHERE staff_account_id = $1 AND tenant_id = $2 AND role = $3`,
+      [staffAccountId, tenantId, role],
     );
     const [row] = result.rows;
     return row ? mapRow(row) : null;
