@@ -3,11 +3,14 @@ import { NextResponse } from "next/server";
 import { IdentityError } from "@quest-city-web/identity";
 import { CrossRuntimeError, RuntimeCapabilityResolver } from "@quest-city-web/attempts";
 import { resolvePresentationLocale } from "@quest-city-web/i18n";
+import { createLogger } from "@quest-city-web/telemetry";
 import { getSessionService, getTenantRepository } from "../../../../lib/identity-context";
 import {
   getAssignmentRepository,
   getContentBundleRepository,
   getLearningAttemptRepository,
+  getLearningPathSnapshotRepository,
+  resolveEffectiveForLaunchAttempt,
 } from "../../../../lib/attempts-context";
 import { attemptErrorResponse } from "../../../../lib/attempt-error-response";
 import { readSessionToken } from "../../../../lib/session-cookie";
@@ -156,9 +159,9 @@ export async function POST(
     });
     const presentationLocale = localeResolution.ok ? localeResolution.resolved : "it-IT";
 
-    const attempt =
-      existing ??
-      (await attempts.create({
+    let attempt = existing;
+    if (!attempt) {
+      attempt = await attempts.create({
         tenantId: identity.tenantId,
         eventId: randomUUID(),
         assignmentId,
@@ -172,7 +175,38 @@ export async function POST(
         presentationAdapterVersion: resolution.adapter.adapterVersion,
         themeId: body.themeId ?? null,
         creationIdempotencyKey: idempotencyKey,
-      }));
+      });
+
+      // GLPC (02_41 §33-34, mission §25-29): captured exactly once, at
+      // CREATED, never at resume -- a resumed attempt keeps using its own
+      // original snapshot (finish-current-attempt, §23), so this branch
+      // only runs for a genuinely new attempt row. Best-effort: a
+      // snapshot-capture failure must never block the attempt the student
+      // is otherwise entitled to continue, so it is logged, not thrown.
+      // `bundle.publicId` stands in for a UNIT_ELEMENT resourceRef by
+      // convention -- no curriculum_profile/content_entity_index table
+      // exists in this schema to derive a true curriculum-node id from an
+      // assignment's content_bundle (migration 0013 header); this is the
+      // same disclosed opaque-identity gap, applied at the one place a
+      // learning_attempt actually gets created.
+      try {
+        const resolvedAvailability = await resolveEffectiveForLaunchAttempt({
+          tenantId: identity.tenantId,
+          studentProfileId: identity.studentProfileId,
+          resourceType: "UNIT_ELEMENT",
+          resourceRef: bundle.publicId,
+        });
+        await getLearningPathSnapshotRepository().capture({
+          tenantId: identity.tenantId,
+          learningAttemptId: attempt.id,
+          resolvedAvailability,
+        });
+      } catch (snapshotError) {
+        createLogger(correlationId ?? undefined).error("learning_path_snapshot capture failed", {
+          message: snapshotError instanceof Error ? snapshotError.message : String(snapshotError),
+        });
+      }
+    }
 
     return NextResponse.json(
       {
