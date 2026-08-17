@@ -231,6 +231,12 @@ export class FacilitationService {
         targetRef: input.targetRef,
         reason: input.reason,
         createdByStaffAccountId: identity.staffAccountId,
+        // Explicit, not identity.role: this is the direct-apply endpoint,
+        // already gated to SUPPORT_TEACHER-only at the top of this method
+        // -- never reachable by TEACHER, regardless of the relaxed DB
+        // CHECK (migration 0012). Review-derived TEACHER writes only ever
+        // happen through FacilitationProposalService.review().
+        createdByRole: "SUPPORT_TEACHER",
       });
       await this.idempotency.complete({
         tenantId: identity.tenantId,

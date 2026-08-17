@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { AuditRepository, StudentProfileRepository, SchoolEnrollmentRepository } from "@quest-city-web/identity";
 import { IdempotencyRecordRepository } from "@quest-city-web/attempts";
 import { StaffIdentityError, isClassInScope, assertStaffCapability, type StaffInternalIdentity } from "@quest-city-web/staff-identity";
@@ -24,32 +24,36 @@ const REVIEW_IDEMPOTENCY_SCOPE = "facilitation_proposal_review";
  * `POST .../review`, `POST .../withdraw`, `GET
  * /me/facilitation-proposals/review-queue` (02_26 v1.16 §37.7, v1.17
  * §38.2). One shared model for FACILITATION and DIFFICULTY proposals
- * (02_39 §11). Reviewer resolution (§6ter/§42): the assigned
- * SUPPORT_TEACHER if present, otherwise the class TEACHER -- never a
- * manual reviewer choice, never a forced hierarchy when the
- * higher-authority role is already available. Anti-self-approval is
- * enforced by the DB CHECK (migration 0012) as the final backstop, but
- * this service also refuses the review attempt earlier with a clear
- * STAFF_FORBIDDEN, and excludes self-authored proposals from the review
- * queue at read time too.
+ * (02_39 §11). Reviewer resolution (§6ter): the assigned SUPPORT_TEACHER
+ * if present, otherwise the class TEACHER -- never a manual reviewer
+ * choice, never a forced hierarchy when the higher-authority role is
+ * already available. A student with an ACTIVE SUPPORT_TEACHER
+ * assignment is excluded from a class TEACHER's reviewable set entirely
+ * (resolveReviewableStudentProfileIds) -- reviewer priority, not just a
+ * preference. Anti-self-approval is enforced by the DB CHECK (migration
+ * 0012) as the final backstop, but this service also refuses the review
+ * attempt earlier with a clear STAFF_FORBIDDEN, and excludes
+ * self-authored proposals from the review queue at read time too. A
+ * DIFFICULTY ACCEPT by either legitimate reviewer produces a per-student
+ * difficulty_override (REVIEW_DERIVED_STUDENT_DIFFICULTY_AUTHORITY,
+ * 02_39 v1.3 §11bis) -- atomically with the state transition, see
+ * reviewInTransaction.
  */
 export class FacilitationProposalService {
+  private readonly pool: Pool;
   private readonly proposals: FacilitationProposalRepository;
   private readonly assignments: SupportStudentAssignmentRepository;
   private readonly enrollments: SchoolEnrollmentRepository;
   private readonly students: StudentProfileRepository;
-  private readonly profiles: SupportProfileRepository;
-  private readonly difficultyOverrides: DifficultyOverrideRepository;
   private readonly idempotency: IdempotencyRecordRepository;
   private readonly audit: AuditRepository;
 
   constructor(pool: Pool) {
+    this.pool = pool;
     this.proposals = new FacilitationProposalRepository(pool);
     this.assignments = new SupportStudentAssignmentRepository(pool);
     this.enrollments = new SchoolEnrollmentRepository(pool);
     this.students = new StudentProfileRepository(pool);
-    this.profiles = new SupportProfileRepository(pool);
-    this.difficultyOverrides = new DifficultyOverrideRepository(pool);
     this.idempotency = new IdempotencyRecordRepository(pool);
     this.audit = new AuditRepository(pool);
   }
@@ -191,7 +195,7 @@ export class FacilitationProposalService {
     return this.withPublicStudentIds(proposals, identity.tenantId);
   }
 
-  /** `POST /facilitation-proposals/{id}/review` -- ACCEPT/REJECT, If-Match/version, anti-self-approval, ACCEPT invokes the existing FACILITATION/DIFFICULTY apply mechanisms (no direct write here beyond status). */
+  /** `POST /facilitation-proposals/{id}/review` -- ACCEPT/REJECT, If-Match/version, anti-self-approval, reviewer-priority scope check (resolveReviewableStudentProfileIds). ACCEPT invokes the FACILITATION/DIFFICULTY apply mechanisms atomically with the state transition (reviewInTransaction, 02_26 v1.18 §37.7bis). */
   async review(input: {
     identity: StaffInternalIdentity;
     id: string;
@@ -236,69 +240,7 @@ export class FacilitationProposalService {
     }
 
     try {
-      const updated = await this.proposals.review(
-        input.id,
-        identity.tenantId,
-        input.ifMatchVersion,
-        input.decision === "ACCEPT" ? "ACCEPTED" : "REJECTED",
-        identity.staffAccountId,
-        input.reviewNote ?? null,
-      );
-      if (!updated) {
-        const current = await this.proposals.findByPublicId(input.id, identity.tenantId);
-        if (current && current.version !== input.ifMatchVersion) {
-          throw new StaffIdentityError("ETAG_MISMATCH", "facilitation_proposal version mismatch.");
-        }
-        throw new StaffIdentityError("VALIDATION_ERROR", "facilitation_proposal is not in a reviewable state.");
-      }
-      // ACCEPT invokes the FACILITATION/DIFFICULTY write mechanisms
-      // (02_39 §11): a FACILITATION accept writes a PROFILE_LEVEL
-      // support_profile entry (persistent -- the reviewer, TEACHER or
-      // SUPPORT_TEACHER, always has PROFILE_LEVEL authority, 02_39 §7.1);
-      // a DIFFICULTY accept writes a difficulty_override, motivation
-      // taken from the review note (falls back to a fixed audit-trail
-      // string if the reviewer left it blank -- reason is NOT NULL at
-      // the schema level, 02_39 §7.2). Both are attributed to the
-      // REVIEWER (their decision, their authority), never the original
-      // proposer. Best-effort only: the proposal's own status transition
-      // above already committed and is the source of truth for
-      // ACCEPTED/REJECTED -- a failure applying the underlying change is
-      // surfaced to the caller but never silently reverts the decision
-      // (same "decision is the record" principle already used for
-      // review_queue_item transitions).
-      if (input.decision === "ACCEPT") {
-        if (updated.proposalType === "FACILITATION" && updated.targetCategory && SUPPORT_PROFILE_CATEGORIES.includes(updated.targetCategory)) {
-          await this.profiles.apply({
-            tenantId: identity.tenantId,
-            studentProfileId: updated.studentProfileId,
-            category: updated.targetCategory as SupportProfileCategory,
-            level: "PROFILE_LEVEL",
-            configJson: { fromProposalId: updated.id },
-            appliedByStaffAccountId: identity.staffAccountId,
-            appliedByRole: identity.role === "SUPPORT_TEACHER" ? "SUPPORT_TEACHER" : "TEACHER",
-            expiresAt: null,
-          });
-        } else if (updated.proposalType === "DIFFICULTY" && identity.role === "SUPPORT_TEACHER") {
-          // Disclosed limitation of the minimal difficulty_override model
-          // (migration 0012 header note D): its schema ties
-          // created_by_role=SUPPORT_TEACHER to the per-student scope --
-          // it cannot represent a TEACHER-authored per-student override
-          // (only TEACHER's own class-wide scope, which this proposal
-          // workflow never targets). When the class TEACHER accepts a
-          // DIFFICULTY proposal instead of the assigned SUPPORT_TEACHER,
-          // the proposal's own ACCEPTED status is still recorded (the
-          // authoritative decision), but no difficulty_override row is
-          // written -- the full 02_16/03_28 engine, out of scope here,
-          // would be required to represent that case.
-          await this.difficultyOverrides.createForStudent({
-            tenantId: identity.tenantId,
-            studentProfileId: updated.studentProfileId,
-            targetRef: updated.targetCategory ?? updated.id,
-            reason: input.reviewNote && input.reviewNote.trim().length > 0 ? input.reviewNote : `Accettata da proposta ${updated.publicId}`,
-            createdByStaffAccountId: identity.staffAccountId,
-          });
-        }
-      }
+      const updated = await this.reviewInTransaction(input, identity);
       await this.idempotency.complete({
         tenantId: identity.tenantId,
         scope: REVIEW_IDEMPOTENCY_SCOPE,
@@ -327,6 +269,116 @@ export class FacilitationProposalService {
         response: { error: error instanceof Error ? error.message : String(error) },
       });
       throw error;
+    }
+  }
+
+  /**
+   * The state transition (`SUBMITTED` -> `ACCEPTED`/`REJECTED`) and, for
+   * an `ACCEPT`, the resulting `FACILITATION`/`DIFFICULTY` write are one
+   * transaction (`02_26 v1.18` §37.7bis, `02_39 v1.3` §11bis) -- opened
+   * and closed entirely within this method, never spanning a call
+   * boundary. Every repository used here is freshly constructed against
+   * the transaction-bound `client`, not against `this.pool` (same
+   * `Queryable = Pool | PoolClient` pattern already used by
+   * `ConvergenceExecutionService`/`SessionService`/`PlatformAuthService`
+   * elsewhere in this codebase) -- no second database abstraction, no
+   * nested independent transaction. A thrown error at any point rolls
+   * back the whole operation: the proposal's own status transition is
+   * rolled back along with it, so a failed `DIFFICULTY` write can never
+   * leave the proposal `ACCEPTED` without its effect.
+   */
+  private async reviewInTransaction(
+    input: { id: string; decision: "ACCEPT" | "REJECT"; reviewNote?: string | null; ifMatchVersion: number },
+    identity: StaffInternalIdentity,
+  ): Promise<FacilitationProposal> {
+    const client: PoolClient = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const proposals = new FacilitationProposalRepository(client);
+      const profiles = new SupportProfileRepository(client);
+      const difficultyOverrides = new DifficultyOverrideRepository(client);
+
+      const updated = await proposals.review(
+        input.id,
+        identity.tenantId,
+        input.ifMatchVersion,
+        input.decision === "ACCEPT" ? "ACCEPTED" : "REJECTED",
+        identity.staffAccountId,
+        input.reviewNote ?? null,
+      );
+      if (!updated) {
+        const current = await proposals.findByPublicId(input.id, identity.tenantId);
+        if (current && current.version !== input.ifMatchVersion) {
+          throw new StaffIdentityError("ETAG_MISMATCH", "facilitation_proposal version mismatch.");
+        }
+        throw new StaffIdentityError("VALIDATION_ERROR", "facilitation_proposal is not in a reviewable state.");
+      }
+
+      // ACCEPT invokes the FACILITATION/DIFFICULTY write mechanisms
+      // (02_39 §11): a FACILITATION accept writes a PROFILE_LEVEL
+      // support_profile entry (persistent -- the reviewer, TEACHER or
+      // SUPPORT_TEACHER, always has PROFILE_LEVEL authority, §7.1); a
+      // DIFFICULTY accept writes a difficulty_override, motivation taken
+      // from the review note (falls back to a fixed audit-trail string
+      // if blank -- reason is NOT NULL at the schema level, §7.2). Both
+      // are attributed to the REVIEWER (their decision, their
+      // authority), never the original proposer.
+      if (input.decision === "ACCEPT") {
+        if (updated.proposalType === "FACILITATION" && updated.targetCategory && SUPPORT_PROFILE_CATEGORIES.includes(updated.targetCategory)) {
+          await profiles.apply({
+            tenantId: identity.tenantId,
+            studentProfileId: updated.studentProfileId,
+            category: updated.targetCategory as SupportProfileCategory,
+            level: "PROFILE_LEVEL",
+            configJson: { fromProposalId: updated.id },
+            appliedByStaffAccountId: identity.staffAccountId,
+            appliedByRole: identity.role === "SUPPORT_TEACHER" ? "SUPPORT_TEACHER" : "TEACHER",
+            expiresAt: null,
+          });
+        } else if (updated.proposalType === "DIFFICULTY" && (identity.role === "SUPPORT_TEACHER" || identity.role === "TEACHER")) {
+          // REVIEW_DERIVED_STUDENT_DIFFICULTY_AUTHORITY (02_39 v1.3
+          // §11bis): a legitimate reviewer's ACCEPT on a DIFFICULTY
+          // proposal always produces a per-student difficulty_override,
+          // regardless of which of the two authorized roles reviewed it.
+          // All six canonical conditions are already satisfied by the
+          // time execution reaches here:
+          //   1-3. a SUBMITTED DIFFICULTY proposal for this student
+          //        exists -- the row `proposals.review()` just updated;
+          //   4. no higher-priority SUPPORT_TEACHER is applicable -- for
+          //      a TEACHER reviewer this is enforced upstream, in
+          //      review()'s scope check: resolveReviewableStudentProfileIds
+          //      excludes any student who has an ACTIVE SUPPORT_TEACHER
+          //      assignment from the TEACHER's reviewable set entirely,
+          //      so a TEACHER can never even reach this line for such a
+          //      student;
+          //   5. this is an explicit ACCEPT (the enclosing `if`);
+          //   6. audit/motivation/tenant-isolation/concurrency are all
+          //      handled by the surrounding method and this same
+          //      transaction.
+          // identity.role is guaranteed TEACHER or SUPPORT_TEACHER here
+          // -- ASACOM's reviewable set is always empty (resolveReviewable...
+          // returns [] for every role other than TEACHER/SUPPORT_TEACHER),
+          // so an ASACOM caller can never reach this line; the role
+          // check stays explicit anyway as defense-in-depth, never
+          // implicit trust in an upstream guarantee alone.
+          await difficultyOverrides.createForStudent({
+            tenantId: identity.tenantId,
+            studentProfileId: updated.studentProfileId,
+            targetRef: updated.targetCategory ?? updated.id,
+            reason: input.reviewNote && input.reviewNote.trim().length > 0 ? input.reviewNote : `Accettata da proposta ${updated.publicId}`,
+            createdByStaffAccountId: identity.staffAccountId,
+            createdByRole: identity.role,
+          });
+        }
+      }
+
+      await client.query("COMMIT");
+      return updated;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
   }
 
@@ -367,7 +419,15 @@ export class FacilitationProposalService {
         const roster = await this.enrollments.findByClass(classId, identity.tenantId);
         studentIds.push(...roster.filter((r) => r.status === "ACTIVE").map((r) => r.studentProfileId));
       }
-      return studentIds;
+      // Reviewer priority (02_39 v1.3 §11bis condition 4, §6ter): a
+      // student with an ACTIVE SUPPORT_TEACHER assignment has that
+      // SUPPORT_TEACHER as their sole legitimate reviewer -- never the
+      // class TEACHER, even though the student is also on the TEACHER's
+      // roster. This gates both review-queue visibility and the review()
+      // mutation itself (both call this same resolver) -- no separate
+      // check needed at either call site.
+      const priorityExcluded = await this.assignments.findStudentIdsWithActiveSupportTeacher(studentIds, identity.tenantId);
+      return studentIds.filter((id) => !priorityExcluded.has(id));
     }
     return [];
   }
