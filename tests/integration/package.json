@@ -16,6 +16,7 @@
     "@quest-city-web/i18n": "workspace:*",
     "@quest-city-web/identity": "workspace:*",
     "@quest-city-web/learning-engines": "workspace:*",
+    "@quest-city-web/learning-path-control": "workspace:*",
     "@quest-city-web/platform-admin": "workspace:*",
     "@quest-city-web/staff-identity": "workspace:*",
     "@quest-city-web/student-support": "workspace:*",

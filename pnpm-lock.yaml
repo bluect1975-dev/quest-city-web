@@ -602,6 +602,9 @@ importers:
       '@quest-city-web/learning-engines':
         specifier: workspace:*
         version: link:../../packages/learning-engines
+      '@quest-city-web/learning-path-control':
+        specifier: workspace:*
+        version: link:../../packages/learning-path-control
       '@quest-city-web/platform-admin':
         specifier: workspace:*
         version: link:../../packages/platform-admin
