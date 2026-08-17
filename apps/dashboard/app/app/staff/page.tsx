@@ -8,7 +8,29 @@ import { useStaffAuth } from "../../../lib/staff-auth-context";
 import { useAsync } from "../../../lib/useAsync";
 import { staffErrorText } from "../../../lib/staff-error-text";
 import { inviteStaffMember, listStaffMembers, updateStaffMembershipStatus } from "../../../lib/staff-api-client";
-import type { CreateStaffInvitationResult, MembershipStatusAction, StaffMember, StaffTenantMembershipStatus } from "../../../lib/staff-api-types";
+import type {
+  CreateStaffInvitationResult,
+  InvitableStaffRole,
+  MembershipStatusAction,
+  StaffMember,
+  StaffTenantMembershipStatus,
+} from "../../../lib/staff-api-types";
+
+const INVITABLE_ROLES: InvitableStaffRole[] = ["TEACHER", "SUPPORT_TEACHER", "ASACOM"];
+
+const ROLE_LABEL_I18N_KEY: Record<StaffMember["role"], string> = {
+  TEACHER: "app.staff.roleTeacher",
+  SCHOOL_ADMIN: "app.staff.roleSchoolAdmin",
+  INDEPENDENT_EDUCATOR: "app.staff.roleTeacher", // never invitable through this flow, no dedicated label needed here
+  SUPPORT_TEACHER: "app.staff.roleSupportTeacher",
+  ASACOM: "app.staff.roleAsacom",
+};
+
+const ROLE_HELP_I18N_KEY: Record<InvitableStaffRole, string> = {
+  TEACHER: "app.staff.inviteRoleHelpTeacher",
+  SUPPORT_TEACHER: "app.staff.inviteRoleHelpSupportTeacher",
+  ASACOM: "app.staff.inviteRoleHelpAsacom",
+};
 
 /** `/app/staff` (02_35 v1.2 §11bis.4, §11bis.14). SCHOOL_ADMIN-only surface — staff.invite/staff.member.read/staff.membership.suspend/staff.membership.revoke. */
 export default function StaffPage() {
@@ -35,6 +57,7 @@ function StaffView() {
   const { csrfToken } = useStaffAuth();
   const result = useAsync<StaffMember[]>(() => listStaffMembers(), []);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<InvitableStaffRole>("TEACHER");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteResult, setInviteResult] = useState<CreateStaffInvitationResult | null>(null);
@@ -48,9 +71,10 @@ function StaffView() {
     setInviteError(null);
     setInviteResult(null);
     try {
-      const created = await inviteStaffMember({ email: inviteEmail, csrfToken });
+      const created = await inviteStaffMember({ email: inviteEmail, role: inviteRole, csrfToken });
       setInviteResult(created);
       setInviteEmail("");
+      setInviteRole("TEACHER");
       result.reload();
     } catch (error) {
       setInviteError(staffErrorText(error));
@@ -88,6 +112,17 @@ function StaffView() {
               <input {...fieldProps} type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
             )}
           </FormField>
+          <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.staff.inviteRoleLabel")} hint={t(DASHBOARD_CATALOG_IT_IT, ROLE_HELP_I18N_KEY[inviteRole])}>
+            {(fieldProps) => (
+              <select {...fieldProps} value={inviteRole} onChange={(e) => setInviteRole(e.target.value as InvitableStaffRole)}>
+                {INVITABLE_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {t(DASHBOARD_CATALOG_IT_IT, ROLE_LABEL_I18N_KEY[role])}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
           <Button type="submit" disabled={inviting || !csrfToken}>
             {inviting ? t(DASHBOARD_CATALOG_IT_IT, "app.staff.inviteSubmitting") : t(DASHBOARD_CATALOG_IT_IT, "app.staff.inviteSubmit")}
           </Button>
@@ -116,10 +151,7 @@ function StaffView() {
               {
                 key: "role",
                 header: t(DASHBOARD_CATALOG_IT_IT, "app.staff.columnRole"),
-                render: (row) =>
-                  row.role === "TEACHER"
-                    ? t(DASHBOARD_CATALOG_IT_IT, "app.staff.roleTeacher")
-                    : t(DASHBOARD_CATALOG_IT_IT, "app.staff.roleSchoolAdmin"),
+                render: (row) => t(DASHBOARD_CATALOG_IT_IT, ROLE_LABEL_I18N_KEY[row.role]),
               },
               {
                 key: "status",

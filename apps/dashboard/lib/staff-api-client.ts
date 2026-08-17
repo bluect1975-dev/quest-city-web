@@ -7,8 +7,16 @@ import type {
   ClassSummary,
   ConvergenceRequest,
   CreateStaffInvitationResult,
+  DifficultyOverrideResult,
+  FacilitationProposal,
+  FacilitationProposalStatus,
+  FacilitationProposalType,
   GeneralAssignment,
+  InvitableStaffRole,
+  LearningSupportEvent,
   MembershipStatusAction,
+  MyAssignedStudent,
+  ObservationHistoryEntry,
   OwnershipDecision,
   ProgressAggregate,
   RecoveryAssignment,
@@ -25,6 +33,13 @@ import type {
   StaffRole,
   StudentProgressSummary,
   StudentRosterEntry,
+  SupportIntensity,
+  SupportProfileCategory,
+  SupportProfileEntry,
+  SupportProfileLevel,
+  SupportStudentAssignment,
+  SupportStudentAssignmentStatus,
+  SupportType,
   TeacherClassAssignment,
   TeacherFeedback,
   TenantMembership,
@@ -77,8 +92,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const json: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const envelope = json as { code?: string; message?: string } | null;
-    throw new StaffApiError(envelope?.code ?? "UNKNOWN_ERROR", envelope?.message ?? "Unexpected error", response.status);
+    const envelope = json as { code?: string; message?: string; safeDetails?: Record<string, unknown> } | null;
+    throw new StaffApiError(
+      envelope?.code ?? "UNKNOWN_ERROR",
+      envelope?.message ?? "Unexpected error",
+      response.status,
+      envelope?.safeDetails,
+    );
   }
   return json as T;
 }
@@ -92,6 +112,7 @@ export async function startStaffSession(input: {
   email: string;
   password: string;
   tenantId?: string | undefined;
+  staffTenantMembershipId?: string | undefined;
 }): Promise<{ csrfToken: string; tenantId: string; role: StaffRole }> {
   const envelope = await request<Envelope<{ csrfToken: string; tenantId: string; role: StaffRole }>>(
     "/staff-auth/session/start",
@@ -242,10 +263,10 @@ export async function revokeTeacherFeedback(input: {
 }
 
 /** `POST /staff/invitations` (02_35 v1.2 §11bis.3). SCHOOL_ADMIN-only. */
-export async function inviteStaffMember(input: { email: string; csrfToken: string }): Promise<CreateStaffInvitationResult> {
+export async function inviteStaffMember(input: { email: string; role?: InvitableStaffRole; csrfToken: string }): Promise<CreateStaffInvitationResult> {
   const envelope = await request<Envelope<CreateStaffInvitationResult>>("/staff/invitations", {
     method: "POST",
-    body: { email: input.email, role: "TEACHER" },
+    body: { email: input.email, role: input.role ?? "TEACHER" },
     csrfToken: input.csrfToken,
     idempotencyKey: generateIdempotencyKey(),
   });
@@ -534,10 +555,15 @@ export async function listMyTenantMemberships(): Promise<TenantMembership[]> {
  * revoked. Callers must re-fetch the staff auth context (or reload) after
  * this succeeds, same as after any other session-mutating action.
  */
-export async function switchSessionTenant(input: { tenantId: string; csrfToken: string }): Promise<{ tenantId: string; role: StaffRole }> {
+export async function switchSessionTenant(input: {
+  tenantId: string;
+  /** Required when the identity holds more than one ACTIVE membership on tenantId (same-tenant multi-role, 02_39 v1.1 §3bis.5) -- otherwise the server returns 409 AMBIGUOUS_TENANT_MEMBERSHIP. */
+  staffTenantMembershipId?: string;
+  csrfToken: string;
+}): Promise<{ tenantId: string; role: StaffRole }> {
   const envelope = await request<Envelope<{ tenantId: string; role: StaffRole }>>("/staff-auth/session/switch-tenant", {
     method: "POST",
-    body: { tenantId: input.tenantId },
+    body: { tenantId: input.tenantId, ...(input.staffTenantMembershipId ? { staffTenantMembershipId: input.staffTenantMembershipId } : {}) },
     csrfToken: input.csrfToken,
   });
   return envelope.data;
@@ -563,5 +589,263 @@ export async function createRecoveryAssignment(input: {
       idempotencyKey: generateIdempotencyKey(),
     },
   );
+  return envelope.data;
+}
+
+/* ---------------------------------------------------------------------
+ * Student Support Roles (02_25 v1.12 §6.16, 02_35 v1.7 §11quinquies/
+ * §11sexies, 02_39 v1.2, 02_26 v1.17 §37/§37bis/§38).
+ * ------------------------------------------------------------------- */
+
+/** `POST /platform/support-assignments` (02_26 v1.16 §37.2) -- SCHOOL_ADMIN-only. */
+export async function createSupportStudentAssignment(input: {
+  staffTenantMembershipId: string;
+  studentPublicId: string;
+  classId?: string;
+  csrfToken: string;
+}): Promise<SupportStudentAssignment> {
+  const envelope = await request<Envelope<SupportStudentAssignment>>("/platform/support-assignments", {
+    method: "POST",
+    body: { staffTenantMembershipId: input.staffTenantMembershipId, studentPublicId: input.studentPublicId, classId: input.classId ?? null },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `GET /platform/support-assignments` (02_26 v1.16 §37.2) -- coverage view source, SCHOOL_ADMIN-only. */
+export async function listSupportStudentAssignments(filter: {
+  staffAccountId?: string;
+  studentPublicId?: string;
+  status?: SupportStudentAssignmentStatus;
+} = {}): Promise<SupportStudentAssignment[]> {
+  const params = new URLSearchParams();
+  if (filter.staffAccountId) params.set("staffAccountId", filter.staffAccountId);
+  if (filter.studentPublicId) params.set("studentPublicId", filter.studentPublicId);
+  if (filter.status) params.set("status", filter.status);
+  const query = params.toString();
+  const envelope = await request<Envelope<SupportStudentAssignment[]>>(`/platform/support-assignments${query ? `?${query}` : ""}`);
+  return envelope.data;
+}
+
+/** `PATCH /platform/support-assignments/{id}/status` (02_26 v1.16 §37.2). */
+export async function transitionSupportStudentAssignmentStatus(input: {
+  id: string;
+  targetStatus: "ENDED" | "REVOKED";
+  csrfToken: string;
+}): Promise<{ id: string; status: SupportStudentAssignmentStatus }> {
+  const envelope = await request<Envelope<{ id: string; status: SupportStudentAssignmentStatus }>>(
+    `/platform/support-assignments/${encodeURIComponent(input.id)}/status`,
+    { method: "PATCH", body: { targetStatus: input.targetStatus }, csrfToken: input.csrfToken },
+  );
+  return envelope.data;
+}
+
+/** `GET /me/asacom-assigned-students` (02_26 v1.16 §37.3) -- "My assigned students", shared by ASACOM and SUPPORT_TEACHER. */
+export async function listMyAssignedStudents(): Promise<MyAssignedStudent[]> {
+  const envelope = await request<Envelope<MyAssignedStudent[]>>("/me/asacom-assigned-students");
+  return envelope.data;
+}
+
+/** `GET /students/{studentPublicId}/support-events` (02_26 v1.16 §37.4) -- shared read for TEACHER/SUPPORT_TEACHER/ASACOM. */
+export async function listSupportEvents(studentPublicId: string): Promise<LearningSupportEvent[]> {
+  const envelope = await request<Envelope<LearningSupportEvent[]>>(`/students/${encodeURIComponent(studentPublicId)}/support-events`);
+  return envelope.data;
+}
+
+/** `POST /asacom/support-events` or `POST /support-teacher/support-events` (02_26 v1.16 §37.4) -- `actorRole` selects the path (server resolves authority from the session either way). */
+export async function createSupportEvent(input: {
+  actorRole: "ASACOM" | "SUPPORT_TEACHER";
+  studentPublicId: string;
+  learningAttemptId: string;
+  supportType: SupportType;
+  intensity: SupportIntensity;
+  durationSeconds?: number;
+  csrfToken: string;
+}): Promise<LearningSupportEvent> {
+  const path = input.actorRole === "ASACOM" ? "/asacom/support-events" : "/support-teacher/support-events";
+  const envelope = await request<Envelope<LearningSupportEvent>>(path, {
+    method: "POST",
+    body: {
+      studentPublicId: input.studentPublicId,
+      learningAttemptId: input.learningAttemptId,
+      supportType: input.supportType,
+      intensity: input.intensity,
+      durationSeconds: input.durationSeconds ?? null,
+    },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `GET /students/{studentPublicId}/support-observations` (`contracts/quest-city-platform-openapi-v1_14.yaml`, 02_26 v1.17 §38.1). */
+export async function listSupportObservations(
+  studentPublicId: string,
+  filter: { category?: SupportType; includeSuperseded?: boolean } = {},
+): Promise<ObservationHistoryEntry[]> {
+  const params = new URLSearchParams();
+  if (filter.category) params.set("category", filter.category);
+  if (filter.includeSuperseded) params.set("includeSuperseded", "true");
+  const query = params.toString();
+  const envelope = await request<Envelope<ObservationHistoryEntry[]>>(
+    `/students/${encodeURIComponent(studentPublicId)}/support-observations${query ? `?${query}` : ""}`,
+  );
+  return envelope.data;
+}
+
+/** `POST /asacom/observations` or `POST /support-teacher/observations` (02_26 v1.16 §37.5). */
+export async function createObservation(input: {
+  actorRole: "ASACOM" | "SUPPORT_TEACHER";
+  studentPublicId: string;
+  category?: SupportType;
+  csrfToken: string;
+}): Promise<ObservationHistoryEntry> {
+  const path = input.actorRole === "ASACOM" ? "/asacom/observations" : "/support-teacher/observations";
+  const envelope = await request<Envelope<ObservationHistoryEntry>>(path, {
+    method: "POST",
+    body: { studentPublicId: input.studentPublicId, category: input.category ?? null },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `POST /{asacom|support-teacher}/observations/{id}/supersede` (02_26 v1.16 §37.5) -- author-only correction, original never mutated. */
+export async function supersedeObservation(input: {
+  actorRole: "ASACOM" | "SUPPORT_TEACHER";
+  observationId: string;
+  category?: SupportType;
+  csrfToken: string;
+}): Promise<ObservationHistoryEntry> {
+  const basePath = input.actorRole === "ASACOM" ? "/asacom/observations" : "/support-teacher/observations";
+  const envelope = await request<Envelope<ObservationHistoryEntry>>(`${basePath}/${encodeURIComponent(input.observationId)}/supersede`, {
+    method: "POST",
+    body: { category: input.category ?? null },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `GET /students/{studentPublicId}/facilitation` (02_26 v1.16 §37.6). */
+export async function getStudentFacilitation(studentPublicId: string): Promise<SupportProfileEntry[]> {
+  const envelope = await request<Envelope<SupportProfileEntry[]>>(`/students/${encodeURIComponent(studentPublicId)}/facilitation`);
+  return envelope.data;
+}
+
+/** `POST /asacom/facilitation/{studentPublicId}/apply-temporary` (02_26 v1.16 §37.6) -- SESSION_ONLY, TOOLS category only. No Idempotency-Key (non-persistent effect). */
+export async function applyAsacomFacilitationTemporary(input: {
+  studentPublicId: string;
+  configJson?: Record<string, unknown>;
+  csrfToken: string;
+}): Promise<SupportProfileEntry> {
+  const envelope = await request<Envelope<SupportProfileEntry>>(`/asacom/facilitation/${encodeURIComponent(input.studentPublicId)}/apply-temporary`, {
+    method: "POST",
+    body: { category: "TOOLS", configJson: input.configJson ?? {} },
+    csrfToken: input.csrfToken,
+  });
+  return envelope.data;
+}
+
+/** `POST /support-teacher/facilitation/{studentPublicId}/apply` (02_26 v1.16 §37.6) -- SESSION_ONLY or PROFILE_LEVEL, own assigned students only. Idempotency-Key required only for PROFILE_LEVEL. */
+export async function applySupportTeacherFacilitation(input: {
+  studentPublicId: string;
+  category: SupportProfileCategory;
+  level: SupportProfileLevel;
+  configJson?: Record<string, unknown>;
+  csrfToken: string;
+}): Promise<SupportProfileEntry> {
+  const options: RequestOptions = {
+    method: "POST",
+    body: { category: input.category, level: input.level, configJson: input.configJson ?? {} },
+    csrfToken: input.csrfToken,
+  };
+  if (input.level === "PROFILE_LEVEL") {
+    options.idempotencyKey = generateIdempotencyKey();
+  }
+  const envelope = await request<Envelope<SupportProfileEntry>>(
+    `/support-teacher/facilitation/${encodeURIComponent(input.studentPublicId)}/apply`,
+    options,
+  );
+  return envelope.data;
+}
+
+/** `POST /support-teacher/difficulty-overrides` (02_26 v1.16 §37.6) -- per-student, motivated/audited override. */
+export async function createSupportTeacherDifficultyOverride(input: {
+  studentPublicId: string;
+  targetRef: string;
+  reason: string;
+  csrfToken: string;
+}): Promise<DifficultyOverrideResult> {
+  const envelope = await request<Envelope<DifficultyOverrideResult>>("/support-teacher/difficulty-overrides", {
+    method: "POST",
+    body: { studentPublicId: input.studentPublicId, targetRef: input.targetRef, reason: input.reason },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `POST /asacom/facilitation-proposals` or `POST /support-teacher/facilitation-proposals` (02_26 v1.16 §37.7). */
+export async function createFacilitationProposal(input: {
+  actorRole: "ASACOM" | "SUPPORT_TEACHER";
+  studentPublicId: string;
+  proposalType: FacilitationProposalType;
+  targetCategory?: string;
+  csrfToken: string;
+}): Promise<FacilitationProposal> {
+  const path = input.actorRole === "ASACOM" ? "/asacom/facilitation-proposals" : "/support-teacher/facilitation-proposals";
+  const envelope = await request<Envelope<FacilitationProposal>>(path, {
+    method: "POST",
+    body: { studentPublicId: input.studentPublicId, proposalType: input.proposalType, targetCategory: input.targetCategory ?? null },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `GET /facilitation-proposals` (02_26 v1.16 §37.7) -- the caller's own authored proposals. */
+export async function listMyFacilitationProposals(): Promise<FacilitationProposal[]> {
+  const envelope = await request<Envelope<FacilitationProposal[]>>("/facilitation-proposals");
+  return envelope.data;
+}
+
+/** `GET /facilitation-proposals?studentPublicId=...` -- scope-based list for one student (TEACHER/SUPPORT_TEACHER with access), used by the Support Student Detail page's Proposals section. */
+export async function listFacilitationProposalsForStudent(studentPublicId: string): Promise<FacilitationProposal[]> {
+  const envelope = await request<Envelope<FacilitationProposal[]>>(`/facilitation-proposals?studentPublicId=${encodeURIComponent(studentPublicId)}`);
+  return envelope.data;
+}
+
+/** `GET /me/facilitation-proposals/review-queue` (`contracts/quest-city-platform-openapi-v1_14.yaml`, 02_26 v1.17 §38.2). */
+export async function listFacilitationProposalReviewQueue(status: FacilitationProposalStatus = "SUBMITTED"): Promise<FacilitationProposal[]> {
+  const envelope = await request<Envelope<FacilitationProposal[]>>(`/me/facilitation-proposals/review-queue?status=${encodeURIComponent(status)}`);
+  return envelope.data;
+}
+
+/** `POST /facilitation-proposals/{id}/review` (02_26 v1.16 §37.7) -- If-Match/version required, anti-self-approval server-enforced. */
+export async function reviewFacilitationProposal(input: {
+  id: string;
+  decision: "ACCEPT" | "REJECT";
+  reviewNote?: string;
+  ifMatchVersion: number;
+  csrfToken: string;
+}): Promise<FacilitationProposal> {
+  const envelope = await request<Envelope<FacilitationProposal>>(`/facilitation-proposals/${encodeURIComponent(input.id)}/review`, {
+    method: "POST",
+    body: { decision: input.decision, reviewNote: input.reviewNote ?? null },
+    csrfToken: input.csrfToken,
+    ifMatchVersion: input.ifMatchVersion,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `POST /facilitation-proposals/{id}/withdraw` (02_26 v1.16 §37.7) -- author-only, only while SUBMITTED. */
+export async function withdrawFacilitationProposal(input: { id: string; csrfToken: string }): Promise<FacilitationProposal> {
+  const envelope = await request<Envelope<FacilitationProposal>>(`/facilitation-proposals/${encodeURIComponent(input.id)}/withdraw`, {
+    method: "POST",
+    csrfToken: input.csrfToken,
+  });
   return envelope.data;
 }
