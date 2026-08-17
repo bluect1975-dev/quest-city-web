@@ -1,0 +1,408 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: "1.14.0"
+  description: |
+    Targeted, minimal additive extension closing two contract gaps identified by the
+    Student Support Roles (ASACOM/SUPPORT_TEACHER) UI/UX design report (02_26 v1.17 §38,
+    02_39 v1.1). This file is additive: v1.2.0 through v1.13.1 remain available unchanged
+    as separate immutable artifacts; no prior path or schema is removed or altered.
+
+    This is a CONTRACTS-ONLY release, authored in quest-city-roblox. It does not reopen
+    any already-closed Student Support Roles decision (role model, authority matrix,
+    scope, privacy boundary) — it adds exactly two read/list operations that the prior
+    contract (v1.13.1) omitted:
+
+    1. GET /students/{studentPublicId}/support-observations — a shared, role-generalized
+       read/list operation for learning_support_observation, mirroring the existing
+       GET /students/{studentPublicId}/support-events pattern. Without this operation the
+       Support Observations UI section and the shared Support Timeline (UI/UX design
+       report §17-18) could not be built against v1.13.1 alone.
+
+    2. GET /me/facilitation-proposals/review-queue — a "my review queue" operation for the
+       authenticated staff membership acting as reviewer (TEACHER with class access, or
+       SUPPORT_TEACHER with an ACTIVE support_student_assignment on the student). Without
+       this operation, a reviewer had no way to discover which facilitation_proposal rows
+       are awaiting their decision without already knowing a proposal's id (UI/UX design
+       report §19-20). This also corrects a pre-existing inconsistency between 02_26 §37.7
+       prose (which described a generic GET /facilitation-proposals list for reviewers)
+       and the v1.13.1 machine-readable contract, which never actually defined that
+       operation — verified directly against the v1.13.1 YAML before writing this file.
+
+    No endpoint in this file has been implemented in quest-city-web at the time of
+    writing, and none may be implemented until this contract change set's own closure
+    (merge to quest-city-roblox canonical main) completes, per the two-phase
+    contracts-then-implementation pattern already used for Tranches B, C, D and the
+    ASACOM/SUPPORT_TEACHER role formalization itself.
+
+    No expansion of tenant scope, student scope, AI exposure, or free-text exposure.
+    Both operations reuse the exact authorization boundaries already defined by v1.13.1
+    for the corresponding write operations — no new capability is introduced by either
+    operation; both reuse capabilities/access rules already granted.
+
+servers:
+  - url: https://api.questcity.example/v1
+    description: Placeholder — actual base URL defined by deployment configuration, unchanged by this file.
+
+security:
+  - staffSessionCookie: []
+
+paths:
+  /students/{studentPublicId}/support-observations:
+    get:
+      summary: >-
+        List support observations for one student (capability
+        asacom.progress.read.assigned/support_teacher.progress.read.assigned, or the
+        caller's existing TEACHER class access — same three-way authorization already
+        used by GET /students/{studentPublicId}/support-events). One shared endpoint,
+        not one per role.
+      operationId: listSupportObservations
+      security:
+        - staffSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/StudentPublicId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - name: category
+          in: query
+          required: false
+          description: >-
+            Optional filter to a single SupportType value. Omitted means all categories,
+            including cross-cutting observations with no category.
+          schema:
+            $ref: '#/components/schemas/SupportType'
+        - name: includeSuperseded
+          in: query
+          required: false
+          description: >-
+            When false (default), only the current (non-superseded) observation of each
+            correction chain is returned. When true, the full append-only history is
+            returned, each entry carrying its historyStatus — never a destructive edit,
+            never a silently hidden prior entry.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Support observation list, ordered by observedAt descending (most recent first).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationHistoryListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          description: >-
+            SUPPORT_STUDENT_NOT_ASSIGNED — uniform anti-enumeration response (student
+            does not exist, or exists but is not covered by an ACTIVE
+            support_student_assignment of the caller and the caller has no class-level
+            fallback access). Identical response for both cases, per 02_35 v1.7
+            §11quinquies.7.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /me/facilitation-proposals/review-queue:
+    get:
+      summary: >-
+        List facilitation_proposal rows awaiting the authenticated staff membership's
+        own review decision. No new capability — reuses the exact authorization already
+        defined for POST /facilitation-proposals/{id}/review: TEACHER with class access
+        to the proposal's student, or SUPPORT_TEACHER with an ACTIVE
+        support_student_assignment on that student. Rows the caller authored are always
+        excluded, even if the caller would otherwise have reviewer access — the
+        anti-self-approval rule (02_25 v1.12 §6.16.2, CHECK reviewed_by_staff_account_id
+        <> proposed_by_staff_account_id) is enforced at read time here, not only at the
+        review mutation, so a proposal a caller cannot legally review never appears in
+        their own queue.
+      operationId: listMyFacilitationProposalReviewQueue
+      security:
+        - staffSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - name: status
+          in: query
+          required: false
+          description: >-
+            Defaults to SUBMITTED (the primary use case: proposals actually pending
+            review). Any other single FacilitationProposalStatus value may be requested
+            explicitly to inspect a caller's own review history — never returned
+            indiscriminately without an explicit filter.
+          schema:
+            $ref: '#/components/schemas/FacilitationProposalStatus'
+            default: SUBMITTED
+      responses:
+        '200':
+          description: >-
+            Facilitation proposal review queue, ordered by createdAt ascending (oldest
+            pending review first). Each entry carries its current version, the same field
+            already required by POST /facilitation-proposals/{id}/review's If-Match
+            concurrency check — no second concurrency model is introduced.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalReviewQueueResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+
+components:
+  securitySchemes:
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: >-
+        Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_6.yaml. Redeclared here only because
+        each versioned contract file is self-contained for its own $ref resolution (same
+        convention as v1.9.0-v1.13.1).
+
+  parameters:
+    StudentPublicId:
+      name: studentPublicId
+      in: path
+      required: true
+      schema:
+        type: string
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  responses:
+    StaffUnauthorized:
+      description: STAFF_AUTH_REQUIRED — no valid staff_session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    Meta:
+      type: object
+      required:
+        - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - domain
+        - code
+        - httpStatus
+        - message
+        - correlationId
+        - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+            - PLATFORM
+            - CONTENT_RUNTIME
+            - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+            - STAFF_AUTH_REQUIRED
+            - SUPPORT_STUDENT_NOT_ASSIGNED
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+
+    SupportType:
+      type: string
+      enum:
+        - COMMUNICATION_SUPPORT
+        - COMPREHENSION_SUPPORT
+        - ATTENTION_SUPPORT
+        - MOTOR_INTERACTION_SUPPORT
+        - NAVIGATION_SUPPORT
+        - EMOTIONAL_REGULATION_SUPPORT
+        - TASK_ORGANIZATION_SUPPORT
+        - ACCESSIBILITY_FACILITATION
+        - OTHER_STRUCTURED
+
+    SupportRole:
+      type: string
+      enum:
+        - ASACOM
+        - SUPPORT_TEACHER
+
+    ObservationHistoryStatus:
+      type: string
+      description: >-
+        Computed at read time from supersededById — never a persisted column, never a
+        second source of truth. CURRENT = this entry is the latest in its correction
+        chain (supersededById is absent). SUPERSEDED = a later entry corrected this one
+        (supersededById points to the superseding entry); the entry itself is never
+        mutated or hidden, only marked.
+      enum:
+        - CURRENT
+        - SUPERSEDED
+
+    ObservationHistoryEntry:
+      type: object
+      description: >-
+        Read projection of learning_support_observation for list/history consumers.
+        Carries every field of the existing Observation schema (contracts/quest-city-platform-openapi-v1_13.yaml)
+        unchanged, plus two read-only computed fields (historyStatus, supersedesId) that
+        make the append/supersede model explicit to a UI consumer without requiring
+        client-side chain reconstruction. Never includes note_structured_ref or any
+        decrypted note content — same boundary already established by the v1.13.1
+        Observation schema, which never exposed it either.
+      required:
+        - id
+        - tenantId
+        - studentProfileId
+        - supportStudentAssignmentId
+        - actorStaffAccountId
+        - actorRole
+        - observedAt
+        - createdAt
+        - historyStatus
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        studentProfileId:
+          type: string
+        supportStudentAssignmentId:
+          type: string
+        actorStaffAccountId:
+          type: string
+        actorRole:
+          $ref: '#/components/schemas/SupportRole'
+        observedAt:
+          type: string
+          format: date-time
+        category:
+          $ref: '#/components/schemas/SupportType'
+        createdAt:
+          type: string
+          format: date-time
+        historyStatus:
+          $ref: '#/components/schemas/ObservationHistoryStatus'
+        supersededById:
+          type: string
+          description: Present only when historyStatus = SUPERSEDED. Identical semantics to the v1.13.1 Observation field of the same name.
+        supersedesId:
+          type: string
+          description: >-
+            Computed, not persisted — the id of the observation this entry corrects, if
+            any (the reverse of another entry's supersededById). Absent when this entry
+            is not itself a correction.
+
+    ObservationHistoryListResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservationHistoryEntry'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    FacilitationProposalType:
+      type: string
+      enum:
+        - FACILITATION
+        - DIFFICULTY
+
+    FacilitationProposalStatus:
+      type: string
+      enum:
+        - SUBMITTED
+        - ACCEPTED
+        - REJECTED
+        - WITHDRAWN
+
+    FacilitationProposal:
+      type: object
+      description: >-
+        Identical shape to the FacilitationProposal schema already defined by
+        contracts/quest-city-platform-openapi-v1_13.yaml — redeclared here only because
+        this file is self-contained for its own $ref resolution, per established
+        convention. No field added, none removed, none renamed.
+      required:
+        - id
+        - tenantId
+        - studentProfileId
+        - proposedByStaffAccountId
+        - proposalType
+        - status
+        - version
+        - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        studentProfileId:
+          type: string
+        proposedByStaffAccountId:
+          type: string
+        proposalType:
+          $ref: '#/components/schemas/FacilitationProposalType'
+        targetCategory:
+          type: string
+        status:
+          $ref: '#/components/schemas/FacilitationProposalStatus'
+        reviewedByStaffAccountId:
+          type: string
+        reviewedAt:
+          type: string
+          format: date-time
+        reviewNote:
+          type: string
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    FacilitationProposalReviewQueueResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacilitationProposal'
+        meta:
+          $ref: '#/components/schemas/Meta'
