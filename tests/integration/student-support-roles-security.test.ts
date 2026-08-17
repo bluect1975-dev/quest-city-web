@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
 import type { StaffInternalIdentity, StaffRole } from "@quest-city-web/staff-identity";
 import { TenantContextService } from "@quest-city-web/convergence";
@@ -8,6 +8,7 @@ import {
   ObservationService,
   FacilitationService,
   FacilitationProposalService,
+  DifficultyOverrideRepository,
 } from "@quest-city-web/student-support";
 
 /**
@@ -63,6 +64,17 @@ async function insertStudent(tenantId: string): Promise<{ id: string; publicId: 
     ])
   ).rows[0]!.id;
   return { id, publicId };
+}
+
+/** Class-roster enrollment -- required for a TEACHER's reviewable-student resolution (resolveReviewableStudentProfileIds iterates school_enrollment, not support_student_assignment). */
+async function enrollStudent(tenantId: string, classId: string, studentProfileId: string): Promise<string> {
+  return (
+    await pool.query<{ id: string }>(
+      `INSERT INTO school_enrollment (tenant_id, class_id, student_profile_id, access_alias, access_alias_normalized, pin_hash, status)
+       VALUES ($1, $2, $3, $4, $4, 'x', 'ACTIVE') RETURNING id`,
+      [tenantId, classId, studentProfileId, `alias_${rnd()}`],
+    )
+  ).rows[0]!.id;
 }
 
 async function buildFixture(): Promise<Fixture> {
@@ -159,6 +171,19 @@ async function buildSchoolAdmin(tenantId: string): Promise<StaffInternalIdentity
   const accountId = await createStaffAccount(`admin-${rnd()}@example.org`);
   const membershipId = await createMembership(accountId, tenantId, "SCHOOL_ADMIN");
   return identity({ staffAccountId: accountId, tenantId, staffTenantMembershipId: membershipId, role: "SCHOOL_ADMIN", classScope: null });
+}
+
+async function buildTeacher(tenantId: string, classScope: string[]): Promise<StaffInternalIdentity> {
+  const accountId = await createStaffAccount(`teacher-${rnd()}@example.org`);
+  const membershipId = await createMembership(accountId, tenantId, "TEACHER");
+  for (const classId of classScope) {
+    await pool.query(`INSERT INTO staff_class_assignment (staff_tenant_membership_id, tenant_id, class_id) VALUES ($1, $2, $3)`, [
+      membershipId,
+      tenantId,
+      classId,
+    ]);
+  }
+  return identity({ staffAccountId: accountId, tenantId, staffTenantMembershipId: membershipId, role: "TEACHER", classScope });
 }
 
 async function assignSupport(admin: StaffInternalIdentity, targetMembershipId: string, studentPublicId: string): Promise<void> {
@@ -345,6 +370,203 @@ describe("Student Support Roles -- security (02_39 v1.2 §38)", () => {
     expect(nonExistentResult.code).toBe("SUPPORT_STUDENT_NOT_ASSIGNED");
     expect(unassignedResult.code).toBe("SUPPORT_STUDENT_NOT_ASSIGNED");
     expect(nonExistentResult.code).toBe(unassignedResult.code);
+  });
+
+  describe("REVIEW_DERIVED_STUDENT_DIFFICULTY_AUTHORITY (02_39 v1.3 §11bis) -- negative and boundary cases", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("Reviewer priority: when an assigned SUPPORT_TEACHER exists, the class TEACHER never becomes reviewer for that student's DIFFICULTY proposal (DENY)", async () => {
+      const fixture = await buildFixture();
+      const admin = await buildSchoolAdmin(fixture.tenantId);
+      const asacom = await buildAsacom(fixture.tenantId);
+      const supportTeacher = await buildSupportTeacher(fixture.tenantId);
+      const teacher = await buildTeacher(fixture.tenantId, [fixture.classId]);
+      await enrollStudent(fixture.tenantId, fixture.classId, fixture.studentProfileId);
+      await assignSupport(admin, asacom.staffTenantMembershipId, fixture.studentPublicId);
+      await assignSupport(admin, supportTeacher.staffTenantMembershipId, fixture.studentPublicId);
+      const proposalService = new FacilitationProposalService(pool);
+
+      const proposal = await proposalService.create({
+        identity: asacom,
+        studentPublicId: fixture.studentPublicId,
+        proposalType: "DIFFICULTY",
+        targetCategory: "mathematics",
+        idempotencyKey: idempotencyKey(),
+      });
+
+      // The student IS on the TEACHER's class roster (enrolled above) --
+      // absent from their queue specifically because of SUPPORT_TEACHER
+      // priority, not merely because they were never on the roster.
+      const teacherQueue = await proposalService.myReviewQueue(teacher, "SUBMITTED", { limit: 50, offset: 0 });
+      expect(teacherQueue.some((p) => p.id === proposal.id)).toBe(false);
+
+      await expect(
+        proposalService.review({ identity: teacher, id: proposal.publicId, decision: "ACCEPT", ifMatchVersion: proposal.version, idempotencyKey: idempotencyKey() }),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+      const overrideRows = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.studentProfileId]);
+      expect(overrideRows.rows).toHaveLength(0);
+
+      // The assigned SUPPORT_TEACHER remains the correct reviewer.
+      const supportTeacherQueue = await proposalService.myReviewQueue(supportTeacher, "SUBMITTED", { limit: 50, offset: 0 });
+      expect(supportTeacherQueue.some((p) => p.id === proposal.id)).toBe(true);
+    });
+
+    it("TEACHER cannot create a per-student difficulty override via the direct-apply endpoint (role gate unaffected by the relaxed DB CHECK): DENY", async () => {
+      const fixture = await buildFixture();
+      const teacher = await buildTeacher(fixture.tenantId, [fixture.classId]);
+      await expect(
+        new FacilitationService(pool).supportTeacherCreateDifficultyOverride({
+          identity: teacher,
+          studentPublicId: fixture.studentPublicId,
+          targetRef: "mathematics",
+          reason: "attempted direct bypass outside the review workflow",
+          idempotencyKey: idempotencyKey(),
+        }),
+      ).rejects.toMatchObject({ code: "STAFF_FORBIDDEN" });
+
+      const overrideRows = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.studentProfileId]);
+      expect(overrideRows.rows).toHaveLength(0);
+    });
+
+    it("ASACOM can never review a DIFFICULTY proposal, even one it did not author itself (DENY, never a reviewer)", async () => {
+      const fixture = await buildFixture();
+      const admin = await buildSchoolAdmin(fixture.tenantId);
+      const asacom = await buildAsacom(fixture.tenantId);
+      const supportTeacher = await buildSupportTeacher(fixture.tenantId);
+      // SUPPORT_TEACHER proposes for a student it is NOT itself assigned
+      // to (own-assigned students get direct apply instead, §11).
+      await assignSupport(admin, asacom.staffTenantMembershipId, fixture.unassignedStudentPublicId);
+      const proposalService = new FacilitationProposalService(pool);
+      const proposal = await proposalService.create({
+        identity: supportTeacher,
+        studentPublicId: fixture.unassignedStudentPublicId,
+        proposalType: "DIFFICULTY",
+        targetCategory: "mathematics",
+        idempotencyKey: idempotencyKey(),
+      });
+
+      await expect(
+        proposalService.review({ identity: asacom, id: proposal.publicId, decision: "ACCEPT", ifMatchVersion: proposal.version, idempotencyKey: idempotencyKey() }),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+      const overrideRows = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.unassignedStudentProfileId]);
+      expect(overrideRows.rows).toHaveLength(0);
+    });
+
+    it("TEACHER outside the proposal's class scope cannot become its reviewer (DENY, no override created)", async () => {
+      const fixture = await buildFixture();
+      const admin = await buildSchoolAdmin(fixture.tenantId);
+      const asacom = await buildAsacom(fixture.tenantId);
+      // The student is enrolled in fixture.classId -- this TEACHER is
+      // scoped to otherClassId instead, NOT the class the student is
+      // actually in.
+      const outOfScopeTeacher = await buildTeacher(fixture.tenantId, [fixture.otherClassId]);
+      await enrollStudent(fixture.tenantId, fixture.classId, fixture.studentProfileId);
+      await assignSupport(admin, asacom.staffTenantMembershipId, fixture.studentPublicId);
+      const proposalService = new FacilitationProposalService(pool);
+      const proposal = await proposalService.create({
+        identity: asacom,
+        studentPublicId: fixture.studentPublicId,
+        proposalType: "DIFFICULTY",
+        targetCategory: "mathematics",
+        idempotencyKey: idempotencyKey(),
+      });
+
+      await expect(
+        proposalService.review({
+          identity: outOfScopeTeacher,
+          id: proposal.publicId,
+          decision: "ACCEPT",
+          ifMatchVersion: proposal.version,
+          idempotencyKey: idempotencyKey(),
+        }),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+      const overrideRows = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.studentProfileId]);
+      expect(overrideRows.rows).toHaveLength(0);
+    });
+
+    it("Stale version (concurrent modification): ACCEPT with an outdated ifMatchVersion is rejected and creates no difficulty_override", async () => {
+      const fixture = await buildFixture();
+      const admin = await buildSchoolAdmin(fixture.tenantId);
+      const asacom = await buildAsacom(fixture.tenantId);
+      const teacher = await buildTeacher(fixture.tenantId, [fixture.classId]);
+      await enrollStudent(fixture.tenantId, fixture.classId, fixture.studentProfileId);
+      await assignSupport(admin, asacom.staffTenantMembershipId, fixture.studentPublicId);
+      const proposalService = new FacilitationProposalService(pool);
+      const proposal = await proposalService.create({
+        identity: asacom,
+        studentPublicId: fixture.studentPublicId,
+        proposalType: "DIFFICULTY",
+        targetCategory: "mathematics",
+        idempotencyKey: idempotencyKey(),
+      });
+
+      await expect(
+        proposalService.review({
+          identity: teacher,
+          id: proposal.publicId,
+          decision: "ACCEPT",
+          ifMatchVersion: proposal.version + 999,
+          idempotencyKey: idempotencyKey(),
+        }),
+      ).rejects.toMatchObject({ code: "ETAG_MISMATCH" });
+
+      const overrideRows = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.studentProfileId]);
+      expect(overrideRows.rows).toHaveLength(0);
+      const current = await proposalService.myReviewQueue(teacher, "SUBMITTED", { limit: 50, offset: 0 });
+      expect(current.some((p) => p.id === proposal.id)).toBe(true);
+    });
+
+    it("Atomicity: if the difficulty_override write fails, the proposal stays SUBMITTED and no override row is created (transaction rollback, 02_26 v1.18 §37.7bis)", async () => {
+      const fixture = await buildFixture();
+      const admin = await buildSchoolAdmin(fixture.tenantId);
+      const asacom = await buildAsacom(fixture.tenantId);
+      const teacher = await buildTeacher(fixture.tenantId, [fixture.classId]);
+      await enrollStudent(fixture.tenantId, fixture.classId, fixture.studentProfileId);
+      await assignSupport(admin, asacom.staffTenantMembershipId, fixture.studentPublicId);
+      const proposalService = new FacilitationProposalService(pool);
+      const proposal = await proposalService.create({
+        identity: asacom,
+        studentPublicId: fixture.studentPublicId,
+        proposalType: "DIFFICULTY",
+        targetCategory: "mathematics",
+        idempotencyKey: idempotencyKey(),
+      });
+
+      const injectedFailure = new Error("SIMULATED_DIFFICULTY_OVERRIDE_WRITE_FAILURE");
+      vi.spyOn(DifficultyOverrideRepository.prototype, "createForStudent").mockRejectedValueOnce(injectedFailure);
+
+      await expect(
+        proposalService.review({ identity: teacher, id: proposal.publicId, decision: "ACCEPT", ifMatchVersion: proposal.version, idempotencyKey: idempotencyKey() }),
+      ).rejects.toThrow(injectedFailure.message);
+
+      // The state transition rolled back along with the failed write --
+      // never a silently ACCEPTED proposal without its effect.
+      const persisted = await pool.query<{ status: string; version: number }>(`SELECT status, version FROM facilitation_proposal WHERE id = $1`, [proposal.id]);
+      expect(persisted.rows[0]!.status).toBe("SUBMITTED");
+      expect(persisted.rows[0]!.version).toBe(proposal.version);
+
+      const overrideRows = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.studentProfileId]);
+      expect(overrideRows.rows).toHaveLength(0);
+
+      // A subsequent legitimate retry (new Idempotency-Key, mock cleared)
+      // succeeds normally -- the earlier failure left no permanent
+      // corruption.
+      const retried = await proposalService.review({
+        identity: teacher,
+        id: proposal.publicId,
+        decision: "ACCEPT",
+        ifMatchVersion: proposal.version,
+        idempotencyKey: idempotencyKey(),
+      });
+      expect(retried.status).toBe("ACCEPTED");
+      const overrideRowsAfterRetry = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.studentProfileId]);
+      expect(overrideRowsAfterRetry.rows).toHaveLength(1);
+    });
   });
 });
 

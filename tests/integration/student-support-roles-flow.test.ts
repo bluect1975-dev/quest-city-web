@@ -410,6 +410,155 @@ describe("Student Support Roles -- functional flows (02_39 v1.2)", () => {
     expect(active.some((e) => e.category === "TOOLS" && e.level === "PROFILE_LEVEL")).toBe(true);
   });
 
+  it("DIFFICULTY proposal ACCEPT by fallback class TEACHER (no SUPPORT_TEACHER assigned) writes a per-student difficulty_override (02_39 v1.3 §11bis, REVIEW_DERIVED_STUDENT_DIFFICULTY_AUTHORITY)", async () => {
+    const fixture = await buildFixture();
+    const admin = await buildSchoolAdmin(fixture);
+    const asacom = await buildAsacom(fixture);
+    const teacher = await buildTeacher(fixture, [fixture.classId]);
+    await enrollStudent(fixture);
+    await new SupportAssignmentService(pool).create({
+      identity: admin,
+      staffTenantMembershipId: asacom.staffTenantMembershipId,
+      studentPublicId: fixture.studentPublicId,
+      idempotencyKey: idempotencyKey(),
+    });
+    const proposalService = new FacilitationProposalService(pool);
+
+    const proposal = await proposalService.create({
+      identity: asacom,
+      studentPublicId: fixture.studentPublicId,
+      proposalType: "DIFFICULTY",
+      targetCategory: "mathematics",
+      idempotencyKey: idempotencyKey(),
+    });
+    expect(proposal.status).toBe("SUBMITTED");
+
+    // No SUPPORT_TEACHER assigned to this student -- TEACHER is the
+    // resolved (fallback) reviewer, per §6ter.
+    const queue = await proposalService.myReviewQueue(teacher, "SUBMITTED", { limit: 50, offset: 0 });
+    expect(queue.some((p) => p.id === proposal.id)).toBe(true);
+
+    const reviewed = await proposalService.review({
+      identity: teacher,
+      id: proposal.publicId,
+      decision: "ACCEPT",
+      ifMatchVersion: proposal.version,
+      idempotencyKey: idempotencyKey(),
+    });
+    expect(reviewed.status).toBe("ACCEPTED");
+    expect(reviewed.reviewedByStaffAccountId).toBe(teacher.staffAccountId);
+
+    const overrideRows = await pool.query<{
+      created_by_role: string;
+      created_by_staff_account_id: string;
+      student_profile_id: string;
+      class_id: string | null;
+      tenant_id: string;
+      reason: string;
+      status: string;
+    }>(
+      `SELECT created_by_role, created_by_staff_account_id, student_profile_id, class_id, tenant_id, reason, status
+       FROM difficulty_override WHERE student_profile_id = $1`,
+      [fixture.studentProfileId],
+    );
+    expect(overrideRows.rows).toHaveLength(1);
+    const row = overrideRows.rows[0]!;
+    expect(row.created_by_role).toBe("TEACHER");
+    expect(row.created_by_staff_account_id).toBe(teacher.staffAccountId);
+    expect(row.class_id).toBeNull();
+    expect(row.tenant_id).toBe(fixture.tenantId);
+    expect(row.status).toBe("ACTIVE");
+    // Provenance: reason references the source proposal's public_id (02_39 v1.3 §11bis).
+    expect(row.reason).toContain(proposal.publicId);
+
+    // Audit chain reconstructable: proposal -> proposer -> reviewer ->
+    // decision (the override row itself carries student/tenant/reviewer;
+    // the audit_event carries the review decision).
+    const auditRows = await pool.query<{ actor_id: string; action: string; target_id: string; result: string }>(
+      `SELECT actor_id, action, target_id, result FROM audit_event WHERE action = 'support.proposal_reviewed' AND target_id = $1`,
+      [reviewed.id],
+    );
+    expect(auditRows.rows).toHaveLength(1);
+    expect(auditRows.rows[0]!.actor_id).toBe(teacher.staffAccountId);
+    expect(auditRows.rows[0]!.result).toBe("SUCCESS");
+  });
+
+  it("DIFFICULTY proposal ACCEPT by assigned SUPPORT_TEACHER via the review workflow writes a per-student difficulty_override (regression, distinct from the direct-apply endpoint)", async () => {
+    const fixture = await buildFixture();
+    const admin = await buildSchoolAdmin(fixture);
+    const asacom = await buildAsacom(fixture);
+    const supportTeacher = await buildSupportTeacher(fixture);
+    await enrollStudent(fixture);
+    // ASACOM proposes for a student it does NOT itself have direct apply
+    // authority for (it never does, §11) -- SUPPORT_TEACHER is assigned
+    // and becomes the resolved reviewer.
+    await new SupportAssignmentService(pool).create({
+      identity: admin,
+      staffTenantMembershipId: supportTeacher.staffTenantMembershipId,
+      studentPublicId: fixture.studentPublicId,
+      idempotencyKey: idempotencyKey(),
+    });
+    const proposalService = new FacilitationProposalService(pool);
+
+    const proposal = await proposalService.create({
+      identity: asacom,
+      studentPublicId: fixture.studentPublicId,
+      proposalType: "DIFFICULTY",
+      targetCategory: "reading",
+      idempotencyKey: idempotencyKey(),
+    });
+
+    const reviewed = await proposalService.review({
+      identity: supportTeacher,
+      id: proposal.publicId,
+      decision: "ACCEPT",
+      ifMatchVersion: proposal.version,
+      idempotencyKey: idempotencyKey(),
+    });
+    expect(reviewed.status).toBe("ACCEPTED");
+
+    const overrideRows = await pool.query<{ created_by_role: string; student_profile_id: string; class_id: string | null }>(
+      `SELECT created_by_role, student_profile_id, class_id FROM difficulty_override WHERE student_profile_id = $1`,
+      [fixture.studentProfileId],
+    );
+    expect(overrideRows.rows).toHaveLength(1);
+    expect(overrideRows.rows[0]!.created_by_role).toBe("SUPPORT_TEACHER");
+    expect(overrideRows.rows[0]!.class_id).toBeNull();
+  });
+
+  it("DIFFICULTY proposal ACCEPT is idempotent: retrying with the same Idempotency-Key never creates a second difficulty_override", async () => {
+    const fixture = await buildFixture();
+    const admin = await buildSchoolAdmin(fixture);
+    const asacom = await buildAsacom(fixture);
+    const teacher = await buildTeacher(fixture, [fixture.classId]);
+    await enrollStudent(fixture);
+    await new SupportAssignmentService(pool).create({
+      identity: admin,
+      staffTenantMembershipId: asacom.staffTenantMembershipId,
+      studentPublicId: fixture.studentPublicId,
+      idempotencyKey: idempotencyKey(),
+    });
+    const proposalService = new FacilitationProposalService(pool);
+    const proposal = await proposalService.create({
+      identity: asacom,
+      studentPublicId: fixture.studentPublicId,
+      proposalType: "DIFFICULTY",
+      targetCategory: "mathematics",
+      idempotencyKey: idempotencyKey(),
+    });
+
+    const sharedKey = idempotencyKey();
+    const first = await proposalService.review({ identity: teacher, id: proposal.publicId, decision: "ACCEPT", ifMatchVersion: proposal.version, idempotencyKey: sharedKey });
+    const second = await proposalService.review({ identity: teacher, id: proposal.publicId, decision: "ACCEPT", ifMatchVersion: proposal.version, idempotencyKey: sharedKey });
+
+    expect(first.status).toBe("ACCEPTED");
+    expect(second.status).toBe("ACCEPTED");
+    expect(second.version).toBe(first.version);
+
+    const overrideRows = await pool.query(`SELECT id FROM difficulty_override WHERE student_profile_id = $1`, [fixture.studentProfileId]);
+    expect(overrideRows.rows).toHaveLength(1);
+  });
+
   it("Same-tenant multi-role: one human as TEACHER + SUPPORT_TEACHER on the same tenant, explicit switch", async () => {
     const fixture = await buildFixture();
     const accountId = await createStaffAccount(`multi-${rnd()}@example.org`);
