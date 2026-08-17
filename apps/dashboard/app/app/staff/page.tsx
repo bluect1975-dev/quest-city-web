@@ -80,7 +80,7 @@ function StaffView() {
     <main>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.staff.title")}</h1>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.staff.inviteTitle")}</h2>
         <form onSubmit={handleInvite}>
           <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.staff.inviteEmailLabel")}>
@@ -104,7 +104,7 @@ function StaffView() {
         ) : null}
       </section>
 
-      <section>
+      <section className="qc-card">
         {result.status === "loading" ? <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage> : null}
         {result.status === "error" ? <StatusMessage kind="error">{result.message}</StatusMessage> : null}
         {actionError ? <StatusMessage kind="error">{actionError}</StatusMessage> : null}

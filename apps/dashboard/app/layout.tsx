@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { QC_THEME_CORE } from "@quest-city-web/theme-system";
 import { DASHBOARD_CATALOG_IT_IT, DEFAULT_LOCALE, t } from "@quest-city-web/i18n";
+import "@quest-city-web/ui/styles.css";
 
 /**
  * `lang` and metadata are sourced from the locale model (DEFAULT_LOCALE),

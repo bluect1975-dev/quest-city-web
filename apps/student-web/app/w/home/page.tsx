@@ -264,7 +264,7 @@ export default function StudentHomePage() {
         <StatusMessage kind="unauthorized">{t(STUDENT_WEB_CATALOG_IT_IT, "home.readOnlySessionWarning")}</StatusMessage>
       )}
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsSectionTitle")}</h2>
         {loadingMyAssignments && (
           <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsLoading")}</StatusMessage>
@@ -311,7 +311,7 @@ export default function StudentHomePage() {
         )}
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
         {loadingActivity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
         {!loadingActivity && activityError && <StatusMessage kind="empty">{activityError}</StatusMessage>}
@@ -325,7 +325,7 @@ export default function StudentHomePage() {
         )}
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
         {loadingTranche1Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
         {!loadingTranche1Activity && tranche1ActivityError && <StatusMessage kind="empty">{tranche1ActivityError}</StatusMessage>}
@@ -339,7 +339,7 @@ export default function StudentHomePage() {
         )}
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
         {loadingTranche2Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
         {!loadingTranche2Activity && tranche2ActivityError && <StatusMessage kind="empty">{tranche2ActivityError}</StatusMessage>}
@@ -353,7 +353,7 @@ export default function StudentHomePage() {
         )}
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
         {loadingTranche3Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
         {!loadingTranche3Activity && tranche3ActivityError && <StatusMessage kind="empty">{tranche3ActivityError}</StatusMessage>}
@@ -367,7 +367,7 @@ export default function StudentHomePage() {
         )}
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
         {loadingTranche4Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
         {!loadingTranche4Activity && tranche4ActivityError && <StatusMessage kind="empty">{tranche4ActivityError}</StatusMessage>}
@@ -381,7 +381,7 @@ export default function StudentHomePage() {
         )}
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
         {loadingTranche5Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
         {!loadingTranche5Activity && tranche5ActivityError && <StatusMessage kind="empty">{tranche5ActivityError}</StatusMessage>}
@@ -395,7 +395,7 @@ export default function StudentHomePage() {
         )}
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceSectionTitle")}</h2>
         <p>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceDescription")}</p>
         <Link href="/w/full-sequence">
@@ -403,7 +403,7 @@ export default function StudentHomePage() {
         </Link>
       </section>
 
-      <section>
+      <section className="qc-card">
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.title")}</h2>
         <p>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.description")}</p>
         <ul>

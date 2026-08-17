@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, FormField } from "@quest-city-web/ui";
 import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
@@ -34,19 +33,18 @@ function ConvergenceRequestLookupView() {
 
   return (
     <main>
-      <nav>
-        <Link href="/app/platform-admin">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.nav.tenants")}</Link>
-      </nav>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequests.title")}</h1>
-      <p>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequests.lookupHint")}</p>
-      <form onSubmit={handleSubmit}>
-        <FormField label={t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequests.idLabel")}>
-          {(fieldProps) => (
-            <input {...fieldProps} type="text" required value={requestId} onChange={(e) => setRequestId(e.target.value)} />
-          )}
-        </FormField>
-        <Button type="submit">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequests.submit")}</Button>
-      </form>
+      <section className="qc-card">
+        <p>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequests.lookupHint")}</p>
+        <form onSubmit={handleSubmit}>
+          <FormField label={t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequests.idLabel")}>
+            {(fieldProps) => (
+              <input {...fieldProps} type="text" required value={requestId} onChange={(e) => setRequestId(e.target.value)} />
+            )}
+          </FormField>
+          <Button type="submit">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.convergenceRequests.submit")}</Button>
+        </form>
+      </section>
     </main>
   );
 }

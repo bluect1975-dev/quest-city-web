@@ -1,0 +1,693 @@
+/*
+ * Quest City Web — shared design system (pre-staging UI/UX remediation).
+ *
+ * Root cause this file fixes: `@quest-city-web/ui` components (Button,
+ * FormField, Table, StatusBadge, StatusMessage, EmptyState) already emit
+ * the correct semantic `qc-*` classNames with proper accessible structure
+ * (labels, aria-describedby, live regions, real <table> markup) — but no
+ * stylesheet anywhere in the repo ever defined what those classes look
+ * like, so every page rendered as unstyled browser-default HTML. This is
+ * that missing stylesheet: one canonical source imported by both apps
+ * (`@quest-city-web/ui/styles.css`), never duplicated per-app.
+ */
+
+/* ---------- Design tokens ---------- */
+:root {
+  /* Neutral scale */
+  --qc-color-bg: #f6f7f9;
+  --qc-color-surface: #ffffff;
+  --qc-color-surface-muted: #eef1f5;
+  --qc-color-border: #d7dce2;
+  --qc-color-border-strong: #b7bfc9;
+  --qc-color-text: #1a2230;
+  --qc-color-text-muted: #5b6472;
+  --qc-color-text-faint: #838d99;
+
+  /* Brand / primary */
+  --qc-color-primary: #2454a8;
+  --qc-color-primary-hover: #1c4287;
+  --qc-color-primary-contrast: #ffffff;
+
+  /* Semantic status */
+  --qc-color-success-bg: #e4f5e9;
+  --qc-color-success-text: #1e6b38;
+  --qc-color-success-border: #a9dcbb;
+  --qc-color-info-bg: #e6f0fb;
+  --qc-color-info-text: #1c4e8a;
+  --qc-color-info-border: #aecdf0;
+  --qc-color-warning-bg: #fdf1de;
+  --qc-color-warning-text: #8a5a13;
+  --qc-color-warning-border: #f0cf97;
+  --qc-color-danger-bg: #fbe9e7;
+  --qc-color-danger-text: #a3261b;
+  --qc-color-danger-border: #f0b3ab;
+  --qc-color-neutral-bg: #eef1f5;
+  --qc-color-neutral-text: #4a5561;
+  --qc-color-neutral-border: #d3d9e0;
+
+  /* Admin-area accent (visually distinct per pre-staging remediation §8) */
+  --qc-color-admin-bg: #10182b;
+  --qc-color-admin-surface: #18213a;
+  --qc-color-admin-border: #2b3757;
+  --qc-color-admin-text: #eef1f7;
+  --qc-color-admin-text-muted: #a7b0c2;
+  --qc-color-admin-accent: #5b8def;
+
+  /* Typography */
+  --qc-font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --qc-font-size-page-title: 1.5rem;
+  --qc-font-size-section-title: 1.15rem;
+  --qc-font-size-card-title: 1rem;
+  --qc-font-size-body: 0.95rem;
+  --qc-font-size-label: 0.85rem;
+  --qc-font-size-helper: 0.8rem;
+  --qc-font-size-meta: 0.78rem;
+  --qc-line-height-body: 1.5;
+
+  /* Spacing scale */
+  --qc-space-1: 0.25rem;
+  --qc-space-2: 0.5rem;
+  --qc-space-3: 0.75rem;
+  --qc-space-4: 1rem;
+  --qc-space-5: 1.5rem;
+  --qc-space-6: 2rem;
+  --qc-space-7: 3rem;
+
+  /* Radius / shadow / focus */
+  --qc-radius-sm: 4px;
+  --qc-radius-md: 8px;
+  --qc-radius-lg: 12px;
+  --qc-shadow-card: 0 1px 2px rgba(16, 24, 43, 0.06), 0 4px 10px rgba(16, 24, 43, 0.06);
+  --qc-shadow-raised: 0 2px 4px rgba(16, 24, 43, 0.08), 0 8px 20px rgba(16, 24, 43, 0.1);
+  --qc-focus-ring: 0 0 0 3px rgba(91, 141, 239, 0.45);
+
+  --qc-content-max-width: 1080px;
+
+  /* Theme-level presentation tokens consumed by apps/student-web's scene
+     rendering (07_14/07_15/07_26) -- previously referenced with hardcoded
+     fallbacks only, never actually defined anywhere. */
+  --qc-theme-core-background: var(--qc-color-surface);
+  --qc-theme-core-foreground: var(--qc-color-text);
+}
+
+/* ---------- Base / reset ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--qc-color-bg);
+  color: var(--qc-color-text);
+  font-family: var(--qc-font-sans);
+  font-size: var(--qc-font-size-body);
+  line-height: var(--qc-line-height-body);
+}
+
+h1 {
+  font-size: var(--qc-font-size-page-title);
+  font-weight: 700;
+  margin: 0 0 var(--qc-space-4) 0;
+  color: var(--qc-color-text);
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: var(--qc-font-size-section-title);
+  font-weight: 650;
+  margin: var(--qc-space-6) 0 var(--qc-space-3) 0;
+  color: var(--qc-color-text);
+}
+
+h3 {
+  font-size: var(--qc-font-size-card-title);
+  font-weight: 650;
+  margin: 0 0 var(--qc-space-2) 0;
+}
+
+p {
+  margin: 0 0 var(--qc-space-3) 0;
+}
+
+a {
+  color: var(--qc-color-primary);
+}
+
+a:hover {
+  color: var(--qc-color-primary-hover);
+}
+
+/* Visible focus everywhere, including non-qc elements (07_04 §13, WCAG 2.4.7). */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--qc-focus-ring);
+  border-radius: var(--qc-radius-sm);
+}
+
+table {
+  border-collapse: collapse;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- Page-level layout primitives ---------- */
+main {
+  display: block;
+  max-width: var(--qc-content-max-width);
+  margin: 0 auto;
+  padding: var(--qc-space-6) var(--qc-space-5);
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: var(--qc-space-4) var(--qc-space-3);
+  }
+}
+
+/* Standalone auth screens (login pages render <main> directly, no shell). */
+main.qc-auth-page {
+  max-width: 420px;
+  width: 100%;
+  margin: 8vh auto;
+  background: var(--qc-color-surface);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-lg);
+  box-shadow: var(--qc-shadow-raised);
+  padding: var(--qc-space-6);
+}
+
+@media (max-width: 480px) {
+  main.qc-auth-page {
+    margin: var(--qc-space-5) auto;
+    padding: var(--qc-space-5);
+  }
+}
+
+/* Student: friendlier accent, still the same coherent card — not childish (§5/§15). */
+main.qc-student-auth-page {
+  border-color: var(--qc-color-info-border);
+  border-width: 2px;
+  border-radius: var(--qc-radius-lg);
+}
+
+main.qc-student-auth-page .qc-auth-brand {
+  color: var(--qc-color-info-text);
+}
+
+main.qc-student-auth-page .qc-button-primary {
+  background: var(--qc-color-info-text);
+}
+
+.qc-auth-page h1 {
+  font-size: var(--qc-font-size-section-title);
+  margin-bottom: var(--qc-space-5);
+}
+
+.qc-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-2);
+  font-weight: 700;
+  color: var(--qc-color-primary);
+  font-size: var(--qc-font-size-card-title);
+  margin-bottom: var(--qc-space-5);
+  letter-spacing: 0.01em;
+}
+
+/* Platform Admin: visually distinct administrative area (dark, per §8). */
+body:has(main.qc-admin-auth-page) {
+  background: var(--qc-color-admin-bg);
+  min-height: 100vh;
+  margin: 0;
+}
+
+main.qc-admin-auth-page {
+  background: var(--qc-color-admin-surface);
+  border-color: var(--qc-color-admin-border);
+  color: var(--qc-color-admin-text);
+}
+
+.qc-admin-auth-page h1 {
+  color: var(--qc-color-admin-text);
+}
+
+.qc-admin-auth-page .qc-auth-brand {
+  color: var(--qc-color-admin-accent);
+}
+
+.qc-admin-auth-page label {
+  color: var(--qc-color-admin-text-muted);
+}
+
+.qc-admin-auth-page input {
+  background: var(--qc-color-admin-bg);
+  border-color: var(--qc-color-admin-border);
+  color: var(--qc-color-admin-text);
+}
+
+.qc-admin-auth-page .qc-button-primary {
+  background: var(--qc-color-admin-accent);
+}
+
+/* ---------- Buttons ---------- */
+.qc-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--qc-space-2);
+  font-size: var(--qc-font-size-body);
+  font-weight: 600;
+  padding: var(--qc-space-2) var(--qc-space-4);
+  border-radius: var(--qc-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  min-height: 2.5rem;
+}
+
+.qc-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.qc-button-primary {
+  background: var(--qc-color-primary);
+  color: var(--qc-color-primary-contrast);
+}
+
+.qc-button-primary:hover:not(:disabled) {
+  background: var(--qc-color-primary-hover);
+}
+
+.qc-button-secondary {
+  background: var(--qc-color-surface);
+  border-color: var(--qc-color-border-strong);
+  color: var(--qc-color-text);
+}
+
+.qc-button-secondary:hover:not(:disabled) {
+  background: var(--qc-color-surface-muted);
+}
+
+/* ---------- Forms ---------- */
+.qc-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--qc-space-1);
+  margin-bottom: var(--qc-space-4);
+}
+
+.qc-form-field label {
+  font-size: var(--qc-font-size-label);
+  font-weight: 600;
+  color: var(--qc-color-text-muted);
+}
+
+.qc-form-field input,
+.qc-form-field select,
+.qc-form-field textarea {
+  padding: var(--qc-space-2) var(--qc-space-3);
+  border: 1px solid var(--qc-color-border-strong);
+  border-radius: var(--qc-radius-md);
+  background: var(--qc-color-surface);
+  min-height: 2.5rem;
+}
+
+.qc-form-field input:focus-visible,
+.qc-form-field select:focus-visible,
+.qc-form-field textarea:focus-visible {
+  border-color: var(--qc-color-primary);
+}
+
+.qc-form-field-hint {
+  font-size: var(--qc-font-size-helper);
+  color: var(--qc-color-text-faint);
+  margin: 0;
+}
+
+.qc-form-field-error {
+  font-size: var(--qc-font-size-helper);
+  color: var(--qc-color-danger-text);
+  margin: 0;
+  font-weight: 600;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Table ---------- */
+.qc-table {
+  width: 100%;
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-md);
+  overflow: hidden;
+  font-size: var(--qc-font-size-body);
+}
+
+.qc-table caption {
+  text-align: left;
+  font-size: var(--qc-font-size-helper);
+  color: var(--qc-color-text-faint);
+  padding: var(--qc-space-2) var(--qc-space-3);
+}
+
+.qc-table th,
+.qc-table td {
+  text-align: left;
+  padding: var(--qc-space-3);
+  border-bottom: 1px solid var(--qc-color-border);
+}
+
+.qc-table th {
+  background: var(--qc-color-surface-muted);
+  font-size: var(--qc-font-size-label);
+  color: var(--qc-color-text-muted);
+  font-weight: 650;
+}
+
+.qc-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.qc-table tbody tr:hover td {
+  background: var(--qc-color-surface-muted);
+}
+
+@media (max-width: 640px) {
+  .qc-table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* ---------- Status badge (semantic tone, never color-only: text label always present) ---------- */
+.qc-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--qc-space-1);
+  font-size: var(--qc-font-size-meta);
+  font-weight: 650;
+  padding: 0.15rem var(--qc-space-2);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.qc-status-badge-neutral {
+  background: var(--qc-color-neutral-bg);
+  color: var(--qc-color-neutral-text);
+  border-color: var(--qc-color-neutral-border);
+}
+
+.qc-status-badge-info {
+  background: var(--qc-color-info-bg);
+  color: var(--qc-color-info-text);
+  border-color: var(--qc-color-info-border);
+}
+
+.qc-status-badge-success {
+  background: var(--qc-color-success-bg);
+  color: var(--qc-color-success-text);
+  border-color: var(--qc-color-success-border);
+}
+
+.qc-status-badge-warning {
+  background: var(--qc-color-warning-bg);
+  color: var(--qc-color-warning-text);
+  border-color: var(--qc-color-warning-border);
+}
+
+.qc-status-badge-danger {
+  background: var(--qc-color-danger-bg);
+  color: var(--qc-color-danger-text);
+  border-color: var(--qc-color-danger-border);
+}
+
+/* ---------- Status message (loading / empty / error / unauthorized / network-unavailable) ---------- */
+.qc-status {
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-2);
+  padding: var(--qc-space-3) var(--qc-space-4);
+  border-radius: var(--qc-radius-md);
+  font-size: var(--qc-font-size-body);
+  margin-bottom: var(--qc-space-4);
+  border: 1px solid transparent;
+}
+
+.qc-status-loading {
+  background: var(--qc-color-info-bg);
+  color: var(--qc-color-info-text);
+  border-color: var(--qc-color-info-border);
+}
+
+.qc-status-loading::before {
+  content: "";
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: qc-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qc-status-loading::before {
+    animation: none;
+  }
+}
+
+@keyframes qc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.qc-status-empty {
+  background: var(--qc-color-neutral-bg);
+  color: var(--qc-color-neutral-text);
+  border-color: var(--qc-color-neutral-border);
+}
+
+.qc-status-error,
+.qc-status-unauthorized,
+.qc-status-network-unavailable {
+  background: var(--qc-color-danger-bg);
+  color: var(--qc-color-danger-text);
+  border-color: var(--qc-color-danger-border);
+  font-weight: 500;
+}
+
+/* ---------- Empty state (full-block, replaces a list/table area) ---------- */
+.qc-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--qc-space-2);
+  padding: var(--qc-space-7) var(--qc-space-4);
+  border: 1px dashed var(--qc-color-border-strong);
+  border-radius: var(--qc-radius-lg);
+  background: var(--qc-color-surface);
+}
+
+.qc-empty-state-title {
+  font-weight: 650;
+  font-size: var(--qc-font-size-card-title);
+  color: var(--qc-color-text);
+  margin: 0;
+}
+
+.qc-empty-state-description {
+  color: var(--qc-color-text-muted);
+  font-size: var(--qc-font-size-body);
+  margin: 0;
+  max-width: 40ch;
+}
+
+.qc-empty-state-action {
+  margin-top: var(--qc-space-2);
+}
+
+/* ---------- App shell ---------- */
+.qc-shell-header {
+  background: var(--qc-color-surface);
+  border-bottom: 1px solid var(--qc-color-border);
+  padding: var(--qc-space-3) var(--qc-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--qc-space-4);
+  flex-wrap: wrap;
+}
+
+.qc-admin-shell .qc-shell-header {
+  background: var(--qc-color-admin-surface);
+  border-color: var(--qc-color-admin-border);
+  color: var(--qc-color-admin-text);
+}
+
+.qc-shell-brand {
+  font-weight: 700;
+  color: var(--qc-color-primary);
+  font-size: var(--qc-font-size-card-title);
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-2);
+}
+
+.qc-admin-shell .qc-shell-brand {
+  color: var(--qc-color-admin-accent);
+}
+
+.qc-shell-badge {
+  font-size: var(--qc-font-size-meta);
+  font-weight: 650;
+  padding: 0.1rem var(--qc-space-2);
+  border-radius: 999px;
+  background: var(--qc-color-admin-accent);
+  color: var(--qc-color-admin-bg);
+}
+
+.qc-shell-nav {
+  display: flex;
+  gap: var(--qc-space-1);
+  flex-wrap: wrap;
+}
+
+.qc-shell-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--qc-space-2) var(--qc-space-3);
+  border-radius: var(--qc-radius-md);
+  color: var(--qc-color-text-muted);
+  font-size: var(--qc-font-size-label);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.qc-shell-nav a:hover {
+  background: var(--qc-color-surface-muted);
+  color: var(--qc-color-text);
+}
+
+.qc-shell-nav a[aria-current="page"] {
+  background: var(--qc-color-info-bg);
+  color: var(--qc-color-info-text);
+}
+
+.qc-admin-shell .qc-shell-nav a {
+  color: var(--qc-color-admin-text-muted);
+}
+
+.qc-admin-shell .qc-shell-nav a:hover {
+  background: var(--qc-color-admin-bg);
+  color: var(--qc-color-admin-text);
+}
+
+.qc-admin-shell .qc-shell-nav a[aria-current="page"] {
+  background: var(--qc-color-admin-accent);
+  color: var(--qc-color-admin-bg);
+}
+
+.qc-shell-context {
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-3);
+  font-size: var(--qc-font-size-label);
+}
+
+.qc-shell-context-tenant {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.3;
+}
+
+.qc-shell-context-tenant strong {
+  font-size: var(--qc-font-size-body);
+}
+
+.qc-shell-context-tenant span {
+  color: var(--qc-color-text-faint);
+  font-size: var(--qc-font-size-meta);
+}
+
+.qc-admin-shell .qc-shell-context-tenant span {
+  color: var(--qc-color-admin-text-muted);
+}
+
+.qc-shell-body {
+  min-height: calc(100vh - 3.5rem);
+}
+
+/* ---------- Cards / sections ---------- */
+.qc-card {
+  background: var(--qc-color-surface);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-5);
+  box-shadow: var(--qc-shadow-card);
+  margin-bottom: var(--qc-space-5);
+}
+
+.qc-card > h2:first-child,
+.qc-card > h3:first-child {
+  margin-top: 0;
+}
+
+/* ---------- Learning-engine views (light layout touch only — never engine logic) ---------- */
+.qc-engine-actions {
+  display: flex;
+  gap: var(--qc-space-2);
+  flex-wrap: wrap;
+  margin-top: var(--qc-space-4);
+}
+
+.qc-engine-balance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--qc-space-4);
+}
+
+.qc-engine-balance-sides {
+  display: flex;
+  gap: var(--qc-space-4);
+  flex-wrap: wrap;
+}
+
+.qc-engine-drag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--qc-space-3);
+}
+
+.qc-engine-token-row {
+  display: flex;
+  gap: var(--qc-space-2);
+  flex-wrap: wrap;
+}

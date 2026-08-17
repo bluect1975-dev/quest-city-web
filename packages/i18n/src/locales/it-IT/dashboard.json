@@ -15,8 +15,10 @@
       "classes": "Classi",
       "staff": "Personale",
       "review": "Revisione",
+      "convergence": "Convergenza",
       "logout": "Esci"
     },
+    "brandLabel": "Quest City",
     "tenantSwitcher": {
       "title": "Cambia scuola/tenant",
       "columnTenantName": "Nome",
@@ -38,8 +40,11 @@
       "open": "Apri",
       "createTitle": "Nuova richiesta di convergenza",
       "targetTenantIdLabel": "ID scuola di destinazione",
+      "targetTenantIdHint": "Identificativo interno della scuola (non il codice pubblico) — richiedilo all'amministratore di piattaforma se non lo conosci.",
       "sourceTenantIdLabel": "ID tenant educatore di origine",
+      "sourceTenantIdHint": "Identificativo interno del tenant dell'educatore indipendente — richiedilo all'amministratore di piattaforma se non lo conosci.",
       "educatorStaffAccountIdLabel": "ID account staff dell'educatore",
+      "educatorStaffAccountIdHint": "Identificativo interno dell'account staff dell'educatore — richiedilo all'amministratore di piattaforma se non lo conosci.",
       "createSubmit": "Crea richiesta",
       "createSubmitting": "Creazione in corso...",
       "statusRequested": "Richiesta",
@@ -292,6 +297,8 @@
       "convergenceRequests": "Richieste di convergenza",
       "logout": "Esci"
     },
+    "brandLabel": "Quest City",
+    "brandBadge": "Amministrazione",
     "tenants": {
       "title": "Scuole",
       "columnName": "Nome",

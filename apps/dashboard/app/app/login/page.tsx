@@ -41,7 +41,8 @@ export default function StaffLoginPage() {
   }
 
   return (
-    <main>
+    <main className="qc-auth-page">
+      <div className="qc-auth-brand">{t(DASHBOARD_CATALOG_IT_IT, "app.brandLabel")}</div>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.login.title")}</h1>
       <form onSubmit={handleSubmit}>
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.login.emailLabel")}>

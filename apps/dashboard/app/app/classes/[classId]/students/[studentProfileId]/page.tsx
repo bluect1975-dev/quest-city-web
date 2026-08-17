@@ -44,14 +44,14 @@ function StudentDetailView({ classId, studentProfileId }: { classId: string; stu
         <>
           <h1>{result.data.student.accessAlias}</h1>
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.studentDetail.progressTitle")}</h2>
             <p>
               {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.totalAttemptsLabel")}: {result.data.progress.aggregate.totalAttempts}
             </p>
           </section>
 
-          <section>
+          <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.studentDetail.attemptsTitle")}</h2>
             {result.data.attempts.length === 0 ? (
               <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.studentDetail.emptyAttempts")} />
