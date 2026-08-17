@@ -168,6 +168,43 @@ describe("StaffAuthService (02_35 §4)", () => {
     expect(result.role).toBe("TEACHER");
   });
 
+  it("start() with two ACTIVE memberships on the SAME tenant: tenantId alone is still ambiguous (409, candidates in safeDetails), staffTenantMembershipId resolves it", async () => {
+    // Same-tenant multi-role (02_25 v1.12 §6.16.6, migration 0012) --
+    // unlike the cross-tenant case above, tenantId cannot disambiguate two
+    // memberships that already share the same tenant. The login UI reads
+    // safeDetails.candidates to render a role picker rather than leaving
+    // the user stuck (found live via the Student Support Roles browser
+    // walkthrough -- the login form previously had no way to supply
+    // staffTenantMembershipId at all).
+    const fixture = await buildFixture();
+    const { hashPassword } = await import("@quest-city-web/staff-identity");
+    const accountId = await createStaffAccount("dualrole@example.org", await hashPassword(PASSWORD));
+    const adminMembershipId = await createMembership(accountId, fixture.tenantId, "SCHOOL_ADMIN");
+    const teacherMembershipId = await createMembership(accountId, fixture.tenantId, "TEACHER");
+    const service = new StaffAuthService(pool);
+
+    const ambiguous = await service
+      .start({ email: "dualrole@example.org", password: PASSWORD, tenantId: fixture.tenantId, clientIp: "127.0.0.1" })
+      .catch((e) => e);
+    expect(ambiguous.code).toBe("AMBIGUOUS_TENANT_MEMBERSHIP");
+    expect(ambiguous.safeDetails?.candidates).toEqual(
+      expect.arrayContaining([
+        { staffTenantMembershipId: adminMembershipId, role: "SCHOOL_ADMIN" },
+        { staffTenantMembershipId: teacherMembershipId, role: "TEACHER" },
+      ]),
+    );
+
+    const resolved = await service.start({
+      email: "dualrole@example.org",
+      password: PASSWORD,
+      tenantId: fixture.tenantId,
+      staffTenantMembershipId: teacherMembershipId,
+      clientIp: "127.0.0.1",
+    });
+    expect(resolved.tenantId).toBe(fixture.tenantId);
+    expect(resolved.role).toBe("TEACHER");
+  });
+
   it("refresh() rotates the session, revokes the previous one ROTATED, and never extends the absolute TTL", async () => {
     const fixture = await buildFixture();
     const { hashPassword } = await import("@quest-city-web/staff-identity");
