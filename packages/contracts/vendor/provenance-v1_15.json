@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-glpc",
+  "artifactVersion": "1.15.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "6e361d4",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_15.yaml",
+  "sourceDocument": "02_41_Quest_City_Granular_Learning_Path_Control_Platform_School_Class_and_Student_Effective_Availability_Specification_v1_0 (§48bis, v1.1) / 02_26_Quest_City_API_and_Integration_Contracts_v1_13 (§21, v1.19)",
+  "checksum": "sha256:41802fc1cda8a82a59b86915b0346d07813d714a324a4a94aef0f85e2fe1d3d3",
+  "syncedAt": "2026-08-17",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Contracts-first first sub-step of Granular Learning Path Control (02_41) Web implementation. Additive to v1.2.0 through v1.14.0, all unmodified and independently tracked. Ten paths: POST/GET /learning-path-policies, DELETE /learning-path-policies/{policyId}, GET /learning-path/effective, GET /classes/{classId}/learning-path/preview, GET /students/{studentPublicId}/learning-path/preview, POST /learning-path-alternatives, plus additive redeclaration of /asacom/facilitation-proposals, /support-teacher/facilitation-proposals, /facilitation-proposals/{id}/review (FacilitationProposalType gains LEARNING_PATH_ADJUSTMENT, CreateFacilitationProposalRequest gains targetLearningPath -- no field removed/renamed). ErrorEnvelope.code gains five GLPC error codes. Verified byte-identical (sha256 match) against the canonical source before commit.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_15.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_15.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

@@ -1,0 +1,1103 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: "1.15.0"
+  description: |
+    Contracts-first machine-readable surface for Granular Learning Path Control
+    (02_41 v1.0), the mandatory first sub-step of GLPC Web implementation per
+    02_41 §48. This file is additive: v1.2.0 through v1.14.0 remain available
+    unchanged as separate immutable artifacts; no prior path or schema is
+    removed or altered.
+
+    Resource-oriented surface (02_41 §47) covering School/Class/Student policy
+    management, effective-path preview (Class and Student), alternative-content
+    assignment, and effective-resource availability lookup, all backed by the
+    single unified scoped-policy data model of 02_41 §42
+    (`learning_path_policy`/`learning_path_alternative`/`learning_path_snapshot`).
+    No role-specific duplicate endpoints — the server resolves authority from
+    the authenticated staff membership's granular capabilities
+    (`learning_path.school.manage` / `.class.manage` / `.student.manage` /
+    `.student.propose` / `.preview` / `.alternative.assign` / `.waiver.manage`,
+    02_41 §44), never a wildcard.
+
+    Also redeclares (additively, no field removed/renamed) the existing
+    `POST /asacom/facilitation-proposals`, `POST /support-teacher/facilitation-proposals`
+    and `POST /facilitation-proposals/{id}/review` paths from v1.13.0/v1.14.0:
+    `FacilitationProposalType` gains a third value, `LEARNING_PATH_ADJUSTMENT`
+    (02_41 §23 — explicit reuse of `facilitation_proposal`, no second proposal
+    table), and `CreateFacilitationProposalRequest` gains an optional
+    `targetLearningPath` object carrying the resource/state being proposed.
+    On `ACCEPT` of a `LEARNING_PATH_ADJUSTMENT` proposal, the reviewer's write
+    creates/updates the corresponding `learning_path_policy` row (scope
+    STUDENT, resource/state from the proposal) atomically with the proposal's
+    status transition — same atomicity discipline already established for
+    `DIFFICULTY` accept (02_26 §37.7bis). The existing anti-self-approval
+    check (`reviewed_by_staff_account_id <> proposed_by_staff_account_id`) and
+    reviewer-priority resolution (02_39 §6ter) are unchanged and apply
+    identically to this proposal type. ASACOM's authority under this file
+    remains strictly `PROPOSE_ONLY` (02_41 §22) — no path in this file grants
+    ASACOM a direct `APPLY`.
+
+    `ErrorEnvelope.code` gains five GLPC-specific values (02_41 §46):
+    `LEARNING_PATH_POLICY_FORBIDDEN`, `LEARNING_PATH_PARENT_DISABLED`,
+    `LEARNING_PATH_RESOURCE_NOT_AVAILABLE`, `LEARNING_PATH_ALTERNATIVE_INVALID`,
+    `LEARNING_PATH_ACTIVE_ATTEMPT_CONFLICT` — used only where distinct
+    client-facing semantics require them, no further error-code expansion.
+
+    This is a CONTRACTS-ONLY release, authored in the canonical repository. No
+    endpoint in this file may be implemented in quest-city-web until this
+    contract change set's own closure (merge to canonical main) completes, per
+    the two-phase contracts-then-implementation pattern already used for every
+    prior tranche. GLPC does not grant CREATE/EDIT CONTENT authority (02_41
+    §49) — no content-authoring endpoint is defined or implied here.
+
+servers:
+  - url: https://api.questcity.example/v1
+    description: Placeholder — actual base URL defined by deployment configuration, unchanged by this file.
+
+security:
+  - staffSessionCookie: []
+
+paths:
+  /learning-path-policies:
+    post:
+      summary: >-
+        Create or update a `learning_path_policy` row at a given scope
+        (PLATFORM/SCHOOL/CLASS/STUDENT). Capability required depends on
+        `scope`: `learning_path.school.manage` (SCHOOL), `.class.manage`
+        (CLASS), `.student.manage` (STUDENT); PLATFORM scope (including
+        `UNAVAILABLE_FOR_USE`) requires platform-level content-admin
+        authority, never granted to School/Class/Student actors (02_41 §10,
+        §15, §17). A School/Class caller may never write a policy that
+        exceeds the maximum envelope of the scope directly above it — the
+        server resolves and rejects with `LEARNING_PATH_PARENT_DISABLED`
+        when the target scope attempts to re-enable something an explicit
+        higher-scope `DISABLED`/`UNAVAILABLE_FOR_USE` forbids (02_41 §10).
+        Upsert semantics: a second call for the same (scope, scopeRef,
+        resourceType, resourceRef) updates the existing row rather than
+        creating a duplicate.
+      operationId: createOrUpdateLearningPathPolicy
+      security:
+        - staffSessionCookie: []
+          staffCsrfHeader: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLearningPathPolicyRequest'
+      responses:
+        '201':
+          description: Policy created or updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPathPolicyResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: >-
+            LEARNING_PATH_RESOURCE_NOT_AVAILABLE — the referenced curriculum
+            resource does not exist, or `scopeRef` (classId/studentPublicId)
+            is not within the caller's authorized scope (uniform
+            anti-enumeration response).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: >-
+            LEARNING_PATH_PARENT_DISABLED — the target scope attempted to
+            set a state that a higher, currently-effective explicit
+            `DISABLED`/`UNAVAILABLE_FOR_USE` forbids (02_41 §10). The write
+            is rejected outright — it is never silently stored as an
+            inactive/shadowed row via this endpoint; shadowing only occurs
+            when a *previously valid* lower policy is later overtaken by a
+            *new* higher-scope restriction (02_41 §11), not at write time
+            of an already-invalid one.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '412':
+          $ref: '#/components/responses/EtagMismatch'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      summary: >-
+        List/query `learning_path_policy` rows. Capability
+        `learning_path.preview` (read-only) or the corresponding `.manage`
+        capability for the queried scope. Always scoped to the caller's
+        tenant (02_41 §52) — cross-tenant queries return an empty list, never
+        another School's data.
+      operationId: listLearningPathPolicies
+      security:
+        - staffSessionCookie: []
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/LearningPathScope'
+        - name: scopeRef
+          in: query
+          required: false
+          description: classId (scope=CLASS) or studentPublicId (scope=STUDENT). Ignored for PLATFORM/SCHOOL.
+          schema:
+            type: string
+        - name: resourceType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/LearningPathResourceType'
+        - name: resourceRef
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Policy list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPathPolicyListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+
+  /learning-path-policies/{policyId}:
+    delete:
+      summary: >-
+        Revert an explicit policy back to `INHERIT` (deletes the
+        `learning_path_policy` row). Same capability as the corresponding
+        `POST`. Deleting a row never deletes the shadowed history of any
+        other scope — only the caller's own explicit policy at the scope
+        they are authorized to manage.
+      operationId: deleteLearningPathPolicy
+      security:
+        - staffSessionCookie: []
+          staffCsrfHeader: []
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: Policy reverted to INHERIT.
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: Policy not found or not in the caller's scope (uniform anti-enumeration).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /learning-path/effective:
+    get:
+      summary: >-
+        Effective-resource availability check (02_41 §31 resolution
+        algorithm, §44). Capability `learning_path.preview`, or implicit for
+        any staff/system caller resolving availability before launching
+        content server-side (02_41 §51 — server-authoritative, no
+        security-by-hidden-button). Deterministic and order-independent:
+        evaluates PLATFORM→SCHOOL→CLASS→STUDENT in that fixed order.
+      operationId: getEffectiveLearningPathAvailability
+      security:
+        - staffSessionCookie: []
+      parameters:
+        - name: resourceType
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/LearningPathResourceType'
+        - name: resourceRef
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: classId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: studentPublicId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resolved effective availability.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectiveResolutionResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+
+  /classes/{classId}/learning-path/preview:
+    get:
+      summary: >-
+        Effective learning-path preview for an entire Class (02_41 §32,
+        "Mostrami il percorso effettivo della Classe"). Capability
+        `learning_path.preview` for School Admin/Teacher (own authorized
+        class)/Support Teacher (own assigned class). Returns the resolved
+        state for every curriculum node the class's active configuration
+        includes, without requiring the caller to open every student
+        individually unless a student-specific override exists.
+      operationId: getClassLearningPathPreview
+      security:
+        - staffSessionCookie: []
+      parameters:
+        - name: classId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Class effective-path preview.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassPathPreviewResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: Class not found or not in the caller's scope (uniform anti-enumeration).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /students/{studentPublicId}/learning-path/preview:
+    get:
+      summary: >-
+        Effective learning-path preview for one Student (02_41 §32, "Che
+        cosa vedrà questo studente?" — mandatory capability). Capability
+        `learning_path.preview` for School Admin/Teacher (own authorized
+        class)/Support Teacher (`support_student_assignment ACTIVE`). Shows
+        per-node effective status, source scope/policy, waiver, and
+        alternative where present.
+      operationId: getStudentLearningPathPreview
+      security:
+        - staffSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/StudentPublicId'
+      responses:
+        '200':
+          description: Student effective-path preview.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentPathPreviewResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: >-
+            SUPPORT_STUDENT_NOT_ASSIGNED — uniform anti-enumeration response,
+            same pattern as v1.13.0/v1.14.0.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /learning-path-alternatives:
+    post:
+      summary: >-
+        Assign a replacement relation `ORIGINAL_CONTENT → ALTERNATIVE_CONTENT`
+        (02_41 §27, §42 `learning_path_alternative`). Capability
+        `learning_path.alternative.assign`. The alternative must reference a
+        specific, authorized, technically compatible content
+        resource/version — canonical, School, Teacher, or published
+        Marketplace content only (02_41 §34); never a raw string, never a
+        mutation of the original.
+      operationId: createLearningPathAlternative
+      security:
+        - staffSessionCookie: []
+          staffCsrfHeader: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLearningPathAlternativeRequest'
+      responses:
+        '201':
+          description: Alternative mapping created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningPathAlternativeResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: >-
+            LEARNING_PATH_ALTERNATIVE_INVALID — the referenced alternative
+            content does not exist, is not published, is not authorized for
+            the caller's tenant, or the specific version referenced is not
+            valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /asacom/facilitation-proposals:
+    post:
+      summary: >-
+        Propose a facilitation, difficulty, or (1.15.0, new) learning-path
+        adjustment (capability asacom.facilitation.propose,
+        asacom.difficulty.propose, or the existing ASACOM propose authority
+        for learning-path adjustments — 02_41 §22, no new capability
+        introduced). Creates a facilitation_proposal in status SUBMITTED.
+        Never applies anything directly — identical wire shape and
+        authorization to v1.13.0/v1.14.0, redeclared here only because
+        `proposalType`/`CreateFacilitationProposalRequest` gain the
+        LEARNING_PATH_ADJUSTMENT value/field in this version.
+      operationId: createFacilitationProposal
+      security:
+        - staffSessionCookie: []
+          staffCsrfHeader: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilitationProposalRequest'
+      responses:
+        '201':
+          description: Proposal submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /support-teacher/facilitation-proposals:
+    post:
+      summary: >-
+        Propose a facilitation, difficulty, or (1.15.0, new) learning-path
+        adjustment for a student NOT among the caller's own assigned
+        students. Identical to v1.13.0/v1.14.0, redeclared for the same
+        schema-extension reason as `/asacom/facilitation-proposals`.
+      operationId: createSupportTeacherFacilitationProposal
+      security:
+        - staffSessionCookie: []
+          staffCsrfHeader: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilitationProposalRequest'
+      responses:
+        '201':
+          description: Proposal submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /facilitation-proposals/{id}/review:
+    post:
+      summary: >-
+        Accept or reject a facilitation/difficulty/learning-path-adjustment
+        proposal. Same reviewer resolution, anti-self-approval, and
+        concurrency model as v1.13.0/v1.14.0. On ACCEPT of proposalType
+        LEARNING_PATH_ADJUSTMENT (1.15.0, new): atomically creates/updates
+        the corresponding `learning_path_policy` row (scope STUDENT,
+        resource/state taken from the proposal's `targetLearningPath`) in
+        the same transaction as the status transition — same atomicity
+        discipline already established for DIFFICULTY accept (02_26
+        §37.7bis). A failed policy write rolls back the entire review — the
+        proposal never ends up ACCEPTED without the corresponding policy
+        change taking effect.
+      operationId: reviewFacilitationProposal
+      security:
+        - staffSessionCookie: []
+          staffCsrfHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - decision
+              properties:
+                decision:
+                  type: string
+                  enum: [ACCEPT, REJECT]
+                reviewNote:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '200':
+          description: Proposal reviewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: >-
+            STAFF_FORBIDDEN — no reviewing access to this student/class, or
+            the caller is the original proposer (self-review is never
+            permitted).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Proposal not found or not in the caller's scope (uniform anti-enumeration).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: >-
+            LEARNING_PATH_PARENT_DISABLED — ACCEPT would create a policy
+            that a currently-effective higher-scope explicit
+            DISABLED/UNAVAILABLE_FOR_USE forbids. The review is rejected
+            outright (proposal remains SUBMITTED) rather than silently
+            accepted with no effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '412':
+          $ref: '#/components/responses/EtagMismatch'
+
+components:
+  securitySchemes:
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: >-
+        Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_6.yaml. Redeclared here only
+        because each versioned contract file is self-contained for its own
+        $ref resolution (same convention as v1.9.0-v1.14.0).
+    staffCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-Staff-CSRF-Token
+      description: Same CSRF header already defined by prior versions, redeclared for self-containment.
+
+  parameters:
+    StudentPublicId:
+      name: studentPublicId
+      in: path
+      required: true
+      schema:
+        type: string
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: >-
+        Required on every mutating endpoint in this file that persists a new
+        row or changes a status (02_26 v1.16 §8.1). Reuses the single
+        existing idempotency_record mechanism — no second idempotency system
+        (02_41 §55).
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  responses:
+    StaffUnauthorized:
+      description: STAFF_AUTH_REQUIRED — no valid staff_session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    CapabilityDenied:
+      description: >-
+        STAFF_FORBIDDEN / LEARNING_PATH_POLICY_FORBIDDEN — valid staff
+        session, but the caller's role/capability set does not permit this
+        operation at the requested scope.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    StaffValidationError:
+      description: VALIDATION_ERROR — request body failed schema/business validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    EtagMismatch:
+      description: ETAG_MISMATCH — If-Match does not match the resource's current version.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: RATE_LIMITED.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    Meta:
+      type: object
+      required:
+        - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - domain
+        - code
+        - httpStatus
+        - message
+        - correlationId
+        - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+            - PLATFORM
+            - CONTENT_RUNTIME
+            - CROSS_RUNTIME
+        code:
+          type: string
+          description: >-
+            Redeclared additively from v1.14.0 — five new GLPC-specific
+            values appended (02_41 §46), nothing removed/renamed.
+          enum:
+            - STAFF_AUTH_REQUIRED
+            - STAFF_FORBIDDEN
+            - VALIDATION_ERROR
+            - RATE_LIMITED
+            - IDEMPOTENCY_CONFLICT
+            - IDEMPOTENCY_IN_PROGRESS
+            - ETAG_MISMATCH
+            - STUDENT_NOT_FOUND
+            - ASACOM_NOT_ASSIGNED
+            - SUPPORT_STUDENT_NOT_ASSIGNED
+            - SUPPORT_ASSIGNMENT_INACTIVE
+            - FACILITATION_NOT_ALLOWED
+            - SUPPORT_EVENT_INVALID_ATTEMPT
+            - AMBIGUOUS_TENANT_MEMBERSHIP
+            - LEARNING_PATH_POLICY_FORBIDDEN
+            - LEARNING_PATH_PARENT_DISABLED
+            - LEARNING_PATH_RESOURCE_NOT_AVAILABLE
+            - LEARNING_PATH_ALTERNATIVE_INVALID
+            - LEARNING_PATH_ACTIVE_ATTEMPT_CONFLICT
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+
+    LearningPathScope:
+      type: string
+      description: 02_41 §42 `learning_path_policy.scope`.
+      enum:
+        - PLATFORM
+        - SCHOOL
+        - CLASS
+        - STUDENT
+
+    LearningPathResourceType:
+      type: string
+      description: 02_41 §43 — reuses content_entity_index.entity_type identity, no fragile stringly-typed polymorphism.
+      enum:
+        - SUBJECT
+        - TRACK
+        - YEAR
+        - MODULE
+        - UNIT
+        - UNIT_ELEMENT
+
+    LearningPathState:
+      type: string
+      description: >-
+        02_41 §9/§20/§42. INHERIT/ENABLED/DISABLED are the three base
+        inheritance states; DISABLED_AND_WAIVED/DISABLED_WITH_ALTERNATIVE are
+        disable-mode variants, never competing inheritance states (02_41
+        §7bis-equivalent). UNAVAILABLE_FOR_USE is valid only at scope=PLATFORM
+        (02_41 §15).
+      enum:
+        - INHERIT
+        - ENABLED
+        - DISABLED
+        - DISABLED_AND_WAIVED
+        - DISABLED_WITH_ALTERNATIVE
+        - UNAVAILABLE_FOR_USE
+
+    LearningPathReasonCategory:
+      type: string
+      description: 02_41 §29 — structured, non-clinical. No diagnosis, disability category, or medical condition is ever a valid value.
+      enum:
+        - PEDAGOGICAL
+        - ACCESSIBILITY
+        - TEMPORARY_SUPPORT
+        - ALTERNATIVE_ACTIVITY
+        - CURRICULUM_SCHEDULING
+        - SCHOOL_POLICY
+        - TEACHER_DECISION
+        - OTHER_STRUCTURED
+
+    CreateLearningPathPolicyRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - scope
+        - resourceType
+        - resourceRef
+        - state
+        - reasonCategory
+      properties:
+        scope:
+          $ref: '#/components/schemas/LearningPathScope'
+        scopeRef:
+          type: string
+          description: classId (scope=CLASS) or studentPublicId (scope=STUDENT). Omitted for PLATFORM/SCHOOL.
+        resourceType:
+          $ref: '#/components/schemas/LearningPathResourceType'
+        resourceRef:
+          type: string
+        state:
+          $ref: '#/components/schemas/LearningPathState'
+        reasonCategory:
+          $ref: '#/components/schemas/LearningPathReasonCategory'
+        reasonNotes:
+          type: string
+          maxLength: 2000
+          description: Optional and controlled — never required, never a substitute for reasonCategory.
+        alternativeContentRef:
+          type: string
+          description: Required when state=DISABLED_WITH_ALTERNATIVE, must reference an existing learning_path_alternative.
+        deploymentYear:
+          type: string
+          description: >-
+            02_41 §7/§10 — explicit scheduling attribute, distinct from the
+            resource's canonical_year. Never mutates the canonical resource.
+
+    LearningPathPolicy:
+      type: object
+      required:
+        - id
+        - tenantId
+        - scope
+        - resourceType
+        - resourceRef
+        - state
+        - reasonCategory
+        - createdByStaffAccountId
+        - createdAt
+        - updatedAt
+        - version
+        - shadowed
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        scope:
+          $ref: '#/components/schemas/LearningPathScope'
+        scopeRef:
+          type: string
+        resourceType:
+          $ref: '#/components/schemas/LearningPathResourceType'
+        resourceRef:
+          type: string
+        state:
+          $ref: '#/components/schemas/LearningPathState'
+        reasonCategory:
+          $ref: '#/components/schemas/LearningPathReasonCategory'
+        reasonNotes:
+          type: string
+        alternativeContentRef:
+          type: string
+        deploymentYear:
+          type: string
+        createdByStaffAccountId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+        shadowed:
+          type: boolean
+          description: >-
+            Computed at read time, never persisted (02_41 §11-12) — true when
+            a higher-scope explicit DISABLED/UNAVAILABLE_FOR_USE currently
+            overrides this policy. A shadowed policy remains stored and
+            becomes effective again automatically if the higher scope is
+            later re-enabled.
+
+    LearningPathPolicyResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/LearningPathPolicy'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    LearningPathPolicyListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningPathPolicy'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    EffectiveResolution:
+      type: object
+      description: 02_41 §31 resolution algorithm output, §44 required fields.
+      required:
+        - resourceType
+        - resourceRef
+        - effectiveAvailability
+        - effectiveRequirement
+        - sourceScope
+      properties:
+        resourceType:
+          $ref: '#/components/schemas/LearningPathResourceType'
+        resourceRef:
+          type: string
+        effectiveAvailability:
+          type: string
+          enum: [EFFECTIVE_AVAILABLE, EFFECTIVE_UNAVAILABLE]
+        effectiveRequirement:
+          type: string
+          enum: [required, waived, alternative]
+        sourceScope:
+          $ref: '#/components/schemas/LearningPathScope'
+        sourcePolicyId:
+          type: string
+          description: Absent when the effective result is pure INHERIT with no explicit policy anywhere in the chain.
+        alternativeContentVersion:
+          type: string
+        waiverState:
+          type: boolean
+        reasonCategory:
+          $ref: '#/components/schemas/LearningPathReasonCategory'
+
+    EffectiveResolutionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/EffectiveResolution'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ClassPathPreviewResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required:
+            - classId
+            - nodes
+          properties:
+            classId:
+              type: string
+            nodes:
+              type: array
+              items:
+                $ref: '#/components/schemas/EffectiveResolution'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StudentPathPreviewResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required:
+            - studentPublicId
+            - nodes
+          properties:
+            studentPublicId:
+              type: string
+            nodes:
+              type: array
+              items:
+                $ref: '#/components/schemas/EffectiveResolution'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateLearningPathAlternativeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - originalResourceType
+        - originalResourceRef
+        - alternativeContentRef
+      properties:
+        originalResourceType:
+          $ref: '#/components/schemas/LearningPathResourceType'
+        originalResourceRef:
+          type: string
+        alternativeContentRef:
+          type: string
+          description: >-
+            Must reference a published, authorized, version-specific content
+            resource (canonical, School, Teacher, or published Marketplace —
+            02_41 §34). Never a raw free-text value.
+
+    LearningPathAlternative:
+      type: object
+      required:
+        - id
+        - tenantId
+        - originalResourceType
+        - originalResourceRef
+        - alternativeContentRef
+        - createdByStaffAccountId
+        - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        originalResourceType:
+          $ref: '#/components/schemas/LearningPathResourceType'
+        originalResourceRef:
+          type: string
+        alternativeContentRef:
+          type: string
+        createdByStaffAccountId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    LearningPathAlternativeResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/LearningPathAlternative'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    FacilitationProposalType:
+      type: string
+      description: >-
+        Redeclared additively from v1.14.0 — LEARNING_PATH_ADJUSTMENT is the
+        only new value (02_41 §23).
+      enum:
+        - FACILITATION
+        - DIFFICULTY
+        - LEARNING_PATH_ADJUSTMENT
+
+    FacilitationProposalStatus:
+      type: string
+      enum:
+        - SUBMITTED
+        - ACCEPTED
+        - REJECTED
+        - WITHDRAWN
+
+    TargetLearningPath:
+      type: object
+      description: >-
+        Present only when proposalType=LEARNING_PATH_ADJUSTMENT. Carries the
+        exact scope=STUDENT policy the proposer is requesting; on ACCEPT this
+        becomes the learning_path_policy row (02_41 §23).
+      additionalProperties: false
+      required:
+        - resourceType
+        - resourceRef
+        - requestedState
+      properties:
+        resourceType:
+          $ref: '#/components/schemas/LearningPathResourceType'
+        resourceRef:
+          type: string
+        requestedState:
+          $ref: '#/components/schemas/LearningPathState'
+        requestedAlternativeContentRef:
+          type: string
+          description: Required when requestedState=DISABLED_WITH_ALTERNATIVE.
+
+    CreateFacilitationProposalRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - studentProfileId
+        - proposalType
+        - description
+      properties:
+        studentProfileId:
+          type: string
+        proposalType:
+          $ref: '#/components/schemas/FacilitationProposalType'
+        targetCategory:
+          type: string
+          description: One of the 02_31 §4 categories for FACILITATION, or a subject/assignment reference for DIFFICULTY. Unused for LEARNING_PATH_ADJUSTMENT (use targetLearningPath instead).
+        targetLearningPath:
+          $ref: '#/components/schemas/TargetLearningPath'
+        description:
+          type: string
+          maxLength: 4000
+
+    FacilitationProposal:
+      type: object
+      required:
+        - id
+        - tenantId
+        - studentProfileId
+        - proposedByStaffAccountId
+        - proposalType
+        - status
+        - version
+        - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        studentProfileId:
+          type: string
+        proposedByStaffAccountId:
+          type: string
+        proposalType:
+          $ref: '#/components/schemas/FacilitationProposalType'
+        targetCategory:
+          type: string
+        targetLearningPath:
+          $ref: '#/components/schemas/TargetLearningPath'
+        status:
+          $ref: '#/components/schemas/FacilitationProposalStatus'
+        reviewedByStaffAccountId:
+          type: string
+        reviewedAt:
+          type: string
+          format: date-time
+        reviewNote:
+          type: string
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    FacilitationProposalResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/FacilitationProposal'
+        meta:
+          $ref: '#/components/schemas/Meta'
