@@ -19,6 +19,13 @@ import {
   ContentPromotionService,
   TenantContextService,
 } from "@quest-city-web/convergence";
+import {
+  SupportAssignmentService,
+  SupportEventService,
+  ObservationService,
+  FacilitationService,
+  FacilitationProposalService,
+} from "@quest-city-web/student-support";
 import { loadEnv } from "./env";
 
 /**
@@ -124,4 +131,25 @@ export function getContentPromotionService(): ContentPromotionService {
 
 export function getTenantContextService(): TenantContextService {
   return new TenantContextService(getStaffIdentityPool());
+}
+
+/** Student Support Roles (02_25 v1.12 §6.16, 02_35 v1.7 §11quinquies/§11sexies, 02_39 v1.2, 02_26 v1.17 §37/§37bis/§38) — same pool-reuse convention as every other factory in this file. */
+export function getSupportAssignmentService(): SupportAssignmentService {
+  return new SupportAssignmentService(getStaffIdentityPool());
+}
+
+export function getSupportEventService(): SupportEventService {
+  return new SupportEventService(getStaffIdentityPool());
+}
+
+export function getObservationService(): ObservationService {
+  return new ObservationService(getStaffIdentityPool());
+}
+
+export function getFacilitationService(): FacilitationService {
+  return new FacilitationService(getStaffIdentityPool());
+}
+
+export function getFacilitationProposalService(): FacilitationProposalService {
+  return new FacilitationProposalService(getStaffIdentityPool());
 }

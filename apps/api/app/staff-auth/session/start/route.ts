@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStaffAuthService } from "../../../../lib/staff-identity-context";
 import { staffErrorResponse } from "../../../../lib/staff-error-response";
-import { parseStaffJsonBody, validateStaffEmail, validateStaffPassword, validateOptionalTenantId } from "../../../../lib/staff-validation";
+import { parseStaffJsonBody, validateStaffEmail, validateStaffPassword, validateOptionalTenantId, validateNonEmptyString } from "../../../../lib/staff-validation";
 import { getClientIp } from "../../../../lib/client-ip";
 import { buildStaffSessionSetCookie } from "../../../../lib/staff-session-cookie";
 import { loadEnv } from "../../../../lib/env";
@@ -9,8 +9,14 @@ import { loadEnv } from "../../../../lib/env";
 /**
  * `POST /staff-auth/session/start` (02_35 §4.1, §4.4). No authentication.
  * `tenantId` is required only when the account has more than one active
- * `staff_tenant_membership`. Sets the `qc_staff_session` cookie — distinct
- * from `qc_web_session` — and returns the CSRF token once in the body.
+ * `staff_tenant_membership`. `staffTenantMembershipId` (optional, same
+ * shape as `session/switch-tenant`) is required in turn only when
+ * `tenantId` itself still matches more than one ACTIVE membership
+ * (same-tenant multi-role, e.g. TEACHER + SUPPORT_TEACHER in one school)
+ * -- otherwise the service raises 409 AMBIGUOUS_TENANT_MEMBERSHIP with the
+ * candidate list in `safeDetails`, rather than picking one heuristically.
+ * Sets the `qc_staff_session` cookie — distinct from `qc_web_session` —
+ * and returns the CSRF token once in the body.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
@@ -19,9 +25,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const email = validateStaffEmail(body.email);
     const password = validateStaffPassword(body.password);
     const tenantId = validateOptionalTenantId(body.tenantId);
+    const staffTenantMembershipId =
+      body.staffTenantMembershipId !== undefined
+        ? validateNonEmptyString(body.staffTenantMembershipId, "staffTenantMembershipId")
+        : undefined;
     const clientIp = getClientIp(request);
 
-    const result = await getStaffAuthService().start({ email, password, tenantId, clientIp });
+    const result = await getStaffAuthService().start({ email, password, tenantId, staffTenantMembershipId, clientIp });
     const env = loadEnv();
 
     const response = NextResponse.json(

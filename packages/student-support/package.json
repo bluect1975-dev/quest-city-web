@@ -1,0 +1,27 @@
+{
+  "name": "@quest-city-web/student-support",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Student Support Roles (SUPPORT_TEACHER + ASACOM) runtime: support_student_assignment, learning_support_event, learning_support_observation, facilitation_proposal, and the minimal support_profile/difficulty_override persistence slice (02_25 v1.12 §6.16, 02_35 v1.7 §11quinquies/§11sexies, 02_39 v1.2, 02_26 v1.17 §37/§37bis/§38). Entirely additive to @quest-city-web/staff-identity -- reuses its identity/session/capability model unmodified, never a second staff auth mechanism.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --config ../config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quest-city-web/attempts": "workspace:*",
+    "@quest-city-web/identity": "workspace:*",
+    "@quest-city-web/staff-identity": "workspace:*",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/pg": "8.11.10",
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

@@ -22,6 +22,7 @@
     "@quest-city-web/learning-engines": "workspace:*",
     "@quest-city-web/platform-admin": "workspace:*",
     "@quest-city-web/staff-identity": "workspace:*",
+    "@quest-city-web/student-support": "workspace:*",
     "@quest-city-web/telemetry": "workspace:*",
     "next": "16.2.9",
     "pg": "8.13.1",
