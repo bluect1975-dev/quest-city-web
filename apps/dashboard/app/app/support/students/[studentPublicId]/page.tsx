@@ -310,6 +310,11 @@ function SupportStudentDetailView({ context }: { context: StaffContext }) {
         {t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.title")}: {studentPublicId}
       </h1>
       <p>{t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.noDiagnosisNotice")}</p>
+      {!isAsacom ? (
+        <p>
+          <Link href={`/app/students/${encodeURIComponent(studentPublicId)}/learning-path`}>{t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.title")}</Link>
+        </p>
+      ) : null}
       {error ? <StatusMessage kind="error">{error}</StatusMessage> : null}
 
       <section className="qc-card">

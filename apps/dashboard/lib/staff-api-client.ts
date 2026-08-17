@@ -8,11 +8,18 @@ import type {
   ConvergenceRequest,
   CreateStaffInvitationResult,
   DifficultyOverrideResult,
+  EffectiveResolution,
   FacilitationProposal,
   FacilitationProposalStatus,
   FacilitationProposalType,
   GeneralAssignment,
   InvitableStaffRole,
+  LearningPathAlternative,
+  LearningPathPolicy,
+  LearningPathReasonCategory,
+  LearningPathResourceType,
+  LearningPathScope,
+  LearningPathState,
   LearningSupportEvent,
   MembershipStatusAction,
   MyAssignedStudent,
@@ -846,6 +853,115 @@ export async function withdrawFacilitationProposal(input: { id: string; csrfToke
   const envelope = await request<Envelope<FacilitationProposal>>(`/facilitation-proposals/${encodeURIComponent(input.id)}/withdraw`, {
     method: "POST",
     csrfToken: input.csrfToken,
+  });
+  return envelope.data;
+}
+
+/**
+ * Granular Learning Path Control (02_41 v1.1, contracts/quest-city-platform-openapi-v1_15.yaml).
+ * `POST /learning-path-policies` -- create/upsert a policy at a given scope.
+ */
+export async function createLearningPathPolicy(input: {
+  scope: LearningPathScope;
+  scopeRef?: string | undefined;
+  resourceType: LearningPathResourceType;
+  resourceRef: string;
+  state: LearningPathState;
+  reasonCategory: LearningPathReasonCategory;
+  reasonNotes?: string | undefined;
+  alternativeContentRef?: string | undefined;
+  csrfToken: string;
+}): Promise<LearningPathPolicy> {
+  const envelope = await request<Envelope<LearningPathPolicy>>("/learning-path-policies", {
+    method: "POST",
+    body: {
+      scope: input.scope,
+      scopeRef: input.scopeRef,
+      resourceType: input.resourceType,
+      resourceRef: input.resourceRef,
+      state: input.state,
+      reasonCategory: input.reasonCategory,
+      reasonNotes: input.reasonNotes ?? null,
+      alternativeContentRef: input.alternativeContentRef ?? null,
+    },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return envelope.data;
+}
+
+/** `GET /learning-path-policies?scope=...&scopeRef=...` (listLearningPathPolicies). */
+export async function listLearningPathPolicies(filter: {
+  scope?: LearningPathScope | undefined;
+  scopeRef?: string | undefined;
+  resourceType?: LearningPathResourceType | undefined;
+}): Promise<LearningPathPolicy[]> {
+  const params = new URLSearchParams();
+  if (filter.scope) params.set("scope", filter.scope);
+  if (filter.scopeRef) params.set("scopeRef", filter.scopeRef);
+  if (filter.resourceType) params.set("resourceType", filter.resourceType);
+  const query = params.toString();
+  const envelope = await request<Envelope<LearningPathPolicy[]>>(`/learning-path-policies${query ? `?${query}` : ""}`);
+  return envelope.data;
+}
+
+/** `DELETE /learning-path-policies/{policyId}` -- reverts to INHERIT. */
+export async function deleteLearningPathPolicy(input: { policyId: string; csrfToken: string }): Promise<void> {
+  await request<null>(`/learning-path-policies/${encodeURIComponent(input.policyId)}`, {
+    method: "DELETE",
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+}
+
+/** `GET /learning-path/effective` -- server-authoritative single-resource resolution. */
+export async function getEffectiveLearningPathAvailability(input: {
+  resourceType: LearningPathResourceType;
+  resourceRef: string;
+  classId?: string | undefined;
+  studentPublicId?: string | undefined;
+}): Promise<EffectiveResolution> {
+  const params = new URLSearchParams({ resourceType: input.resourceType, resourceRef: input.resourceRef });
+  if (input.classId) params.set("classId", input.classId);
+  if (input.studentPublicId) params.set("studentPublicId", input.studentPublicId);
+  const envelope = await request<Envelope<EffectiveResolution>>(`/learning-path/effective?${params.toString()}`);
+  return envelope.data;
+}
+
+/** `GET /classes/{classId}/learning-path/preview` (02_41 §32-34, "Effective Class Preview"). */
+export async function getClassLearningPathPreview(classId: string): Promise<{ classId: string; nodes: EffectiveResolution[] }> {
+  const envelope = await request<Envelope<{ classId: string; nodes: EffectiveResolution[] }>>(
+    `/classes/${encodeURIComponent(classId)}/learning-path/preview`,
+  );
+  return envelope.data;
+}
+
+/** `GET /students/{studentPublicId}/learning-path/preview` (02_41 §32-34, "Che cosa vedrà questo studente?"). */
+export async function getStudentLearningPathPreview(
+  studentPublicId: string,
+): Promise<{ studentPublicId: string; nodes: EffectiveResolution[] }> {
+  const envelope = await request<Envelope<{ studentPublicId: string; nodes: EffectiveResolution[] }>>(
+    `/students/${encodeURIComponent(studentPublicId)}/learning-path/preview`,
+  );
+  return envelope.data;
+}
+
+/** `POST /learning-path-alternatives` (02_41 §27/§34). */
+export async function createLearningPathAlternative(input: {
+  originalResourceType: LearningPathResourceType;
+  originalResourceRef: string;
+  alternativeContentRef: string;
+  csrfToken: string;
+}): Promise<LearningPathAlternative> {
+  const envelope = await request<Envelope<LearningPathAlternative>>("/learning-path-alternatives", {
+    method: "POST",
+    body: {
+      originalResourceType: input.originalResourceType,
+      originalResourceRef: input.originalResourceRef,
+      alternativeContentRef: input.alternativeContentRef,
+    },
+    csrfToken: input.csrfToken,
+    idempotencyKey: generateIdempotencyKey(),
   });
   return envelope.data;
 }
