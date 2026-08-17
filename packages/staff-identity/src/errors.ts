@@ -92,6 +92,16 @@ export const STAFF_ERROR_CODES = [
   "FACILITATION_NOT_ALLOWED",
   "SUPPORT_EVENT_INVALID_ATTEMPT",
   "AMBIGUOUS_TENANT_MEMBERSHIP",
+  // Granular Learning Path Control (02_41 v1.1 §46, 02_26 v1.19 §21,
+  // contracts/quest-city-platform-openapi-v1_15.yaml) -- 5 new codes, all
+  // domain PLATFORM, same ErrorEnvelope shape. Used only where distinct
+  // client-facing semantics require them (02_41 §46) -- no further
+  // expansion beyond these five.
+  "LEARNING_PATH_POLICY_FORBIDDEN",
+  "LEARNING_PATH_PARENT_DISABLED",
+  "LEARNING_PATH_RESOURCE_NOT_AVAILABLE",
+  "LEARNING_PATH_ALTERNATIVE_INVALID",
+  "LEARNING_PATH_ACTIVE_ATTEMPT_CONFLICT",
 ] as const;
 
 export type StaffErrorCode = (typeof STAFF_ERROR_CODES)[number];
@@ -142,6 +152,11 @@ const HTTP_STATUS_BY_CODE: Record<StaffErrorCode, number> = {
   FACILITATION_NOT_ALLOWED: 403,
   SUPPORT_EVENT_INVALID_ATTEMPT: 409,
   AMBIGUOUS_TENANT_MEMBERSHIP: 409,
+  LEARNING_PATH_POLICY_FORBIDDEN: 403,
+  LEARNING_PATH_PARENT_DISABLED: 409,
+  LEARNING_PATH_RESOURCE_NOT_AVAILABLE: 404,
+  LEARNING_PATH_ALTERNATIVE_INVALID: 404,
+  LEARNING_PATH_ACTIVE_ATTEMPT_CONFLICT: 409,
 };
 
 export class StaffIdentityError extends Error {

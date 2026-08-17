@@ -97,6 +97,24 @@ export class SchoolEnrollmentRepository {
   }
 
   /**
+   * GLPC (02_41 §10, migration 0013): the student's current (non-terminal)
+   * class enrollment -- used to resolve CLASS-scope hard-lock policies when
+   * writing a STUDENT-scope policy. A student is expected to have at most
+   * one non-terminal enrollment at a time; if more than one exists, the
+   * most recently started one wins.
+   */
+  async findCurrentByStudent(studentProfileId: string, tenantId: string): Promise<SchoolEnrollment | null> {
+    const result = await this.db.query<SchoolEnrollmentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM school_enrollment
+       WHERE student_profile_id = $1 AND tenant_id = $2 AND status IN ('ACTIVE', 'INVITED', 'SUSPENDED')
+       ORDER BY valid_from DESC LIMIT 1`,
+      [studentProfileId, tenantId],
+    );
+    const [row] = result.rows;
+    return row ? mapEnrollment(row) : null;
+  }
+
+  /**
    * Activates an INVITED enrollment as a side effect of the first
    * successful `session/start` (02_26 §30.6 — no dedicated
    * `student-enrollments/accept` endpoint exists). No-op (returns the
