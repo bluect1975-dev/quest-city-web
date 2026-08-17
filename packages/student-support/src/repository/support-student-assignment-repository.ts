@@ -106,6 +106,31 @@ export class SupportStudentAssignmentRepository {
     return result.rows.map(mapRow);
   }
 
+  /**
+   * Reviewer-priority check (`02_39 v1.3` §11bis condition 4, §6ter):
+   * which of the given students currently have an ACTIVE
+   * `support_student_assignment` held by a `SUPPORT_TEACHER` -- those
+   * students' sole legitimate reviewer is that `SUPPORT_TEACHER`, never
+   * the class `TEACHER`, even when the student is also on the
+   * `TEACHER`'s roster. `ASACOM` assignments never affect this (`ASACOM`
+   * is never a reviewer, `02_39` §6bis "Revisione proposta altrui" =
+   * `DENY`), hence the explicit role filter rather than "any assignment".
+   */
+  async findStudentIdsWithActiveSupportTeacher(studentProfileIds: string[], tenantId: string): Promise<Set<string>> {
+    if (studentProfileIds.length === 0) {
+      return new Set();
+    }
+    const result = await this.db.query<{ student_profile_id: string }>(
+      `SELECT DISTINCT ssa.student_profile_id
+       FROM support_student_assignment ssa
+       JOIN staff_tenant_membership stm ON stm.id = ssa.staff_tenant_membership_id AND stm.tenant_id = ssa.tenant_id
+       WHERE ssa.student_profile_id = ANY($1::uuid[]) AND ssa.tenant_id = $2
+         AND ssa.status = 'ACTIVE' AND stm.role = 'SUPPORT_TEACHER'`,
+      [studentProfileIds, tenantId],
+    );
+    return new Set(result.rows.map((r) => r.student_profile_id));
+  }
+
   /** School Admin coverage view + management list (`GET /platform/support-assignments`, 02_26 v1.16 §37.2), filterable. */
   async findByTenant(
     tenantId: string,

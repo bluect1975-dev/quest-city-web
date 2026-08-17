@@ -65,18 +65,31 @@ export class DifficultyOverrideRepository {
     return result.rows.map(mapRow);
   }
 
+  /**
+   * `createdByRole` is caller-supplied, never defaulted -- the two call
+   * sites (`FacilitationService.supportTeacherCreateDifficultyOverride`,
+   * always `'SUPPORT_TEACHER'`; `FacilitationProposalService.review()`,
+   * the reviewer's own role after `REVIEW_DERIVED_STUDENT_DIFFICULTY_AUTHORITY`
+   * checks, `02_39 v1.3` §11bis) are each responsible for their own
+   * authorization before calling this method. This repository enforces
+   * only structural validity (the DB `CHECK` in migration 0012) -- never
+   * "was this call legitimately review-derived", which is a service-layer
+   * concern by design (mirrors the layering discipline already used
+   * throughout this package).
+   */
   async createForStudent(input: {
     tenantId: string;
     studentProfileId: string;
     targetRef: string;
     reason: string;
     createdByStaffAccountId: string;
+    createdByRole: "TEACHER" | "SUPPORT_TEACHER";
   }): Promise<DifficultyOverride> {
     const result = await this.db.query<Row>(
       `INSERT INTO difficulty_override (tenant_id, student_profile_id, target_ref, reason, created_by_staff_account_id, created_by_role)
-       VALUES ($1, $2, $3, $4, $5, 'SUPPORT_TEACHER')
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING ${SELECT_COLUMNS}`,
-      [input.tenantId, input.studentProfileId, input.targetRef, input.reason, input.createdByStaffAccountId],
+      [input.tenantId, input.studentProfileId, input.targetRef, input.reason, input.createdByStaffAccountId, input.createdByRole],
     );
     const [row] = result.rows;
     if (!row) throw new Error("INSERT ... RETURNING produced no row");

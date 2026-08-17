@@ -312,11 +312,22 @@ CREATE TABLE difficulty_override (
   FOREIGN KEY (class_id, tenant_id) REFERENCES school_class (id, tenant_id),
   FOREIGN KEY (student_profile_id, tenant_id) REFERENCES student_profile (id, tenant_id),
   UNIQUE (id, tenant_id),
-  -- Exactly one scope: class-wide (TEACHER, out of this task's UI scope
-  -- but modeled so SUPPORT_TEACHER's per-student mechanism has something
-  -- real to "reuse") xor per-student (SUPPORT_TEACHER, §7.2).
+  -- Exactly one scope: class-wide xor per-student.
   CHECK ((class_id IS NOT NULL) <> (student_profile_id IS NOT NULL)),
-  CHECK ((created_by_role = 'SUPPORT_TEACHER') = (student_profile_id IS NOT NULL)),
+  -- SUPPORT_TEACHER can only ever hold a per-student row -- their own
+  -- direct-apply authority (§7.2) is never class-wide. TEACHER, on the
+  -- other hand, may now legitimately hold EITHER scope: class-wide as
+  -- before (their own direct, unprompted authority, §7.2), or
+  -- per-student as the outcome of REVIEW_DERIVED_STUDENT_DIFFICULTY_AUTHORITY
+  -- (02_39 v1.3 §11bis, canonical governance correction 2026-08-17) --
+  -- a TEACHER resolved as the legitimate reviewer of a DIFFICULTY
+  -- proposal, in the absence of an assigned SUPPORT_TEACHER, produces a
+  -- per-student override on ACCEPT. This CHECK enforces only the
+  -- structural half of that rule (which role may hold which scope) --
+  -- it deliberately cannot express "only when derived from a legitimate
+  -- review": that authorization is the service layer's responsibility
+  -- (FacilitationProposalService.review()), never the database's.
+  CHECK (created_by_role <> 'SUPPORT_TEACHER' OR student_profile_id IS NOT NULL),
   CHECK ((status = 'REVOKED') = (revoked_at IS NOT NULL))
 );
 
