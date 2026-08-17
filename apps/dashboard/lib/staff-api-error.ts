@@ -7,11 +7,14 @@
 export class StaffApiError extends Error {
   readonly code: string;
   readonly httpStatus: number;
+  /** Structured, non-sensitive detail (e.g. AMBIGUOUS_TENANT_MEMBERSHIP's candidate list) -- never rendered as raw text, only consumed by code that already knows the shape for a specific `code`. */
+  readonly safeDetails: Record<string, unknown> | undefined;
 
-  constructor(code: string, message: string, httpStatus: number) {
+  constructor(code: string, message: string, httpStatus: number, safeDetails?: Record<string, unknown>) {
     super(message);
     this.name = "StaffApiError";
     this.code = code;
     this.httpStatus = httpStatus;
+    this.safeDetails = safeDetails;
   }
 }

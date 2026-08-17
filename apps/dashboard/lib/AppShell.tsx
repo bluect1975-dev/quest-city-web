@@ -7,13 +7,9 @@ import { Button } from "@quest-city-web/ui";
 import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { useStaffAuth } from "./staff-auth-context";
 import { useTenantMemberships } from "./useTenantMemberships";
+import { ActiveRoleSwitcher } from "./ActiveRoleSwitcher";
+import { ROLE_LABEL_KEY } from "./role-labels";
 import type { StaffContext } from "./staff-api-types";
-
-const ROLE_LABEL_KEY: Record<StaffContext["role"], string> = {
-  TEACHER: "app.home.roleTeacher",
-  SCHOOL_ADMIN: "app.home.roleSchoolAdmin",
-  INDEPENDENT_EDUCATOR: "app.home.roleIndependentEducator",
-};
 
 /**
  * Shared header/nav/context bar for every authenticated `/app/**` staff
@@ -26,13 +22,13 @@ const ROLE_LABEL_KEY: Record<StaffContext["role"], string> = {
  * §10) by matching the active session's tenantId.
  */
 export function AppShell({ context, children }: { context: StaffContext; children: ReactNode }) {
-  const { logout } = useStaffAuth();
+  const { logout, csrfToken } = useStaffAuth();
   const router = useRouter();
   const pathname = usePathname();
   const memberships = useTenantMemberships();
 
   const activeMembership =
-    memberships.status === "success" ? memberships.data.find((m) => m.tenantId === context.tenantId) : undefined;
+    memberships.status === "success" ? memberships.data.find((m) => m.tenantId === context.tenantId && m.role === context.role) : undefined;
 
   async function handleLogout() {
     await logout();
@@ -41,11 +37,27 @@ export function AppShell({ context, children }: { context: StaffContext; childre
 
   const navItems: Array<{ href: string; labelKey: string }> = [
     { href: "/app", labelKey: "app.nav.home" },
-    { href: "/app/classes", labelKey: "app.nav.classes" },
+    // ASACOM has no class-level scope at all (02_39 §4.3) -- never shown /app/classes.
+    ...(context.role !== "ASACOM" ? [{ href: "/app/classes", labelKey: "app.nav.classes" }] : []),
     ...(context.role === "SCHOOL_ADMIN" ? [{ href: "/app/staff", labelKey: "app.nav.staff" }] : []),
     { href: "/app/review", labelKey: "app.nav.review" },
     ...(context.role === "INDEPENDENT_EDUCATOR" || context.role === "SCHOOL_ADMIN"
       ? [{ href: "/app/convergence", labelKey: "app.nav.convergence" }]
+      : []),
+    // Student Support Roles (02_39 v1.2) -- role-specific nav, never
+    // reused wholesale from TEACHER's own nav (§30 of the governing
+    // instruction: "Do not blindly reuse TEACHER nav").
+    ...(context.role === "ASACOM" || context.role === "SUPPORT_TEACHER"
+      ? [{ href: "/app/support/my-students", labelKey: "app.nav.myAssignedStudents" }]
+      : []),
+    ...(context.role === "TEACHER" || context.role === "SUPPORT_TEACHER"
+      ? [{ href: "/app/facilitation-review", labelKey: "app.nav.facilitationReview" }]
+      : []),
+    ...(context.role === "SCHOOL_ADMIN"
+      ? [
+          { href: "/app/support-assignments", labelKey: "app.nav.supportAssignments" },
+          { href: "/app/support-coverage", labelKey: "app.nav.supportCoverage" },
+        ]
       : []),
   ];
 
@@ -61,10 +73,14 @@ export function AppShell({ context, children }: { context: StaffContext; childre
           ))}
         </nav>
         <div className="qc-shell-context">
-          <div className="qc-shell-context-tenant">
-            <strong>{activeMembership?.tenantName ?? t(DASHBOARD_CATALOG_IT_IT, ROLE_LABEL_KEY[context.role])}</strong>
-            <span>{t(DASHBOARD_CATALOG_IT_IT, ROLE_LABEL_KEY[context.role])}</span>
-          </div>
+          {memberships.status === "success" && memberships.data.length > 1 ? (
+            <ActiveRoleSwitcher context={context} csrfToken={csrfToken} />
+          ) : (
+            <div className="qc-shell-context-tenant">
+              <strong>{activeMembership?.tenantName ?? t(DASHBOARD_CATALOG_IT_IT, ROLE_LABEL_KEY[context.role])}</strong>
+              <span>{t(DASHBOARD_CATALOG_IT_IT, ROLE_LABEL_KEY[context.role])}</span>
+            </div>
+          )}
           <Button variant="secondary" onClick={() => void handleLogout()}>
             {t(DASHBOARD_CATALOG_IT_IT, "app.nav.logout")}
           </Button>

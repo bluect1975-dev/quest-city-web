@@ -18,6 +18,7 @@
     "@quest-city-web/learning-engines": "workspace:*",
     "@quest-city-web/platform-admin": "workspace:*",
     "@quest-city-web/staff-identity": "workspace:*",
+    "@quest-city-web/student-support": "workspace:*",
     "@quest-city-web/test-fixtures": "workspace:*",
     "@types/pg": "8.11.10",
     "eslint": "9.18.0",

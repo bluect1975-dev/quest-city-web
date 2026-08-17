@@ -37,6 +37,30 @@ export const STAFF_CAPABILITIES = [
   "convergence.approve.teacher",
   "convergence.approve.school",
   "ownership.transfer.approve",
+  // Student Support Roles (02_39 v1.2 §24, 02_35 v1.7 §11quinquies.5/
+  // §11sexies.5, migration 0012). SCHOOL_ADMIN-only, shared by both new
+  // roles (never granted to ASACOM/SUPPORT_TEACHER themselves --
+  // §11quinquies.6/§11sexies.6, no self-assignment).
+  "student_support_assignment.manage",
+  // ASACOM-only (8 capabilities, 02_39 §24, invariant since v1.0).
+  "asacom.read.assigned_students",
+  "asacom.support.record",
+  "asacom.observation.record",
+  "asacom.facilitation.read",
+  "asacom.facilitation.apply",
+  "asacom.facilitation.propose",
+  "asacom.difficulty.propose",
+  "asacom.progress.read.assigned",
+  // SUPPORT_TEACHER-only (6 capabilities, 02_39 §24 v1.1). Class scope
+  // (roster/curriculum/review queue) needs NO new capability here --
+  // it reuses TEACHER's existing implicit staff_class_assignment
+  // authorization untouched (§11sexies.5).
+  "support_teacher.support.record",
+  "support_teacher.observation.record",
+  "support_teacher.facilitation.read",
+  "support_teacher.facilitation.apply",
+  "support_teacher.difficulty.apply",
+  "support_teacher.progress.read.assigned",
 ] as const;
 
 export type StaffCapability = (typeof STAFF_CAPABILITIES)[number];
@@ -70,12 +94,59 @@ const INDEPENDENT_EDUCATOR_CAPABILITIES: ReadonlySet<StaffCapability> = new Set(
   "convergence.approve.teacher",
 ]);
 
+/**
+ * ASACOM (02_39 §24, invariant v1.0): eight capabilities, none tenant-wide
+ * -- every one of them is further narrowed to the caller's own ACTIVE
+ * `support_student_assignment` rows at the service layer
+ * (`@quest-city-web/student-support`), not here. `asacom.facilitation.apply`
+ * covers SESSION_ONLY only (§7.1) -- the PROFILE_LEVEL/SESSION_ONLY
+ * distinction is enforced by the facilitation service, not by a second
+ * capability.
+ */
+const ASACOM_CAPABILITIES: ReadonlySet<StaffCapability> = new Set([
+  "asacom.read.assigned_students",
+  "asacom.support.record",
+  "asacom.observation.record",
+  "asacom.facilitation.read",
+  "asacom.facilitation.apply",
+  "asacom.facilitation.propose",
+  "asacom.difficulty.propose",
+  "asacom.progress.read.assigned",
+]);
+
+/**
+ * SUPPORT_TEACHER (02_39 §24 v1.1): six capabilities, all narrowed to the
+ * caller's own ACTIVE `support_student_assignment` rows at the service
+ * layer. Class-level scope (roster/curriculum/review queue) is
+ * deliberately NOT modeled as a capability here -- it reuses TEACHER's
+ * existing implicit `staff_class_assignment` authorization untouched
+ * (§11sexies.5), resolved via `isClassInScope`/`assertClassInScope`
+ * exactly as for TEACHER.
+ */
+const SUPPORT_TEACHER_CAPABILITIES: ReadonlySet<StaffCapability> = new Set([
+  "support_teacher.support.record",
+  "support_teacher.observation.record",
+  "support_teacher.facilitation.read",
+  "support_teacher.facilitation.apply",
+  "support_teacher.difficulty.apply",
+  "support_teacher.progress.read.assigned",
+]);
+
 export function hasStaffCapability(identity: StaffInternalIdentity, capability: StaffCapability): boolean {
   if (identity.role === "SCHOOL_ADMIN") {
     return true;
   }
   if (identity.role === "INDEPENDENT_EDUCATOR") {
     return INDEPENDENT_EDUCATOR_CAPABILITIES.has(capability);
+  }
+  // ASACOM and SUPPORT_TEACHER each get an explicit branch, never the
+  // TEACHER fallthrough below -- two disjoint professional mandates
+  // (02_39 §1, §3), never "TEACHER minus/plus a few capabilities".
+  if (identity.role === "ASACOM") {
+    return ASACOM_CAPABILITIES.has(capability);
+  }
+  if (identity.role === "SUPPORT_TEACHER") {
+    return SUPPORT_TEACHER_CAPABILITIES.has(capability);
   }
   return TEACHER_CAPABILITIES.has(capability);
 }

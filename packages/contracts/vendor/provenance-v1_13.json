@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-student-support-roles",
+  "artifactVersion": "1.13.1",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "8b00c02ebb305a4e06329534ffbe2c833ec63e90",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_13.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_13 (§37/§37bis, v1.16) / 02_25_Quest_City_Backend_Services_Database_and_API_Specification_v1_9 (§6.16, v1.12) / 02_35_Quest_City_Staff_Identity_Authorization_and_Dashboard_Review_Contract_v1_4 (§11quinquies/§11sexies, v1.7) / 02_39_Quest_City_Student_Support_Roles_and_Human_Facilitation_Specification_v1_0 (v1.1)",
+  "checksum": "sha256:c3803aefcf2980163c776830739296a71c8495453a01ef2057b8fa33a4437218",
+  "syncedAt": "2026-08-17",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_6.yaml, v1_8.yaml through v1_12.yaml, all unmodified and independently tracked (v1_7.yaml was never vendored, same as noted in every prior provenance file). First vendoring of this file -- ASACOM/SUPPORT_TEACHER implementation had not started when v1_13.yaml was contract-closed (v1.15/v1.16 in canonical history), so it was never previously copied into this repository. Formalizes the full ASACOM + SUPPORT_TEACHER Student Support Roles write/read surface: support_student_assignment management (POST/GET /platform/support-assignments, PATCH .../status), assigned-student surfaces (GET /me/asacom-assigned-students, GET /students/{id}/asacom-detail, GET /students/{id}/support-events), learning_support_event creation (POST /asacom|support-teacher/support-events), learning_support_observation creation+supersession (POST /asacom|support-teacher/observations[/{id}/supersede]), facilitation read/apply (GET /students/{id}/facilitation, POST /asacom/facilitation/{id}/apply-temporary, POST /support-teacher/facilitation/{id}/apply, POST /support-teacher/difficulty-overrides), facilitation_proposal workflow (POST /asacom|support-teacher/facilitation-proposals, GET /facilitation-proposals, POST .../review, POST .../withdraw), and same-tenant multi-role context switching (POST /staff-auth/session/switch-tenant extended with staffTenantMembershipId, 409 AMBIGUOUS_TENANT_MEMBERSHIP). Vendored together with quest-city-platform-openapi-v1_14.yaml (additive read-only gap closure) for this implementation phase -- routes in this implementation consult both files as one combined contract surface.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_13.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_13.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing. Note: v1_13.yaml is now merged to canonical main -- any further canonical change to this contract surface must land in a new additive file (v1_15 or later), never edit v1_13.yaml in place again."
+}

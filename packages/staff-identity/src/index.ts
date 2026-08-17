@@ -63,6 +63,8 @@ export {
   StaffInvitationService,
   type CreateStaffInvitationResult,
   type AcceptStaffInvitationResult,
+  INVITABLE_STAFF_ROLES,
+  type InvitableStaffRole,
 } from "./services/staff-invitation-service";
 export {
   StaffMembershipService,

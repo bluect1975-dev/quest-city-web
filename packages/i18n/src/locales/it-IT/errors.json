@@ -47,5 +47,11 @@
   "OWNERSHIP_PROMOTION_NOT_APPROVED": "Questa risorsa non ha una decisione di promozione approvata.",
   "TENANT_SUSPENDED_FOR_CONVERGENCE": "Uno dei tenant coinvolti è sospeso.",
   "IDEMPOTENCY_IN_PROGRESS": "Una richiesta identica è già in elaborazione. Riprova tra qualche istante.",
+  "ASACOM_NOT_ASSIGNED": "Non sei assegnato/a a questo studente.",
+  "SUPPORT_STUDENT_NOT_ASSIGNED": "Questo studente non è disponibile o non è nel tuo ambito.",
+  "SUPPORT_ASSIGNMENT_INACTIVE": "Questa assegnazione di supporto non è più attiva.",
+  "FACILITATION_NOT_ALLOWED": "Questa facilitazione non è consentita per il tuo ruolo.",
+  "SUPPORT_EVENT_INVALID_ATTEMPT": "L'ID tentativo indicato non è valido per questo studente.",
+  "AMBIGUOUS_TENANT_MEMBERSHIP": "Seleziona il ruolo con cui vuoi accedere: il tuo account ha più incarichi attivi su questa scuola.",
   "UNKNOWN_ERROR": "Si è verificato un errore imprevisto. Riprova."
 }

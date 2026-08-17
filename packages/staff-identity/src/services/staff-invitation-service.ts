@@ -14,6 +14,16 @@ const IDEMPOTENCY_SCOPE = "staff_invitation_create";
 /** Fixed, non-configurable TTL (02_35 v1.2 §11bis.3): createdAt + 168 hours (7 days). */
 const INVITATION_TTL_MS = 168 * 60 * 60 * 1000;
 
+/**
+ * Roles invitable through this SCHOOL_ADMIN-facing flow (02_39 v1.1
+ * §3bis.4, §4.2). SCHOOL_ADMIN itself stays PLATFORM_ADMIN-only
+ * (`activateSchoolAdmin`, untouched, 02_26 §32.5) and INDEPENDENT_EDUCATOR
+ * has its own dedicated activation flow (02_35 v1.4 §11ter) -- neither is
+ * exposed here, consistent with existing tenant-scoped invite policy.
+ */
+export const INVITABLE_STAFF_ROLES = ["TEACHER", "SUPPORT_TEACHER", "ASACOM"] as const;
+export type InvitableStaffRole = (typeof INVITABLE_STAFF_ROLES)[number];
+
 function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
@@ -31,7 +41,7 @@ export interface CreateStaffInvitationResult {
   invitationId: string;
   staffTenantMembershipId: string;
   email: string;
-  role: "TEACHER";
+  role: InvitableStaffRole;
   status: "INVITED";
   expiresAt: string;
   /** Present exactly once, in this response only — never persisted in plaintext, never logged. */
@@ -48,12 +58,18 @@ export interface AcceptStaffInvitationResult {
 
 /**
  * `POST /staff/invitations` + `POST /staff/invitations/accept` (02_35 v1.2
- * §11bis.1-§11bis.3). SCHOOL_ADMIN-only issue, ONE HUMAN -> ONE PLATFORM
- * IDENTITY (02_38 §9, applied by analogy): reuses an existing
- * `staff_account` by email when present, never duplicates it. Only
- * `TEACHER` is invitable through this flow — a second SCHOOL_ADMIN
+ * §11bis.1-§11bis.3, extended by v1.7 §11quinquies.6/§11sexies.6 for
+ * ASACOM/SUPPORT_TEACHER). SCHOOL_ADMIN-only issue, ONE HUMAN -> ONE
+ * PLATFORM IDENTITY (02_38 §9, applied by analogy): reuses an existing
+ * `staff_account` by email when present, never duplicates it -- since
+ * migration 0012 (same-tenant multi-role, 02_25 v1.12 §6.16.6) reuse is
+ * looked up per (account, tenant, role), not per (account, tenant), so
+ * the same human can be invited into a SECOND role on a tenant they
+ * already belong to. `TEACHER`/`SUPPORT_TEACHER`/`ASACOM` are invitable
+ * through this flow (`INVITABLE_STAFF_ROLES`) — a second SCHOOL_ADMIN
  * remains exclusively `PLATFORM_ADMIN`'s `activateSchoolAdmin`
- * responsibility (02_26 §32.5, untouched).
+ * responsibility (02_26 §32.5, untouched), and INDEPENDENT_EDUCATOR has
+ * its own dedicated activation flow (02_35 v1.4 §11ter, untouched).
  */
 export class StaffInvitationService {
   private readonly accounts: StaffAccountRepository;
@@ -73,19 +89,26 @@ export class StaffInvitationService {
   async createInvitation(input: {
     identity: StaffInternalIdentity;
     email: string;
+    role?: InvitableStaffRole;
     idempotencyKey: string;
   }): Promise<CreateStaffInvitationResult> {
     const { identity } = input;
     assertStaffCapability(identity, "staff.invite");
 
     const email = normalizeEmail(input.email);
+    // Default preserved for backward compatibility with existing callers
+    // that never specified a role (pre-Student-Support-Roles behavior).
+    const role: InvitableStaffRole = input.role ?? "TEACHER";
+    if (!INVITABLE_STAFF_ROLES.includes(role)) {
+      throw new StaffIdentityError("VALIDATION_ERROR", `role must be one of ${INVITABLE_STAFF_ROLES.join(", ")}`);
+    }
 
     const scopeKey = input.idempotencyKey;
     const begin = await this.idempotency.begin({
       tenantId: identity.tenantId,
       scope: IDEMPOTENCY_SCOPE,
       scopeKey,
-      requestHash: requestHashOf({ email }),
+      requestHash: requestHashOf({ email, role }),
     });
     if (begin.outcome === "DUPLICATE_SAME_PAYLOAD") {
       return begin.response as CreateStaffInvitationResult;
@@ -123,7 +146,12 @@ export class StaffInvitationService {
         });
       }
 
-      let membership = await this.memberships.findByStaffAccountAndTenant(account.id, identity.tenantId);
+      // Same-tenant multi-role (migration 0012, 02_25 v1.12 §6.16.6):
+      // dedup per (account, tenant, ROLE), not per (account, tenant) --
+      // a human already TEACHER on this tenant may still be freshly
+      // invited as SUPPORT_TEACHER/ASACOM on the SAME tenant, a second
+      // membership row, never a merge into the existing one.
+      let membership = await this.memberships.findByStaffAccountTenantAndRole(account.id, identity.tenantId, role);
       if (membership) {
         if (membership.status === "ACTIVE") {
           throw new StaffIdentityError("MEMBERSHIP_ALREADY_ACTIVE");
@@ -146,7 +174,7 @@ export class StaffInvitationService {
         membership = await this.memberships.create({
           staffAccountId: account.id,
           tenantId: identity.tenantId,
-          role: "TEACHER",
+          role,
           status: "INVITED",
         });
       }
@@ -165,7 +193,7 @@ export class StaffInvitationService {
         invitationId: invitation.id,
         staffTenantMembershipId: membership.id,
         email: account.email,
-        role: "TEACHER",
+        role,
         status: "INVITED",
         expiresAt: expiresAt.toISOString(),
         acceptanceToken: plaintextToken,
@@ -181,15 +209,20 @@ export class StaffInvitationService {
         // Never persist the plaintext token in the idempotency-record replay cache.
         response: { ...result, acceptanceToken: "[REDACTED]" },
       });
+      // Role-specific audit action for the two Student Support Roles
+      // (02_26 v1.16 §37.10: asacom.invited / support_teacher.invited) --
+      // TEACHER keeps the pre-existing generic action name unchanged.
+      const auditAction =
+        role === "ASACOM" ? "asacom.invited" : role === "SUPPORT_TEACHER" ? "support_teacher.invited" : "staff_invitation_issued";
       await this.audit.record({
         tenantId: identity.tenantId,
         actorType: "STAFF",
         actorId: identity.staffAccountId,
-        action: "staff_invitation_issued",
+        action: auditAction,
         targetType: "staff_tenant_membership",
         targetId: membership.id,
         result: "SUCCESS",
-        metadataRedacted: { identityReused },
+        metadataRedacted: { identityReused, role },
       });
 
       return result;

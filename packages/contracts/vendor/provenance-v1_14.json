@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-student-support-observation-read-and-review-queue",
+  "artifactVersion": "1.14.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "ea2fb1bae14edb24de57f176e0a7afa75b88280e",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_14.yaml",
+  "sourceDocument": "02_26_Quest_City_API_and_Integration_Contracts_v1_13 (§38, v1.17) / 02_39_Quest_City_Student_Support_Roles_and_Human_Facilitation_Specification_v1_0 (§10/§11, v1.2)",
+  "checksum": "sha256:dfaeb8c7c469545cd8aa307f380d1745bde30196f8d3622d72e331c48fd74608",
+  "syncedAt": "2026-08-17",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Additive to quest-city-platform-openapi-v1_2.yaml through v1_6.yaml, v1_8.yaml through v1_13.yaml, all unmodified and independently tracked. Targeted, minimal closure of two contract gaps identified by the Student Support Roles UI/UX design report (17 Aug 2026): GET /students/{studentPublicId}/support-observations (shared read/list for learning_support_observation, with computed historyStatus/supersedesId -- never a persisted second source of truth) and GET /me/facilitation-proposals/review-queue (reviewer's own pending-review discovery, no new capability, anti-self-approval enforced at read time too, same version field for If-Match concurrency). No capability expansion, no scope expansion, no new error codes beyond STAFF_AUTH_REQUIRED/SUPPORT_STUDENT_NOT_ASSIGNED (both already defined). v1_13.yaml was already merged to canonical main when this gap was identified, so this is a new additive file rather than an in-place edit of v1_13.yaml -- post-merge immutability discipline applied for the first time to this contract surface.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_14.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_14.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

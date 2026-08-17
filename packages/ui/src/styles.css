@@ -645,6 +645,40 @@ form {
   min-height: calc(100vh - 3.5rem);
 }
 
+.qc-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.qc-shell-role-switcher {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--qc-space-1);
+}
+
+.qc-shell-role-switcher select {
+  font: inherit;
+  font-size: var(--qc-font-size-label);
+  padding: var(--qc-space-1) var(--qc-space-2);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-sm);
+  background: var(--qc-color-surface);
+  color: var(--qc-color-text);
+}
+
+.qc-shell-role-switcher select:focus-visible {
+  box-shadow: var(--qc-focus-ring);
+  outline: none;
+}
+
 /* ---------- Cards / sections ---------- */
 .qc-card {
   background: var(--qc-color-surface);

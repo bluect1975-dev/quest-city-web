@@ -69,3 +69,68 @@ describe("hasStaffCapability / assertStaffCapability -- INDEPENDENT_EDUCATOR (02
     expect(() => assertStaffCapability(identity("INDEPENDENT_EDUCATOR"), "class.create")).not.toThrow();
   });
 });
+
+const ASACOM_CAPABILITIES: StaffCapability[] = [
+  "asacom.read.assigned_students",
+  "asacom.support.record",
+  "asacom.observation.record",
+  "asacom.facilitation.read",
+  "asacom.facilitation.apply",
+  "asacom.facilitation.propose",
+  "asacom.difficulty.propose",
+  "asacom.progress.read.assigned",
+];
+
+const SUPPORT_TEACHER_CAPABILITIES: StaffCapability[] = [
+  "support_teacher.support.record",
+  "support_teacher.observation.record",
+  "support_teacher.facilitation.read",
+  "support_teacher.facilitation.apply",
+  "support_teacher.difficulty.apply",
+  "support_teacher.progress.read.assigned",
+];
+
+describe("hasStaffCapability / assertStaffCapability -- ASACOM and SUPPORT_TEACHER (02_39 v1.2 §24, 02_35 v1.7 §11quinquies.5/§11sexies.5)", () => {
+  it("ASACOM holds exactly its own 8 capabilities, never SUPPORT_TEACHER's, TEACHER's, or SCHOOL_ADMIN's", () => {
+    const asacom = identity("ASACOM");
+    for (const capability of ASACOM_CAPABILITIES) {
+      expect(hasStaffCapability(asacom, capability)).toBe(true);
+    }
+    for (const capability of [...SUPPORT_TEACHER_CAPABILITIES, ...SHARED_MANAGEMENT_CAPABILITIES, ...SCHOOL_ADMIN_ONLY_CAPABILITIES]) {
+      expect(hasStaffCapability(asacom, capability)).toBe(false);
+    }
+  });
+
+  it("SUPPORT_TEACHER holds exactly its own 6 capabilities, never ASACOM's -- two disjoint professional mandates, never TEACHER minus/plus a few (02_39 §1, §3)", () => {
+    const supportTeacher = identity("SUPPORT_TEACHER");
+    for (const capability of SUPPORT_TEACHER_CAPABILITIES) {
+      expect(hasStaffCapability(supportTeacher, capability)).toBe(true);
+    }
+    for (const capability of [...ASACOM_CAPABILITIES, ...SHARED_MANAGEMENT_CAPABILITIES, ...SCHOOL_ADMIN_ONLY_CAPABILITIES]) {
+      expect(hasStaffCapability(supportTeacher, capability)).toBe(false);
+    }
+  });
+
+  it("student_support_assignment.manage is SCHOOL_ADMIN-only -- never ASACOM, never SUPPORT_TEACHER (no self-assignment)", () => {
+    expect(hasStaffCapability(identity("SCHOOL_ADMIN"), "student_support_assignment.manage")).toBe(true);
+    expect(hasStaffCapability(identity("ASACOM"), "student_support_assignment.manage")).toBe(false);
+    expect(hasStaffCapability(identity("SUPPORT_TEACHER"), "student_support_assignment.manage")).toBe(false);
+  });
+
+  it("TEACHER's own capability set is unaffected by the two new roles -- ASACOM/SUPPORT_TEACHER never fall through to the TEACHER branch", () => {
+    const teacher = identity("TEACHER");
+    for (const capability of [...ASACOM_CAPABILITIES, ...SUPPORT_TEACHER_CAPABILITIES]) {
+      expect(hasStaffCapability(teacher, capability)).toBe(false);
+    }
+  });
+
+  it("assertStaffCapability throws STAFF_FORBIDDEN for ASACOM attempting a SUPPORT_TEACHER-only capability", () => {
+    try {
+      assertStaffCapability(identity("ASACOM"), "support_teacher.difficulty.apply");
+      throw new Error("expected assertStaffCapability to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(StaffIdentityError);
+      expect((error as StaffIdentityError).code).toBe("STAFF_FORBIDDEN");
+    }
+  });
+});

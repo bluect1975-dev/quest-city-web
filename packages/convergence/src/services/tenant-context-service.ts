@@ -6,10 +6,12 @@ const SESSION_TOKEN_BYTES = 32;
 const CSRF_TOKEN_BYTES = 32;
 
 export interface TenantMembershipSummary {
+  /** Distinguishes which of possibly several rows for the same tenantId this is (same-tenant multi-role, 02_25 v1.12 §6.16.6). */
+  staffTenantMembershipId: string;
   tenantId: string;
   tenantType: "SCHOOL" | "INDEPENDENT_EDUCATOR";
   tenantName: string;
-  role: "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR";
+  role: "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR" | "ASACOM" | "SUPPORT_TEACHER";
   membershipStatus: "ACTIVE";
 }
 
@@ -18,7 +20,7 @@ export interface SwitchSessionTenantResult {
   csrfToken: string;
   absoluteExpiresAt: Date;
   tenantId: string;
-  role: "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR";
+  role: "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR" | "ASACOM" | "SUPPORT_TEACHER";
 }
 
 /**
@@ -48,6 +50,16 @@ export class TenantContextService {
       const tenant = await this.tenants.findById(row.tenantId);
       if (!tenant) continue;
       summaries.push({
+        // Additive field (02_25 v1.12 §6.16.6, 02_26 v1.16 §37bis): the
+        // pre-existing response shape had no per-row identifier, which was
+        // harmless while at most one row could ever share a tenantId. With
+        // same-tenant multi-role now possible, the client needs a stable
+        // id to pass as switch-tenant's own staffTenantMembershipId
+        // parameter -- (tenantId, role) is technically also unique per
+        // account, but the switch-tenant contract explicitly names
+        // staffTenantMembershipId, so this list must expose it. No
+        // existing field renamed or removed.
+        staffTenantMembershipId: row.id,
         tenantId: row.tenantId,
         tenantType: tenant.type,
         tenantName: tenant.name,
@@ -73,8 +85,38 @@ export class TenantContextService {
    * still fully recorded via the explicit `tenant_context.switched` audit
    * event below (fromTenantId/toTenantId), so no lineage information is lost.
    */
-  async switchTenant(identity: StaffInternalIdentity, tenantId: string): Promise<SwitchSessionTenantResult> {
-    const targetMembership = await this.memberships.findByStaffAccountAndTenant(identity.staffAccountId, tenantId);
+  /**
+   * `staffTenantMembershipId` (02_25 v1.12 §6.16.6, 02_26 v1.16 §37bis):
+   * required when the identity holds more than one ACTIVE membership on
+   * `tenantId` (same-tenant multi-role); optional (auto-resolved) when
+   * only one exists, preserving the pre-existing call shape for every
+   * caller that predates multi-role. `tenantId` alone matching more than
+   * one row is never resolved heuristically -- 409
+   * AMBIGUOUS_TENANT_MEMBERSHIP instead.
+   */
+  async switchTenant(
+    identity: StaffInternalIdentity,
+    tenantId: string,
+    staffTenantMembershipId?: string,
+  ): Promise<SwitchSessionTenantResult> {
+    let targetMembership;
+    if (staffTenantMembershipId) {
+      const candidate = await this.memberships.findById(staffTenantMembershipId, tenantId);
+      // The referenced membership must both exist under this tenantId AND
+      // actually belong to the calling identity -- never trust a
+      // client-supplied id/tenant pair without an ownership check.
+      targetMembership = candidate && candidate.staffAccountId === identity.staffAccountId ? candidate : null;
+    } else {
+      const candidates = await this.memberships.findAllByStaffAccountAndTenant(identity.staffAccountId, tenantId);
+      const activeCandidates = candidates.filter((m) => m.status === "ACTIVE");
+      if (activeCandidates.length > 1) {
+        throw new StaffIdentityError(
+          "AMBIGUOUS_TENANT_MEMBERSHIP",
+          "staffTenantMembershipId è obbligatorio: più membership attive su questo tenant.",
+        );
+      }
+      targetMembership = activeCandidates[0] ?? null;
+    }
     if (!targetMembership || targetMembership.status !== "ACTIVE") {
       throw new StaffIdentityError("STAFF_FORBIDDEN", "No ACTIVE membership on the requested tenant.");
     }
@@ -106,7 +148,11 @@ export class TenantContextService {
         targetType: "staff_session",
         targetId: created.id,
         result: "SUCCESS",
-        metadataRedacted: { fromTenantId: identity.tenantId, toTenantId: targetMembership.tenantId },
+        metadataRedacted: {
+          fromTenantId: identity.tenantId,
+          toTenantId: targetMembership.tenantId,
+          toStaffTenantMembershipId: targetMembership.id,
+        },
       });
 
       return {

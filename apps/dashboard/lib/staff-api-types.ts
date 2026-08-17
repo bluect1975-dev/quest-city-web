@@ -1,6 +1,6 @@
-/** TypeScript mirror of the WEB-M3B OpenAPI v1.6 schemas (contracts/quest-city-platform-openapi-v1_6.yaml). */
+/** TypeScript mirror of the WEB-M3B OpenAPI v1.6 schemas (contracts/quest-city-platform-openapi-v1_6.yaml), extended by Student Support Roles (contracts/quest-city-platform-openapi-v1_13.yaml + v1_14.yaml, 02_39 v1.2). */
 
-export type StaffRole = "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR";
+export type StaffRole = "TEACHER" | "SCHOOL_ADMIN" | "INDEPENDENT_EDUCATOR" | "ASACOM" | "SUPPORT_TEACHER";
 
 export interface StaffContext {
   staffAccountId: string;
@@ -121,11 +121,13 @@ export interface StaffMember {
   updatedAt: string;
 }
 
+export type InvitableStaffRole = "TEACHER" | "SUPPORT_TEACHER" | "ASACOM";
+
 export interface CreateStaffInvitationResult {
   invitationId: string;
   staffTenantMembershipId: string;
   email: string;
-  role: "TEACHER";
+  role: InvitableStaffRole;
   status: "INVITED";
   expiresAt: string;
   acceptanceToken: string;
@@ -288,11 +290,129 @@ export type ClassMigrationDecision = "TRANSFER" | "RETAIN";
 /** Per-resource decision, 02_38 v1.4 §14. Default in the absence of an explicit decision is RETAIN -- PROMOTE is never assumed. */
 export type OwnershipDecision = "PROMOTE" | "RETAIN";
 
-/** `GET /me/tenant-memberships` (02_35 v1.5 §11quater.5) -- self-read, no capability required. */
+/**
+ * `GET /me/tenant-memberships` (02_35 v1.5 §11quater.5, extended v1.16
+ * §37bis for same-tenant multi-role) -- self-read, no capability
+ * required. Can now return more than one row for the same `tenantId`
+ * (one per role) -- `staffTenantMembershipId` disambiguates them.
+ */
 export interface TenantMembership {
+  staffTenantMembershipId: string;
   tenantId: string;
   tenantType: "SCHOOL" | "INDEPENDENT_EDUCATOR";
   tenantName?: string;
   role: StaffRole;
   membershipStatus: "ACTIVE";
+}
+
+/* ---------------------------------------------------------------------
+ * Student Support Roles (02_25 v1.12 §6.16, 02_35 v1.7 §11quinquies/
+ * §11sexies, 02_39 v1.2, 02_26 v1.17 §37/§37bis/§38,
+ * contracts/quest-city-platform-openapi-v1_13.yaml + v1_14.yaml).
+ * ------------------------------------------------------------------- */
+
+export type SupportStudentAssignmentStatus = "ACTIVE" | "ENDED" | "REVOKED";
+
+export interface SupportStudentAssignment {
+  id: string;
+  tenantId: string;
+  staffTenantMembershipId: string;
+  studentProfileId: string;
+  classId: string | null;
+  status: SupportStudentAssignmentStatus;
+  startsAt: string;
+  endsAt: string | null;
+  assignedByStaffAccountId: string;
+  createdAt: string;
+  revokedAt: string | null;
+  revokedByStaffAccountId: string | null;
+}
+
+export interface MyAssignedStudent {
+  supportStudentAssignmentId: string;
+  studentPublicId: string | null;
+  classId: string | null;
+  status: SupportStudentAssignmentStatus;
+  startsAt: string;
+}
+
+export type SupportType =
+  | "COMMUNICATION_SUPPORT"
+  | "COMPREHENSION_SUPPORT"
+  | "ATTENTION_SUPPORT"
+  | "MOTOR_INTERACTION_SUPPORT"
+  | "NAVIGATION_SUPPORT"
+  | "EMOTIONAL_REGULATION_SUPPORT"
+  | "TASK_ORGANIZATION_SUPPORT"
+  | "ACCESSIBILITY_FACILITATION"
+  | "OTHER_STRUCTURED";
+export type SupportIntensity = "NONE" | "MINIMAL" | "MODERATE" | "SIGNIFICANT";
+export type SupportActorRole = "ASACOM" | "TEACHER" | "SUPPORT_TEACHER";
+
+export interface LearningSupportEvent {
+  id: string;
+  studentProfileId: string;
+  actorStaffAccountId: string;
+  actorRole: SupportActorRole;
+  supportType: SupportType;
+  intensity: SupportIntensity;
+  occurredAt: string;
+  durationSeconds: number | null;
+  createdAt: string;
+}
+
+export type ObservationActorRole = "ASACOM" | "SUPPORT_TEACHER";
+export type ObservationHistoryStatus = "CURRENT" | "SUPERSEDED";
+
+export interface ObservationHistoryEntry {
+  id: string;
+  tenantId: string;
+  studentProfileId: string;
+  supportStudentAssignmentId: string;
+  actorStaffAccountId: string;
+  actorRole: ObservationActorRole;
+  observedAt: string;
+  category: SupportType | null;
+  createdAt: string;
+  historyStatus: ObservationHistoryStatus;
+  supersededById: string | null;
+  supersedesId: string | null;
+}
+
+export type SupportProfileCategory = "PRESENTATION" | "TIME_AND_LOAD" | "TOOLS" | "RESPONSE" | "FEEDBACK" | "ASSESSMENT" | "SUBJECT";
+export type SupportProfileLevel = "SESSION_ONLY" | "PROFILE_LEVEL";
+
+export interface SupportProfileEntry {
+  category: SupportProfileCategory;
+  level: SupportProfileLevel;
+  configJson: Record<string, unknown>;
+  appliedByRole: "TEACHER" | "SUPPORT_TEACHER" | "ASACOM";
+  expiresAt: string | null;
+  updatedAt: string;
+}
+
+export interface DifficultyOverrideResult {
+  id: string;
+  targetRef: string;
+  reason: string;
+  status: "ACTIVE" | "REVOKED";
+  createdAt: string;
+}
+
+export type FacilitationProposalType = "FACILITATION" | "DIFFICULTY";
+export type FacilitationProposalStatus = "SUBMITTED" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+
+export interface FacilitationProposal {
+  id: string;
+  tenantId?: string;
+  studentProfileId: string;
+  proposedByStaffAccountId?: string;
+  proposalType: FacilitationProposalType;
+  targetCategory: string | null;
+  status: FacilitationProposalStatus;
+  reviewedByStaffAccountId?: string | null;
+  reviewedAt?: string | null;
+  reviewNote?: string | null;
+  createdAt: string;
+  version: number;
 }

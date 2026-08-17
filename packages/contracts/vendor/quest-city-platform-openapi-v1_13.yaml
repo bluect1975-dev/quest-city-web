@@ -1,0 +1,1650 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.13.1
+  description: >-
+    Quest City API contract formalization for the ASACOM and SUPPORT_TEACHER
+    — Student Support Roles capability (02_26 v1.16 §37/§37bis, 02_39 v1.1,
+    02_35 v1.7 §11quinquies/§11sexies, 02_25 v1.12 §6.16). This file is
+    additive: v1.2.0 through v1.12.0 remain available unchanged as separate
+    immutable artifacts; no prior path or schema is removed or altered.
+
+    This is a CONTRACTS-ONLY release, authored in quest-city-roblox. It
+    formalizes ASACOM (v1.13.0), a school-embedded student-support staff
+    role (assistenza specialistica alla comunicazione/autonomia), and
+    SUPPORT_TEACHER (v1.13.1, docente di sostegno), a fourth and fifth value
+    of staff_tenant_membership.role alongside TEACHER/SCHOOL_ADMIN/
+    INDEPENDENT_EDUCATOR. Neither role is derived from the other or from
+    TEACHER — SUPPORT_TEACHER is never modeled as ASACOM with more
+    permissions, and ASACOM is never modeled as TEACHER with fewer
+    permissions. ASACOM has no implicit scope of any kind. SUPPORT_TEACHER
+    reuses class-level scope (staff_class_assignment, identical to TEACHER)
+    plus the same per-student support_student_assignment used by ASACOM.
+    No endpoint in this file has been implemented in quest-city-web at the
+    time of writing, and none may be implemented until this contract change
+    set's own closure (merge to quest-city-roblox canonical main) completes,
+    per the two-phase contracts-then-implementation pattern already used for
+    Tranches B, C and D.
+
+    Version note: this file is updated IN PLACE at 1.13.1 rather than
+    superseded by a new v1_14.yaml, because the entire ASACOM/SUPPORT_TEACHER
+    change set (introduced at 1.13.0) is still unmerged to canonical main —
+    the immutable-additive-file discipline applies once a contract is closed
+    and merged, not while still under active definition on a single feature
+    branch. Once merged, any further change will use a new additive file.
+
+    No existing support_profile/student_support_assignment schema
+    (02_31/02_33) is modified — this file only adds a read projection and a
+    controlled apply/propose surface on top of it.
+servers:
+- url: /api/v1
+  description: Quest City Platform API (staff-session-scoped resources)
+security: []
+paths:
+  /platform/support-assignments:
+    get:
+      summary: List student support assignments (capability
+        student_support_assignment.manage, SCHOOL_ADMIN-only; renamed from
+        /platform/asacom-assignments at 1.13.1). Scoped to the calling
+        session's tenant. Filterable by staffAccountId, role, studentProfileId
+        and status.
+      operationId: listSupportAssignments
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      - name: staffAccountId
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: role
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [ASACOM, SUPPORT_TEACHER]
+      - name: studentProfileId
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [ACTIVE, ENDED, REVOKED]
+      responses:
+        '200':
+          description: Assignment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportAssignmentListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+    post:
+      summary: Create a student support assignment (capability
+        student_support_assignment.manage, SCHOOL_ADMIN-only). Creates a
+        single support_student_assignment row in status ACTIVE, for a
+        staff_tenant_membership with role ASACOM or SUPPORT_TEACHER. classId
+        is optional additional scoping, never required.
+      operationId: createSupportAssignment
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportAssignmentRequest'
+      responses:
+        '201':
+          description: Assignment created. A retry with the same
+            Idempotency-Key and the same payload replays this exact response
+            byte-for-byte — no second row is ever created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportAssignmentResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: STUDENT_NOT_FOUND — studentProfileId does not resolve
+            within the calling session's tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /platform/support-assignments/{id}/status:
+    patch:
+      summary: Transition a student support assignment (capability
+        student_support_assignment.manage, SCHOOL_ADMIN-only). ACTIVE ->
+        ENDED (natural conclusion) or ACTIVE -> REVOKED (early termination).
+      operationId: updateSupportAssignmentStatus
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/SupportAssignmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - status
+              properties:
+                status:
+                  type: string
+                  enum: [ENDED, REVOKED]
+      responses:
+        '200':
+          description: Assignment status updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportAssignmentResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED — no such assignment in
+            the calling session's tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: SUPPORT_ASSIGNMENT_INACTIVE — the row is already
+            ENDED/REVOKED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /me/asacom-assigned-students:
+    get:
+      summary: List students assigned to the calling ASACOM identity
+        (capability asacom.read.assigned_students). Only
+        support_student_assignment rows with status ACTIVE and role=ASACOM
+        referencing the calling staff_tenant_membership. No tenant-wide
+        fallback.
+      operationId: listAsacomAssignedStudents
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Assigned student list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedStudentListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+
+  /students/{studentPublicId}/asacom-detail:
+    get:
+      summary: Read the ASACOM detail view for one assigned student
+        (capability asacom.progress.read.assigned) — current class, current
+        assignment, recent activity, progress summary, support/observation
+        history. A valid studentPublicId not covered by an ACTIVE assignment
+        of the caller produces the same 404 as a nonexistent one (uniform
+        anti-enumeration, 02_35 v1.7 §11quinquies.7).
+      operationId: getAsacomStudentDetail
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/StudentPublicId'
+      responses:
+        '200':
+          description: Student detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentSupportDetailResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED — uniform anti-enumeration
+            response, identical whether the student does not exist or is
+            simply not assigned to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /support-teacher/students/{studentPublicId}/detail:
+    get:
+      summary: Read the SUPPORT_TEACHER detail view for one assigned student
+        (capability support_teacher.progress.read.assigned) — same shape as
+        the ASACOM detail view (1.13.1, new). A valid studentPublicId not
+        covered by an ACTIVE assignment of the caller produces the same 404
+        as a nonexistent one (02_35 v1.7 §11sexies.8).
+      operationId: getSupportTeacherStudentDetail
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/StudentPublicId'
+      responses:
+        '200':
+          description: Student detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentSupportDetailResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED — uniform
+            anti-enumeration response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /asacom/support-events:
+    post:
+      summary: Record a learning_support_event (capability
+        asacom.support.record; actor is ASACOM or TEACHER, 02_39 §12). Never
+        alters learningAttempt.outcome/attemptState/completionStatus.
+        Append-only — corrections are new events, never an update of this
+        one.
+      operationId: createSupportEvent
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportEventRequest'
+      responses:
+        '201':
+          description: Support event recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportEventResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: ASACOM_NOT_ASSIGNED — the caller holds no
+            asacom.support.record capability for this operation, or (for a
+            TEACHER caller) no class access to the attempt's student.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED — uniform
+            anti-enumeration response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: SUPPORT_EVENT_INVALID_ATTEMPT — learningAttemptId
+            does not exist, belongs to another tenant, or belongs to a
+            student not assigned to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /support-teacher/support-events:
+    post:
+      summary: Record a learning_support_event as SUPPORT_TEACHER (capability
+        support_teacher.support.record; actor is SUPPORT_TEACHER or TEACHER,
+        02_39 §12; 1.13.1, new). Same semantics as
+        POST /asacom/support-events — one shared learning_support_event
+        table, no role-specific duplicate.
+      operationId: createSupportTeacherSupportEvent
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportEventRequest'
+      responses:
+        '201':
+          description: Support event recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportEventResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: SUPPORT_EVENT_INVALID_ATTEMPT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /students/{studentPublicId}/support-events:
+    get:
+      summary: List support events for one student (capability
+        asacom.progress.read.assigned/support_teacher.progress.read.assigned,
+        or the caller's existing TEACHER class access). One shared endpoint,
+        not one per role.
+      operationId: listSupportEvents
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/StudentPublicId'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Support event list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportEventListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED — uniform
+            anti-enumeration response (for a caller without a class
+            fallback).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /asacom/observations:
+    post:
+      summary: Record a learning_support_observation (capability
+        asacom.observation.record). Distinct from a support event — a
+        post-session record, never anchored to a single learning_attempt.
+      operationId: createObservation
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObservationRequest'
+      responses:
+        '201':
+          description: Observation recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /asacom/observations/{id}/supersede:
+    post:
+      summary: Correct an observation by superseding it (same capability as
+        creation, author-only). The original row is never mutated.
+      operationId: supersedeObservation
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObservationRequest'
+      responses:
+        '201':
+          description: Superseding observation created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: ASACOM_NOT_ASSIGNED — caller is not the original
+            author.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: The referenced observation is already superseded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /support-teacher/observations:
+    post:
+      summary: Record a learning_support_observation as SUPPORT_TEACHER
+        (capability support_teacher.observation.record; 1.13.1, new). Same
+        shared learning_support_observation table as ASACOM.
+      operationId: createSupportTeacherObservation
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObservationRequest'
+      responses:
+        '201':
+          description: Observation recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /support-teacher/observations/{id}/supersede:
+    post:
+      summary: Correct a SUPPORT_TEACHER observation by superseding it
+        (1.13.1, new). Same semantics as /asacom/observations/{id}/supersede.
+      operationId: supersedeSupportTeacherObservation
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObservationRequest'
+      responses:
+        '201':
+          description: Superseding observation created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '409':
+          description: The referenced observation is already superseded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /students/{studentPublicId}/facilitation:
+    get:
+      summary: Read the support_profile/student_support_assignment
+        projection for one assigned student (capability
+        asacom.facilitation.read or support_teacher.facilitation.read, 02_33
+        §5 reused unmodified, filtered to the categories and student
+        authorized by 02_31 v1.2 §4).
+      operationId: getFacilitationView
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/StudentPublicId'
+      responses:
+        '200':
+          description: Facilitation projection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationViewResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /asacom/facilitation/{studentPublicId}/apply-temporary:
+    post:
+      summary: Apply a SESSION_ONLY facilitation (capability
+        asacom.facilitation.apply). Category "Strumenti" only, and only if
+        already pre-approved by the teacher in the existing support_profile.
+        Never persistent, never Idempotency-Key protected (session-scoped
+        effect, not a write to support_profile).
+      operationId: applyTemporaryFacilitation
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/StudentPublicId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - facilitationKey
+              properties:
+                facilitationKey:
+                  type: string
+                  description: Must reference an entry already present and
+                    enabled in the student's existing support_profile under
+                    category "Strumenti".
+      responses:
+        '200':
+          description: Facilitation applied for the current session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyFacilitationResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: FACILITATION_NOT_ALLOWED — category other than
+            "Strumenti", or a persistent apply attempted, or the
+            facilitationKey is not already enabled by the teacher.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /support-teacher/facilitation/{studentPublicId}/apply:
+    post:
+      summary: Apply a facilitation for a SUPPORT_TEACHER's own assigned
+        student (capability support_teacher.facilitation.apply; 1.13.1,
+        new). Unlike the ASACOM endpoint, supports both SESSION_ONLY and
+        PROFILE_LEVEL (persistent, written to support_profile) application,
+        on any of the seven 02_31 §4 categories, for the caller's own
+        assigned student only.
+      operationId: applySupportTeacherFacilitation
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/StudentPublicId'
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          minLength: 16
+          maxLength: 128
+        description: Required when applyMode is PROFILE_LEVEL (persistent
+          write). Not required for SESSION_ONLY (no persistent effect).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - facilitationKey
+              - applyMode
+              properties:
+                facilitationKey:
+                  type: string
+                applyMode:
+                  type: string
+                  enum: [SESSION_ONLY, PROFILE_LEVEL]
+      responses:
+        '200':
+          description: Facilitation applied for the current session
+            (SESSION_ONLY).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyFacilitationResponse'
+        '201':
+          description: Facilitation applied persistently (PROFILE_LEVEL) —
+            writes to support_profile/student_support_assignment (02_33 §5).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyFacilitationResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /support-teacher/difficulty-overrides:
+    post:
+      summary: Create a per-student difficulty override for a SUPPORT_TEACHER's
+        own assigned student (capability support_teacher.difficulty.apply;
+        1.13.1, new). Reuses the existing difficulty-override mechanism
+        (02_16, "Aggiornamento v1.4"), scoped to a single studentProfileId
+        rather than an entire class.
+      operationId: createSupportTeacherDifficultyOverride
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - studentProfileId
+              - contentId
+              - reason
+              properties:
+                studentProfileId:
+                  type: string
+                contentId:
+                  type: string
+                reason:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '201':
+          description: Difficulty override created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: object
+                    required: [id, studentProfileId, contentId, createdAt]
+                    properties:
+                      id:
+                        type: string
+                      studentProfileId:
+                        type: string
+                      contentId:
+                        type: string
+                      reason:
+                        type: string
+                      createdAt:
+                        type: string
+                        format: date-time
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /asacom/facilitation-proposals:
+    get:
+      summary: List facilitation/difficulty proposals authored by the caller.
+        Capability asacom.facilitation.propose/asacom.difficulty.propose.
+      operationId: listAsacomFacilitationProposals
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [SUBMITTED, ACCEPTED, REJECTED, WITHDRAWN]
+      responses:
+        '200':
+          description: Proposal list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalListResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+    post:
+      summary: Propose a facilitation or difficulty change (capability
+        asacom.facilitation.propose or asacom.difficulty.propose depending
+        on proposalType). Creates a facilitation_proposal in status
+        SUBMITTED. Never applies anything directly.
+      operationId: createFacilitationProposal
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilitationProposalRequest'
+      responses:
+        '201':
+          description: Proposal submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /support-teacher/facilitation-proposals:
+    post:
+      summary: Propose a facilitation or difficulty change for a student NOT
+        among the caller's own assigned students (capability
+        support_teacher.facilitation.apply/.difficulty.apply — for the
+        caller's own assigned students, apply directly instead via
+        /support-teacher/facilitation/{id}/apply or
+        /support-teacher/difficulty-overrides; 1.13.1, new).
+      operationId: createSupportTeacherFacilitationProposal
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilitationProposalRequest'
+      responses:
+        '201':
+          description: Proposal submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalResponse'
+        '400':
+          $ref: '#/components/responses/StaffValidationError'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: SUPPORT_STUDENT_NOT_ASSIGNED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /facilitation-proposals/{id}/review:
+    post:
+      summary: Accept or reject a facilitation/difficulty proposal. No
+        ASACOM capability — reserved to the TEACHER with class access to the
+        student, or (1.13.1, new) a SUPPORT_TEACHER with an ACTIVE
+        support_student_assignment on that student — resolution favors the
+        assigned SUPPORT_TEACHER if present, else the class TEACHER (02_39
+        §6ter). The
+        reviewer may never be the same actor as the proposer — a self-review
+        attempt produces 403 STAFF_FORBIDDEN. An ACCEPT on proposalType
+        FACILITATION writes to the existing
+        support_profile/student_support_assignment (02_33 §5, unmodified);
+        on DIFFICULTY it invokes the existing POST /difficulty-overrides or
+        POST /support-teacher/difficulty-overrides. Verified against the
+        proposal's current version — a stale version produces 412
+        ETAG_MISMATCH.
+      operationId: reviewFacilitationProposal
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - name: If-Match
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - decision
+              properties:
+                decision:
+                  type: string
+                  enum: [ACCEPT, REJECT]
+                reviewNote:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '200':
+          description: Proposal reviewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — no reviewing access to this
+            student/class, or the caller is the original proposer
+            (self-review is never permitted).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Proposal not found or not in the caller's scope
+            (uniform anti-enumeration).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '412':
+          description: ETAG_MISMATCH — If-Match does not match the proposal's
+            current version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /facilitation-proposals/{id}/withdraw:
+    post:
+      summary: Withdraw a proposal (same capability as creation, author-only,
+        only while status is SUBMITTED).
+      operationId: withdrawFacilitationProposal
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Proposal withdrawn.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilitationProposalResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — caller is not the original author.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Proposal is not in status SUBMITTED.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /staff-auth/session/switch-tenant:
+    post:
+      summary: Switch the current staff session to a different tenant
+        and/or a different role membership on the same tenant (1.13.1 —
+        extended to accept staffTenantMembershipId, resolving the
+        same-tenant multi-role scenario introduced by SUPPORT_TEACHER,
+        02_39 v1.1 §3bis.5). Terminates the current session and creates a
+        new one scoped to the resolved staff_tenant_membership.
+      operationId: switchSessionTenant
+      security:
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchSessionTenantRequest'
+      responses:
+        '200':
+          description: Session switched.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwitchSessionTenantResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: CAPABILITY_DENIED — no ACTIVE membership matching the
+            requested tenantId/staffTenantMembershipId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: AMBIGUOUS_TENANT_MEMBERSHIP — only tenantId supplied,
+            but the identity holds more than one ACTIVE membership on that
+            tenant. Retry with an explicit staffTenantMembershipId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+components:
+  securitySchemes:
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_6.yaml. Redeclared here only
+        because each versioned contract file is self-contained for its own
+        $ref resolution (same convention as v1.9.0-v1.12.0).
+    staffCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Same synchronizer-token mechanism and header name used by
+        every prior staff-scoped contract file in this corpus.
+  parameters:
+    SupportAssignmentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    StudentPublicId:
+      name: studentPublicId
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required on every mutating endpoint in this file that
+        persists a new row (02_26 v1.16 §8.1, extended by this version to
+        name each ASACOM/SUPPORT_TEACHER write explicitly). Same
+        idempotency_record/IdempotencyRecordRepository mechanism already in
+        use for every prior scope — no second mechanism.
+  responses:
+    StaffUnauthorized:
+      description: STAFF_AUTH_REQUIRED — no valid staff session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    StaffValidationError:
+      description: VALIDATION_ERROR
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    CapabilityDenied:
+      description: STAFF_FORBIDDEN / ASACOM_NOT_ASSIGNED — valid staff
+        session, but the caller's role/capability set does not permit this
+        operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    IdempotencyConflict:
+      description: IDEMPOTENCY_CONFLICT — same Idempotency-Key, different
+        payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - STAFF_AUTH_REQUIRED
+          - STAFF_FORBIDDEN
+          - VALIDATION_ERROR
+          - RATE_LIMITED
+          - IDEMPOTENCY_CONFLICT
+          - IDEMPOTENCY_IN_PROGRESS
+          - ETAG_MISMATCH
+          - STUDENT_NOT_FOUND
+          - ASACOM_NOT_ASSIGNED
+          - SUPPORT_STUDENT_NOT_ASSIGNED
+          - SUPPORT_ASSIGNMENT_INACTIVE
+          - FACILITATION_NOT_ALLOWED
+          - SUPPORT_EVENT_INVALID_ATTEMPT
+          - AMBIGUOUS_TENANT_MEMBERSHIP
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+
+    SupportRole:
+      type: string
+      enum: [ASACOM, SUPPORT_TEACHER]
+
+    SupportAssignmentStatus:
+      type: string
+      enum: [ACTIVE, ENDED, REVOKED]
+
+    CreateSupportAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - staffTenantMembershipId
+      - studentProfileId
+      properties:
+        staffTenantMembershipId:
+          type: string
+          description: Must reference a staff_tenant_membership with
+            role ASACOM or SUPPORT_TEACHER.
+        studentProfileId:
+          type: string
+        classId:
+          type: string
+          description: Optional additional scoping. Never required.
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+
+    SupportAssignment:
+      type: object
+      required:
+      - id
+      - tenantId
+      - staffTenantMembershipId
+      - role
+      - studentProfileId
+      - status
+      - startsAt
+      - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        staffTenantMembershipId:
+          type: string
+        role:
+          $ref: '#/components/schemas/SupportRole'
+        studentProfileId:
+          type: string
+        classId:
+          type: string
+        status:
+          $ref: '#/components/schemas/SupportAssignmentStatus'
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+
+    SupportAssignmentResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/SupportAssignment'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SupportAssignmentListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportAssignment'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AssignedStudentListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required:
+            - studentPublicId
+            - assignmentId
+            - status
+            properties:
+              studentPublicId:
+                type: string
+              assignmentId:
+                type: string
+              status:
+                $ref: '#/components/schemas/SupportAssignmentStatus'
+              currentClassId:
+                type: string
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StudentSupportDetailResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required:
+          - studentPublicId
+          - assignment
+          properties:
+            studentPublicId:
+              type: string
+            currentClassId:
+              type: string
+            assignment:
+              $ref: '#/components/schemas/SupportAssignment'
+            progressSummary:
+              type: object
+            recentActivity:
+              type: array
+              items:
+                type: object
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SupportType:
+      type: string
+      enum:
+      - COMMUNICATION_SUPPORT
+      - COMPREHENSION_SUPPORT
+      - ATTENTION_SUPPORT
+      - MOTOR_INTERACTION_SUPPORT
+      - NAVIGATION_SUPPORT
+      - EMOTIONAL_REGULATION_SUPPORT
+      - TASK_ORGANIZATION_SUPPORT
+      - ACCESSIBILITY_FACILITATION
+      - OTHER_STRUCTURED
+
+    SupportIntensity:
+      type: string
+      enum: [NONE, MINIMAL, MODERATE, SIGNIFICANT]
+
+    CreateSupportEventRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - learningAttemptId
+      - actorRole
+      - supportType
+      - intensity
+      - occurredAt
+      properties:
+        learningAttemptId:
+          type: string
+        actorRole:
+          type: string
+          enum: [ASACOM, TEACHER, SUPPORT_TEACHER]
+        supportType:
+          $ref: '#/components/schemas/SupportType'
+        intensity:
+          $ref: '#/components/schemas/SupportIntensity'
+        occurredAt:
+          type: string
+          format: date-time
+        durationSeconds:
+          type: integer
+          minimum: 0
+        noteStructured:
+          type: string
+          maxLength: 4000
+          description: Persisted only as note_structured_ref (encrypted
+            backend reference), never as a queryable plaintext column.
+
+    SupportEvent:
+      type: object
+      required:
+      - id
+      - tenantId
+      - learningAttemptId
+      - studentProfileId
+      - actorStaffAccountId
+      - actorRole
+      - supportType
+      - intensity
+      - occurredAt
+      - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        learningAttemptId:
+          type: string
+        studentProfileId:
+          type: string
+        actorStaffAccountId:
+          type: string
+        actorRole:
+          type: string
+          enum: [ASACOM, TEACHER, SUPPORT_TEACHER]
+        supportType:
+          $ref: '#/components/schemas/SupportType'
+        intensity:
+          $ref: '#/components/schemas/SupportIntensity'
+        occurredAt:
+          type: string
+          format: date-time
+        durationSeconds:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    SupportEventResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/SupportEvent'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SupportEventListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportEvent'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    CreateObservationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - studentProfileId
+      - observedAt
+      properties:
+        studentProfileId:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        category:
+          $ref: '#/components/schemas/SupportType'
+        noteStructured:
+          type: string
+          maxLength: 4000
+          description: Persisted only as note_structured_ref — never the
+            same field as a support event's note (02_39 §10).
+
+    Observation:
+      type: object
+      required:
+      - id
+      - tenantId
+      - studentProfileId
+      - supportStudentAssignmentId
+      - actorStaffAccountId
+      - actorRole
+      - observedAt
+      - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        studentProfileId:
+          type: string
+        supportStudentAssignmentId:
+          type: string
+        actorStaffAccountId:
+          type: string
+        actorRole:
+          type: string
+          enum: [ASACOM, SUPPORT_TEACHER]
+        observedAt:
+          type: string
+          format: date-time
+        category:
+          $ref: '#/components/schemas/SupportType'
+        supersededById:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ObservationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/Observation'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    FacilitationViewResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          description: Filtered projection of the existing
+            support_profile/student_support_assignment (02_33 §5), scoped
+            to categories and authority permitted to the caller's role
+            (02_31 v1.2 §4).
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ApplyFacilitationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required:
+          - facilitationKey
+          properties:
+            facilitationKey:
+              type: string
+            applyMode:
+              type: string
+              enum: [SESSION_ONLY, PROFILE_LEVEL]
+            appliedForSessionId:
+              type: string
+              description: Present only when applyMode is SESSION_ONLY.
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    FacilitationProposalType:
+      type: string
+      enum: [FACILITATION, DIFFICULTY]
+
+    FacilitationProposalStatus:
+      type: string
+      enum: [SUBMITTED, ACCEPTED, REJECTED, WITHDRAWN]
+
+    CreateFacilitationProposalRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - studentProfileId
+      - proposalType
+      - description
+      properties:
+        studentProfileId:
+          type: string
+        proposalType:
+          $ref: '#/components/schemas/FacilitationProposalType'
+        targetCategory:
+          type: string
+          description: One of the 02_31 §4 categories for FACILITATION, or a
+            subject/assignment reference for DIFFICULTY.
+        description:
+          type: string
+          maxLength: 4000
+
+    FacilitationProposal:
+      type: object
+      required:
+      - id
+      - tenantId
+      - studentProfileId
+      - proposedByStaffAccountId
+      - proposalType
+      - status
+      - version
+      - createdAt
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        studentProfileId:
+          type: string
+        proposedByStaffAccountId:
+          type: string
+        proposalType:
+          $ref: '#/components/schemas/FacilitationProposalType'
+        targetCategory:
+          type: string
+        status:
+          $ref: '#/components/schemas/FacilitationProposalStatus'
+        reviewedByStaffAccountId:
+          type: string
+        reviewedAt:
+          type: string
+          format: date-time
+        reviewNote:
+          type: string
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    FacilitationProposalResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/FacilitationProposal'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    FacilitationProposalListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacilitationProposal'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SwitchSessionTenantRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          description: Required unless staffTenantMembershipId is supplied.
+            If the identity holds more than one ACTIVE membership on this
+            tenant, resolution is ambiguous — 409
+            AMBIGUOUS_TENANT_MEMBERSHIP.
+        staffTenantMembershipId:
+          type: string
+          description: 1.13.1, new. Explicit target membership — required
+            when the identity holds more than one ACTIVE membership on the
+            same tenant (same-tenant multi-role, 02_39 v1.1 §3bis.5).
+            Always resolved server-side against the caller's own ACTIVE
+            memberships, never trusted at face value.
+
+    SwitchSessionTenantResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required:
+          - tenantId
+          - staffTenantMembershipId
+          - role
+          properties:
+            tenantId:
+              type: string
+            staffTenantMembershipId:
+              type: string
+            role:
+              type: string
+              enum:
+              - TEACHER
+              - SCHOOL_ADMIN
+              - INDEPENDENT_EDUCATOR
+              - ASACOM
+              - SUPPORT_TEACHER
+        meta:
+          $ref: '#/components/schemas/Meta'
