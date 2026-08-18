@@ -84,12 +84,17 @@ function FacilitationReviewView() {
               {
                 key: "type",
                 header: t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.columnType"),
-                render: (row) =>
-                  row.proposalType === "DIFFICULTY"
-                    ? t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeDifficulty")
-                    : t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeFacilitation"),
+                render: (row) => {
+                  if (row.proposalType === "DIFFICULTY") return t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeDifficulty");
+                  if (row.proposalType === "LEARNING_PATH_ADJUSTMENT") return t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeLearningPathAdjustment");
+                  return t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeFacilitation");
+                },
               },
-              { key: "category", header: t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.columnCategory"), render: (row) => row.targetCategory ?? "—" },
+              {
+                key: "category",
+                header: t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.columnCategory"),
+                render: (row) => (row.proposalType === "LEARNING_PATH_ADJUSTMENT" ? (row.targetLearningPath?.resourceRef ?? "—") : (row.targetCategory ?? "—")),
+              },
               { key: "createdAt", header: t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.columnCreatedAt"), render: (row) => new Date(row.createdAt).toLocaleString("it-IT") },
               {
                 key: "review",

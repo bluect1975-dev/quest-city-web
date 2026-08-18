@@ -5,9 +5,9 @@ import { requireStaffIdentity } from "../../../../../lib/staff-request-context";
 import { staffErrorResponse } from "../../../../../lib/staff-error-response";
 import { isValidStaffCsrfToken, isTrustedStaffOrigin } from "../../../../../lib/staff-csrf-guard";
 import { requireIdempotencyKey } from "../../../../../lib/staff-validation";
-import { getSchoolEnrollmentRepository, getRosterManagementService } from "../../../../../lib/staff-identity-context";
+import { getSchoolEnrollmentRepository, getRosterManagementService, getStudentProfileRepository } from "../../../../../lib/staff-identity-context";
 
-/** `GET /classes/{classId}/students/{studentProfileId}` (02_35 §5). Read-only. */
+/** `GET /classes/{classId}/students/{studentProfileId}` (02_35 §5). Read-only. `studentPublicId` is additive (GLPC, 02_41 v1.1) -- see the roster list route's doc comment. */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ classId: string; studentProfileId: string }> },
@@ -23,11 +23,13 @@ export async function GET(
     if (!enrollment) {
       throw new StaffIdentityError("CLASS_ACCESS_DENIED");
     }
+    const student = await getStudentProfileRepository().findById(enrollment.studentProfileId, identity.tenantId);
 
     return NextResponse.json(
       {
         data: {
           studentProfileId: enrollment.studentProfileId,
+          studentPublicId: student?.studentPublicId ?? null,
           accessAlias: enrollment.accessAlias,
           enrollmentStatus: enrollment.status,
         },

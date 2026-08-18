@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-glpc-launch-enforcement",
+  "artifactVersion": "1.16.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "fa28551",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_16.yaml",
+  "sourceDocument": "02_41_Quest_City_Granular_Learning_Path_Control_Platform_School_Class_and_Student_Effective_Availability_Specification_v1_0 (§41-bis/§48-ter, v1.2) / 07_15_01_Quest_City_Shared_Dashboard_Runtime_Channel_Cross_Runtime_Assignment_and_Unified_Progress_Specification_v1_3 (§15.2-ter, v1.4) / 02_26_Quest_City_API_and_Integration_Contracts_v1_13 (§18.2/§21bis, v1.20)",
+  "checksum": "sha256:5fae9d87380005166270a874569b2c8c7d2a939b6b4ff3df9ae538f629728a42",
+  "syncedAt": "2026-08-18",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Targeted canonical contract correction closing the launch-time GLPC enforcement gap (BLOCKED_CANONICAL_CONTRACT). Additive over v1.7.0 -- the last vendored version to declare the launch-context path group -- not over v1.15.0 (a separate, unmerged lineage that never carried launch-context). v1.2.0 through v1.15.0 remain unmodified and independently tracked. Byte-for-byte identical to v1.7.0 except one new 409 response on POST /assignments/{assignmentId}/launch-context, reusing LEARNING_PATH_RESOURCE_NOT_AVAILABLE (02_41 §46) -- no sixth GLPC code, no ninth CrossRuntimeErrorCode value. Verified byte-identical (diff + sha256 match) against the canonical source before commit.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_16.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_16.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

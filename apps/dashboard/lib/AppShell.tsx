@@ -59,6 +59,11 @@ export function AppShell({ context, children }: { context: StaffContext; childre
           { href: "/app/support-coverage", labelKey: "app.nav.supportCoverage" },
         ]
       : []),
+    // Granular Learning Path Control (02_41 v1.1 §16, §44) -- School-level
+    // default management is SCHOOL_ADMIN-only; TEACHER/SUPPORT_TEACHER
+    // reach the Class/Student-scoped views contextually from the class and
+    // student detail pages instead, same pattern as support-events.
+    ...(context.role === "SCHOOL_ADMIN" ? [{ href: "/app/learning-path-policies", labelKey: "app.nav.learningPathPolicies" }] : []),
   ];
 
   return (

@@ -25,6 +25,8 @@ import {
 } from "../../../../../lib/staff-api-client";
 import type {
   FacilitationProposalType,
+  LearningPathResourceType,
+  LearningPathState,
   LearningSupportEvent,
   ObservationHistoryEntry,
   StaffContext,
@@ -33,6 +35,7 @@ import type {
   SupportProfileEntry,
   SupportType,
 } from "../../../../../lib/staff-api-types";
+import { RESOURCE_TYPE_VALUES, STUDENT_STATE_VALUES } from "../../../../../lib/learning-path-constants";
 
 const SUPPORT_TYPES: SupportType[] = [
   "COMMUNICATION_SUPPORT",
@@ -221,6 +224,10 @@ function SupportStudentDetailView({ context }: { context: StaffContext }) {
   // -- Proposal form state --
   const [proposalType, setProposalType] = useState<FacilitationProposalType>("FACILITATION");
   const [proposalTargetCategory, setProposalTargetCategory] = useState("");
+  const [proposalResourceType, setProposalResourceType] = useState<LearningPathResourceType>("UNIT_ELEMENT");
+  const [proposalResourceRef, setProposalResourceRef] = useState("");
+  const [proposalRequestedState, setProposalRequestedState] = useState<LearningPathState>("DISABLED_AND_WAIVED");
+  const [proposalAlternativeContentRef, setProposalAlternativeContentRef] = useState("");
 
   async function handleCreateProposal(event: FormEvent) {
     event.preventDefault();
@@ -233,9 +240,21 @@ function SupportStudentDetailView({ context }: { context: StaffContext }) {
         studentPublicId,
         proposalType,
         ...(proposalTargetCategory ? { targetCategory: proposalTargetCategory } : {}),
+        ...(proposalType === "LEARNING_PATH_ADJUSTMENT"
+          ? {
+              targetLearningPath: {
+                resourceType: proposalResourceType,
+                resourceRef: proposalResourceRef,
+                requestedState: proposalRequestedState,
+                ...(proposalRequestedState === "DISABLED_WITH_ALTERNATIVE" ? { requestedAlternativeContentRef: proposalAlternativeContentRef } : {}),
+              },
+            }
+          : {}),
         csrfToken,
       });
       setProposalTargetCategory("");
+      setProposalResourceRef("");
+      setProposalAlternativeContentRef("");
       proposals.reload();
     } catch (caught) {
       setError(staffErrorText(caught));
@@ -310,6 +329,11 @@ function SupportStudentDetailView({ context }: { context: StaffContext }) {
         {t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.title")}: {studentPublicId}
       </h1>
       <p>{t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.noDiagnosisNotice")}</p>
+      {!isAsacom ? (
+        <p>
+          <Link href={`/app/students/${encodeURIComponent(studentPublicId)}/learning-path`}>{t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.title")}</Link>
+        </p>
+      ) : null}
       {error ? <StatusMessage kind="error">{error}</StatusMessage> : null}
 
       <section className="qc-card">
@@ -522,13 +546,51 @@ function SupportStudentDetailView({ context }: { context: StaffContext }) {
               <select {...fieldProps} value={proposalType} onChange={(e) => setProposalType(e.target.value as FacilitationProposalType)}>
                 <option value="FACILITATION">{t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeFacilitation")}</option>
                 <option value="DIFFICULTY">{t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeDifficulty")}</option>
+                <option value="LEARNING_PATH_ADJUSTMENT">{t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.typeLearningPathAdjustment")}</option>
               </select>
             )}
           </FormField>
-          <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.proposalTargetCategoryLabel")}>
-            {(fieldProps) => <input {...fieldProps} type="text" value={proposalTargetCategory} onChange={(e) => setProposalTargetCategory(e.target.value)} />}
-          </FormField>
-          <Button type="submit" disabled={busy || !csrfToken}>
+          {proposalType === "LEARNING_PATH_ADJUSTMENT" ? (
+            <>
+              <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.learningPath.resourceTypeLabel")}>
+                {(fieldProps) => (
+                  <select {...fieldProps} value={proposalResourceType} onChange={(e) => setProposalResourceType(e.target.value as LearningPathResourceType)}>
+                    {RESOURCE_TYPE_VALUES.map((value) => (
+                      <option key={value} value={value}>
+                        {t(DASHBOARD_CATALOG_IT_IT, `app.learningPath.resourceType.${value}`)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </FormField>
+              <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.learningPath.resourceRefLabel")}>
+                {(fieldProps) => <input {...fieldProps} type="text" required value={proposalResourceRef} onChange={(e) => setProposalResourceRef(e.target.value)} />}
+              </FormField>
+              <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.learningPath.stateLabel")}>
+                {(fieldProps) => (
+                  <select {...fieldProps} value={proposalRequestedState} onChange={(e) => setProposalRequestedState(e.target.value as LearningPathState)}>
+                    {STUDENT_STATE_VALUES.map((value) => (
+                      <option key={value} value={value}>
+                        {t(DASHBOARD_CATALOG_IT_IT, `app.learningPath.state.${value}`)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </FormField>
+              {proposalRequestedState === "DISABLED_WITH_ALTERNATIVE" ? (
+                <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.learningPath.alternativeContentRefLabel")}>
+                  {(fieldProps) => (
+                    <input {...fieldProps} type="text" required value={proposalAlternativeContentRef} onChange={(e) => setProposalAlternativeContentRef(e.target.value)} />
+                  )}
+                </FormField>
+              ) : null}
+            </>
+          ) : (
+            <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.proposalTargetCategoryLabel")}>
+              {(fieldProps) => <input {...fieldProps} type="text" value={proposalTargetCategory} onChange={(e) => setProposalTargetCategory(e.target.value)} />}
+            </FormField>
+          )}
+          <Button type="submit" disabled={busy || !csrfToken || (proposalType === "LEARNING_PATH_ADJUSTMENT" && !proposalResourceRef)}>
             {busy ? t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.proposalSubmitting") : t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.proposalSubmit")}
           </Button>
         </form>

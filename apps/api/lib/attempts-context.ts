@@ -14,6 +14,7 @@ import {
 } from "@quest-city-web/attempts";
 import { AuditRepository } from "@quest-city-web/identity";
 import { createDefaultEngineRuntimeRegistry, type EngineRuntimeRegistry } from "@quest-city-web/learning-engines";
+import { LearningPathSnapshotRepository, resolveEffectiveForLaunch } from "@quest-city-web/learning-path-control";
 import { loadEnv } from "./env";
 
 let engineRuntimeRegistry: EngineRuntimeRegistry | undefined;
@@ -83,6 +84,16 @@ export function getCrossRuntimeReconciliationService(): CrossRuntimeReconciliati
 
 export function getSequenceRuntimeStateRepository(): SequenceRuntimeStateRepository {
   return new SequenceRuntimeStateRepository(getAttemptsPool());
+}
+
+/** GLPC (02_41 §33-34, migration 0013) -- reuses the attempts pool, same rationale as every other factory in this file (student attempt traffic, not staff traffic). */
+export function getLearningPathSnapshotRepository(): LearningPathSnapshotRepository {
+  return new LearningPathSnapshotRepository(getAttemptsPool());
+}
+
+/** Binds `resolveEffectiveForLaunch` (student/system-triggered, no staff capability check) to the attempts pool. */
+export function resolveEffectiveForLaunchAttempt(input: Parameters<typeof resolveEffectiveForLaunch>[1]): ReturnType<typeof resolveEffectiveForLaunch> {
+  return resolveEffectiveForLaunch(getAttemptsPool(), input);
 }
 
 /**

@@ -11,12 +11,17 @@ import {
   validateNonEmptyString,
   validateOptionalString,
 } from "../../../../lib/staff-validation";
-import { getSchoolEnrollmentRepository, getRosterManagementService } from "../../../../lib/staff-identity-context";
+import { getSchoolEnrollmentRepository, getRosterManagementService, getStudentProfileRepository } from "../../../../lib/staff-identity-context";
 
 /**
  * `GET /classes/{classId}/students` (02_35 §5). Read-only roster — no
  * student access credentials (PIN hash, class access code) are ever
- * projected into the response.
+ * projected into the response. `studentPublicId` (GLPC, 02_41 v1.1,
+ * contracts/quest-city-platform-openapi-v1_15.yaml) is an additive field
+ * -- the roster's own `studentProfileId` stays the internal id it always
+ * was, unchanged; `studentPublicId` is added so the dashboard can link
+ * into the `studentPublicId`-keyed GLPC student preview/customization
+ * surface without a second roster lookup.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ classId: string }> }): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
@@ -27,11 +32,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ clas
     assertClassInScope(identity, classId);
 
     const enrollments = await getSchoolEnrollmentRepository().findByClass(classId, identity.tenantId);
+    const students = await getStudentProfileRepository().findByIds(
+      enrollments.map((e) => e.studentProfileId),
+      identity.tenantId,
+    );
+    const publicIdByProfileId = new Map(students.map((s) => [s.id, s.studentPublicId]));
 
     return NextResponse.json(
       {
         data: enrollments.map((e) => ({
           studentProfileId: e.studentProfileId,
+          studentPublicId: publicIdByProfileId.get(e.studentProfileId) ?? null,
           accessAlias: e.accessAlias,
           enrollmentStatus: e.status,
         })),

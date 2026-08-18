@@ -8,6 +8,8 @@ import {
   type FacilitationProposal,
   type FacilitationProposalType,
   type FacilitationProposalStatus,
+  type LearningPathTargetResourceType,
+  type LearningPathTargetState,
 } from "../repository/facilitation-proposal-repository";
 import { SupportProfileRepository, type SupportProfileCategory } from "../repository/support-profile-repository";
 import { DifficultyOverrideRepository } from "../repository/difficulty-override-repository";
@@ -17,6 +19,28 @@ const SUPPORT_PROFILE_CATEGORIES: readonly string[] = ["PRESENTATION", "TIME_AND
 
 const IDEMPOTENCY_SCOPE = "facilitation_proposal_create";
 const REVIEW_IDEMPOTENCY_SCOPE = "facilitation_proposal_review";
+
+function resolveProposalAuditVerb(proposalType: FacilitationProposalType): "difficulty" | "facilitation" | "learning_path_adjustment" {
+  if (proposalType === "DIFFICULTY") return "difficulty";
+  if (proposalType === "LEARNING_PATH_ADJUSTMENT") return "learning_path_adjustment";
+  return "facilitation";
+}
+
+/**
+ * Invoked inside `reviewInTransaction` on ACCEPT of a LEARNING_PATH_ADJUSTMENT
+ * proposal, against the SAME transaction-bound client as the proposal's own
+ * status transition (02_41 §23: "A failed policy write rolls back the
+ * entire review"). Kept as an injected hook rather than a direct import so
+ * this package never depends on `@quest-city-web/learning-path-control`
+ * (which already depends on this package for `resolveStudentSupportScope`
+ * -- a reverse import here would be a circular workspace dependency). The
+ * real implementation is wired in `apps/api/lib/staff-identity-context.ts`.
+ */
+export type LearningPathAdjustmentAcceptHook = (
+  client: PoolClient,
+  proposal: FacilitationProposal,
+  reviewerIdentity: StaffInternalIdentity,
+) => Promise<void>;
 
 /**
  * `POST /asacom/facilitation-proposals`, `POST
@@ -48,7 +72,10 @@ export class FacilitationProposalService {
   private readonly idempotency: IdempotencyRecordRepository;
   private readonly audit: AuditRepository;
 
-  constructor(pool: Pool) {
+  constructor(
+    pool: Pool,
+    private readonly onAcceptLearningPathAdjustment?: LearningPathAdjustmentAcceptHook,
+  ) {
     this.pool = pool;
     this.proposals = new FacilitationProposalRepository(pool);
     this.assignments = new SupportStudentAssignmentRepository(pool);
@@ -64,9 +91,33 @@ export class FacilitationProposalService {
     proposalType: FacilitationProposalType;
     targetCategory?: string | null;
     descriptionStructuredRef?: string | null;
+    targetLearningPath?:
+      | {
+          resourceType: LearningPathTargetResourceType;
+          resourceRef: string;
+          requestedState: LearningPathTargetState;
+          requestedAlternativeContentRef?: string | null | undefined;
+        }
+      | null
+      | undefined;
     idempotencyKey: string;
   }): Promise<FacilitationProposal> {
     const { identity } = input;
+    // TargetLearningPath (02_41 §23, OpenAPI v1.15.0): required exactly
+    // when proposalType=LEARNING_PATH_ADJUSTMENT -- validated here for a
+    // clean VALIDATION_ERROR rather than surfacing the DB's own
+    // facilitation_proposal_target_learning_path_ck as a raw constraint
+    // violation.
+    if (input.proposalType === "LEARNING_PATH_ADJUSTMENT") {
+      if (!input.targetLearningPath) {
+        throw new StaffIdentityError("VALIDATION_ERROR", "targetLearningPath is required for proposalType=LEARNING_PATH_ADJUSTMENT.");
+      }
+      if (input.targetLearningPath.requestedState === "DISABLED_WITH_ALTERNATIVE" && !input.targetLearningPath.requestedAlternativeContentRef) {
+        throw new StaffIdentityError("VALIDATION_ERROR", "requestedAlternativeContentRef is required when requestedState=DISABLED_WITH_ALTERNATIVE.");
+      }
+    } else if (input.targetLearningPath) {
+      throw new StaffIdentityError("VALIDATION_ERROR", "targetLearningPath is only valid for proposalType=LEARNING_PATH_ADJUSTMENT.");
+    }
     if (identity.role === "ASACOM") {
       assertStaffCapability(identity, input.proposalType === "DIFFICULTY" ? "asacom.difficulty.propose" : "asacom.facilitation.propose");
     } else if (identity.role === "SUPPORT_TEACHER") {
@@ -96,7 +147,12 @@ export class FacilitationProposalService {
       tenantId: identity.tenantId,
       scope: IDEMPOTENCY_SCOPE,
       scopeKey,
-      requestHash: JSON.stringify({ studentProfileId: student.id, proposalType: input.proposalType, targetCategory: input.targetCategory ?? null }),
+      requestHash: JSON.stringify({
+        studentProfileId: student.id,
+        proposalType: input.proposalType,
+        targetCategory: input.targetCategory ?? null,
+        targetLearningPath: input.targetLearningPath ?? null,
+      }),
     });
     if (begin.outcome === "DUPLICATE_SAME_PAYLOAD") {
       return begin.response as FacilitationProposal;
@@ -120,6 +176,10 @@ export class FacilitationProposalService {
         proposalType: input.proposalType,
         targetCategory: input.targetCategory ?? null,
         descriptionStructuredRef: input.descriptionStructuredRef ?? null,
+        targetResourceType: input.targetLearningPath?.resourceType ?? null,
+        targetResourceRef: input.targetLearningPath?.resourceRef ?? null,
+        targetRequestedState: input.targetLearningPath?.requestedState ?? null,
+        targetRequestedAlternativeContentRef: input.targetLearningPath?.requestedAlternativeContentRef ?? null,
       });
       await this.idempotency.complete({
         tenantId: identity.tenantId,
@@ -132,9 +192,7 @@ export class FacilitationProposalService {
         tenantId: identity.tenantId,
         actorType: "STAFF",
         actorId: identity.staffAccountId,
-        action: identity.role === "ASACOM"
-          ? input.proposalType === "DIFFICULTY" ? "asacom.difficulty_proposed" : "asacom.facilitation_proposed"
-          : input.proposalType === "DIFFICULTY" ? "support_teacher.difficulty_proposed" : "support_teacher.facilitation_proposed",
+        action: identity.role === "ASACOM" ? `asacom.${resolveProposalAuditVerb(input.proposalType)}_proposed` : `support_teacher.${resolveProposalAuditVerb(input.proposalType)}_proposed`,
         targetType: "facilitation_proposal",
         targetId: created.id,
         result: "SUCCESS",
@@ -369,6 +427,18 @@ export class FacilitationProposalService {
             createdByStaffAccountId: identity.staffAccountId,
             createdByRole: identity.role,
           });
+        } else if (updated.proposalType === "LEARNING_PATH_ADJUSTMENT") {
+          // 02_41 §23: ACCEPT atomically creates/updates the
+          // corresponding STUDENT-scope learning_path_policy row, same
+          // transaction, same rollback-on-failure discipline as the
+          // DIFFICULTY branch above. Fails loudly (rather than silently
+          // skipping the write) if the hook was never wired -- that would
+          // otherwise leave the proposal ACCEPTED with no effect, exactly
+          // what §23 forbids.
+          if (!this.onAcceptLearningPathAdjustment) {
+            throw new Error("LEARNING_PATH_ADJUSTMENT accept requires an onAcceptLearningPathAdjustment hook to be configured.");
+          }
+          await this.onAcceptLearningPathAdjustment(client, updated, identity);
         }
       }
 

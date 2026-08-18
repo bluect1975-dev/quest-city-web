@@ -3,6 +3,7 @@ import { loadEnv } from "../../lib/env";
 import { requireStaffIdentity } from "../../lib/staff-request-context";
 import { staffErrorResponse } from "../../lib/staff-error-response";
 import { validateStaffPaginationQuery } from "../../lib/staff-validation";
+import { toTargetLearningPathResponse } from "../../lib/learning-path-adjustment-request";
 import { getFacilitationProposalService } from "../../lib/staff-identity-context";
 
 /**
@@ -34,6 +35,7 @@ export async function GET(request: Request): Promise<NextResponse> {
           studentProfileId: proposal.studentProfileId,
           proposalType: proposal.proposalType,
           targetCategory: proposal.targetCategory,
+          targetLearningPath: toTargetLearningPathResponse(proposal),
           status: proposal.status,
           reviewedAt: proposal.reviewedAt ? proposal.reviewedAt.toISOString() : null,
           reviewNote: proposal.reviewNote,

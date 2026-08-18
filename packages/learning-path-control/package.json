@@ -1,0 +1,28 @@
+{
+  "name": "@quest-city-web/learning-path-control",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Granular Learning Path Control (GLPC) runtime: the Platform/School/Class/Student cascade resolver, learning_path_policy/learning_path_alternative/learning_path_snapshot persistence, and the effective-path preview services (02_41 v1.1, contracts/quest-city-platform-openapi-v1_15.yaml). Entirely additive to @quest-city-web/staff-identity and @quest-city-web/student-support -- reuses their identity/capability/proposal machinery unmodified, never a second auth or proposal mechanism.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --config ../config/eslint/base.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@quest-city-web/identity": "workspace:*",
+    "@quest-city-web/staff-identity": "workspace:*",
+    "@quest-city-web/student-support": "workspace:*",
+    "@quest-city-web/attempts": "workspace:*",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/pg": "8.11.10",
+    "eslint": "9.18.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.4"
+  }
+}

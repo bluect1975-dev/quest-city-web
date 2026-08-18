@@ -44,6 +44,14 @@ function StudentDetailView({ classId, studentProfileId }: { classId: string; stu
         <>
           <h1>{result.data.student.accessAlias}</h1>
 
+          {result.data.student.studentPublicId ? (
+            <p>
+              <Link href={`/app/students/${encodeURIComponent(result.data.student.studentPublicId)}/learning-path`}>
+                {t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.title")}
+              </Link>
+            </p>
+          ) : null}
+
           <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.studentDetail.progressTitle")}</h2>
             <p>

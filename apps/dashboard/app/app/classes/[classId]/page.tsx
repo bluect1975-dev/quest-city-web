@@ -253,6 +253,10 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
             ) : null}
           </h1>
 
+          <p>
+            <Link href={`/app/classes/${encodeURIComponent(classId)}/learning-path`}>{t(DASHBOARD_CATALOG_IT_IT, "app.classLearningPath.title")}</Link>
+          </p>
+
           {canManageClass ? (
             <section className="qc-card">
               <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.renameTitle")}</h2>

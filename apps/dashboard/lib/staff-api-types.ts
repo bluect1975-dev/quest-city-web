@@ -16,6 +16,8 @@ export interface ClassSummary {
 
 export interface StudentRosterEntry {
   studentProfileId: string;
+  /** GLPC (02_41 v1.1) -- used to link into the studentPublicId-keyed learning-path preview/customization surface. */
+  studentPublicId: string | null;
   accessAlias: string;
   enrollmentStatus: string;
 }
@@ -399,8 +401,15 @@ export interface DifficultyOverrideResult {
   createdAt: string;
 }
 
-export type FacilitationProposalType = "FACILITATION" | "DIFFICULTY";
+export type FacilitationProposalType = "FACILITATION" | "DIFFICULTY" | "LEARNING_PATH_ADJUSTMENT";
 export type FacilitationProposalStatus = "SUBMITTED" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+
+export interface FacilitationProposalTargetLearningPath {
+  resourceType: LearningPathResourceType;
+  resourceRef: string;
+  requestedState: LearningPathState;
+  requestedAlternativeContentRef?: string;
+}
 
 export interface FacilitationProposal {
   id: string;
@@ -409,10 +418,69 @@ export interface FacilitationProposal {
   proposedByStaffAccountId?: string;
   proposalType: FacilitationProposalType;
   targetCategory: string | null;
+  targetLearningPath?: FacilitationProposalTargetLearningPath;
   status: FacilitationProposalStatus;
   reviewedByStaffAccountId?: string | null;
   reviewedAt?: string | null;
   reviewNote?: string | null;
   createdAt: string;
   version: number;
+}
+
+/** Granular Learning Path Control (02_41 v1.1, contracts/quest-city-platform-openapi-v1_15.yaml). */
+export type LearningPathScope = "PLATFORM" | "SCHOOL" | "CLASS" | "STUDENT";
+export type LearningPathResourceType = "SUBJECT" | "TRACK" | "YEAR" | "MODULE" | "UNIT" | "UNIT_ELEMENT";
+export type LearningPathState = "ENABLED" | "DISABLED" | "DISABLED_AND_WAIVED" | "DISABLED_WITH_ALTERNATIVE" | "UNAVAILABLE_FOR_USE";
+export type LearningPathReasonCategory =
+  | "PEDAGOGICAL"
+  | "ACCESSIBILITY"
+  | "TEMPORARY_SUPPORT"
+  | "ALTERNATIVE_ACTIVITY"
+  | "CURRICULUM_SCHEDULING"
+  | "SCHOOL_POLICY"
+  | "TEACHER_DECISION"
+  | "OTHER_STRUCTURED";
+
+export interface LearningPathPolicy {
+  id: string;
+  tenantId: string;
+  scope: LearningPathScope;
+  scopeRef?: string;
+  resourceType: LearningPathResourceType;
+  resourceRef: string;
+  state: LearningPathState;
+  reasonCategory: LearningPathReasonCategory;
+  reasonNotes: string | null;
+  alternativeContentRef: string | null;
+  deploymentYear: string | null;
+  createdByStaffAccountId: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  shadowed: boolean;
+}
+
+export type EffectiveAvailability = "EFFECTIVE_AVAILABLE" | "EFFECTIVE_UNAVAILABLE";
+export type EffectiveRequirement = "required" | "waived" | "alternative";
+
+export interface EffectiveResolution {
+  resourceType: LearningPathResourceType;
+  resourceRef: string;
+  effectiveAvailability: EffectiveAvailability;
+  effectiveRequirement: EffectiveRequirement;
+  sourceScope: LearningPathScope;
+  sourcePolicyId?: string;
+  alternativeContentVersion?: string;
+  waiverState: boolean;
+  reasonCategory?: LearningPathReasonCategory;
+}
+
+export interface LearningPathAlternative {
+  id: string;
+  tenantId: string;
+  originalResourceType: LearningPathResourceType;
+  originalResourceRef: string;
+  alternativeContentRef: string;
+  createdByStaffAccountId: string;
+  createdAt: string;
 }

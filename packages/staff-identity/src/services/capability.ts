@@ -61,12 +61,41 @@ export const STAFF_CAPABILITIES = [
   "support_teacher.facilitation.apply",
   "support_teacher.difficulty.apply",
   "support_teacher.progress.read.assigned",
+  // Granular Learning Path Control (02_41 v1.1 §44-45, migration 0013).
+  // "Illustrativo-additivo, non chiuso" -- same convention as the rest of
+  // this file. learning_path.school.manage is never listed explicitly
+  // below: it is granted only to SCHOOL_ADMIN, which already returns true
+  // for every capability (see hasStaffCapability). PLATFORM-scope writes
+  // (including UNAVAILABLE_FOR_USE) are gated separately, by
+  // @quest-city-web/platform-admin's own capability_grant mechanism --
+  // never by this role-static list (same separation already established
+  // for convergence.preview/.execute/.rollback.review).
+  "learning_path.school.manage",
+  "learning_path.class.manage",
+  "learning_path.student.manage",
+  "learning_path.student.propose",
+  "learning_path.preview",
+  "learning_path.alternative.assign",
+  "learning_path.waiver.manage",
 ] as const;
 
 export type StaffCapability = (typeof STAFF_CAPABILITIES)[number];
 
 /** Held by TEACHER (classScope-limited) in addition to SCHOOL_ADMIN (tenant-wide); every other capability is SCHOOL_ADMIN-only. */
-const TEACHER_CAPABILITIES: ReadonlySet<StaffCapability> = new Set(["roster.manage", "assignment.create"]);
+const TEACHER_CAPABILITIES: ReadonlySet<StaffCapability> = new Set([
+  "roster.manage",
+  "assignment.create",
+  // GLPC (02_41 §12): class.manage/student.manage/alternative.assign/
+  // waiver.manage are classScope-limited (own authorized class, own
+  // class's students) -- callers still call isClassInScope for the
+  // specific class in question, same discipline as roster.manage above.
+  // Never school.manage (that stays SCHOOL_ADMIN-only, envelope-setting).
+  "learning_path.class.manage",
+  "learning_path.student.manage",
+  "learning_path.preview",
+  "learning_path.alternative.assign",
+  "learning_path.waiver.manage",
+]);
 
 /**
  * INDEPENDENT_EDUCATOR (02_35 v1.4 §11ter.5): tenant-wide reuse of
@@ -112,6 +141,11 @@ const ASACOM_CAPABILITIES: ReadonlySet<StaffCapability> = new Set([
   "asacom.facilitation.propose",
   "asacom.difficulty.propose",
   "asacom.progress.read.assigned",
+  // GLPC (02_41 §22): PROPOSE_ONLY, exactly as for FACILITATION/DIFFICULTY
+  // above -- reuses the same facilitation_proposal workflow (§23), never a
+  // learning_path.student.manage or .preview grant (ASACOM never applies
+  // or previews directly).
+  "learning_path.student.propose",
 ]);
 
 /**
@@ -130,6 +164,15 @@ const SUPPORT_TEACHER_CAPABILITIES: ReadonlySet<StaffCapability> = new Set([
   "support_teacher.facilitation.apply",
   "support_teacher.difficulty.apply",
   "support_teacher.progress.read.assigned",
+  // GLPC (02_41 §21): real VIEW/PROPOSE/APPLY, narrowed to the caller's
+  // own ACTIVE support_student_assignment rows at the service layer --
+  // never school-wide or class-wide, same discipline as every other
+  // SUPPORT_TEACHER capability in this set.
+  "learning_path.student.manage",
+  "learning_path.student.propose",
+  "learning_path.preview",
+  "learning_path.alternative.assign",
+  "learning_path.waiver.manage",
 ]);
 
 export function hasStaffCapability(identity: StaffInternalIdentity, capability: StaffCapability): boolean {

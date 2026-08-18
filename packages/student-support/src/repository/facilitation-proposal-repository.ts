@@ -1,8 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { Queryable } from "./types";
 
-export type FacilitationProposalType = "FACILITATION" | "DIFFICULTY";
+export type FacilitationProposalType = "FACILITATION" | "DIFFICULTY" | "LEARNING_PATH_ADJUSTMENT";
 export type FacilitationProposalStatus = "SUBMITTED" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
+
+/**
+ * Duplicated locally rather than imported from `@quest-city-web/learning-path-control`
+ * (02_41 v1.1 §23, OpenAPI v1.15.0 `LearningPathResourceType`/`LearningPathState`
+ * minus `UNAVAILABLE_FOR_USE`, which is PLATFORM-only and never proposer-settable) --
+ * `learning-path-control` already depends on this package for
+ * `resolveStudentSupportScope`, so importing it back here would be a
+ * circular workspace dependency. Same "declared locally" convention this
+ * codebase already uses for cross-package literal unions (e.g. each
+ * package's own generic error-code type).
+ */
+export type LearningPathTargetResourceType = "SUBJECT" | "TRACK" | "YEAR" | "MODULE" | "UNIT" | "UNIT_ELEMENT";
+export type LearningPathTargetState = "ENABLED" | "DISABLED" | "DISABLED_AND_WAIVED" | "DISABLED_WITH_ALTERNATIVE";
 
 export interface FacilitationProposal {
   id: string;
@@ -13,6 +26,10 @@ export interface FacilitationProposal {
   proposalType: FacilitationProposalType;
   targetCategory: string | null;
   descriptionStructuredRef: string | null;
+  targetResourceType: LearningPathTargetResourceType | null;
+  targetResourceRef: string | null;
+  targetRequestedState: LearningPathTargetState | null;
+  targetRequestedAlternativeContentRef: string | null;
   status: FacilitationProposalStatus;
   reviewedByStaffAccountId: string | null;
   reviewedAt: Date | null;
@@ -30,6 +47,10 @@ interface Row {
   proposal_type: FacilitationProposalType;
   target_category: string | null;
   description_structured_ref: string | null;
+  target_resource_type: LearningPathTargetResourceType | null;
+  target_resource_ref: string | null;
+  target_requested_state: LearningPathTargetState | null;
+  target_requested_alternative_content_ref: string | null;
   status: FacilitationProposalStatus;
   reviewed_by_staff_account_id: string | null;
   reviewed_at: Date | null;
@@ -39,7 +60,9 @@ interface Row {
 }
 
 const SELECT_COLUMNS = `id, public_id, tenant_id, student_profile_id, proposed_by_staff_account_id, proposal_type,
-  target_category, description_structured_ref, status, reviewed_by_staff_account_id, reviewed_at, review_note, created_at, version`;
+  target_category, description_structured_ref, target_resource_type, target_resource_ref,
+  target_requested_state, target_requested_alternative_content_ref,
+  status, reviewed_by_staff_account_id, reviewed_at, review_note, created_at, version`;
 
 function mapRow(row: Row): FacilitationProposal {
   return {
@@ -51,6 +74,10 @@ function mapRow(row: Row): FacilitationProposal {
     proposalType: row.proposal_type,
     targetCategory: row.target_category,
     descriptionStructuredRef: row.description_structured_ref,
+    targetResourceType: row.target_resource_type,
+    targetResourceRef: row.target_resource_ref,
+    targetRequestedState: row.target_requested_state,
+    targetRequestedAlternativeContentRef: row.target_requested_alternative_content_ref,
     status: row.status,
     reviewedByStaffAccountId: row.reviewed_by_staff_account_id,
     reviewedAt: row.reviewed_at,
@@ -140,12 +167,17 @@ export class FacilitationProposalRepository {
     proposalType: FacilitationProposalType;
     targetCategory?: string | null;
     descriptionStructuredRef?: string | null;
+    targetResourceType?: LearningPathTargetResourceType | null;
+    targetResourceRef?: string | null;
+    targetRequestedState?: LearningPathTargetState | null;
+    targetRequestedAlternativeContentRef?: string | null;
   }): Promise<FacilitationProposal> {
     const publicId = `fap_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
     const result = await this.db.query<Row>(
       `INSERT INTO facilitation_proposal
-         (public_id, tenant_id, student_profile_id, proposed_by_staff_account_id, proposal_type, target_category, description_structured_ref)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (public_id, tenant_id, student_profile_id, proposed_by_staff_account_id, proposal_type, target_category, description_structured_ref,
+          target_resource_type, target_resource_ref, target_requested_state, target_requested_alternative_content_ref)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING ${SELECT_COLUMNS}`,
       [
         publicId,
@@ -155,6 +187,10 @@ export class FacilitationProposalRepository {
         input.proposalType,
         input.targetCategory ?? null,
         input.descriptionStructuredRef ?? null,
+        input.targetResourceType ?? null,
+        input.targetResourceRef ?? null,
+        input.targetRequestedState ?? null,
+        input.targetRequestedAlternativeContentRef ?? null,
       ],
     );
     const [row] = result.rows;

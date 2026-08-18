@@ -20,7 +20,8 @@
       "myAssignedStudents": "I miei studenti",
       "facilitationReview": "Proposte da revisionare",
       "supportAssignments": "Assegnazioni di supporto",
-      "supportCoverage": "Copertura supporto"
+      "supportCoverage": "Copertura supporto",
+      "learningPathPolicies": "Percorso di apprendimento"
     },
     "brandLabel": "Quest City",
     "roleSwitcher": {
@@ -260,6 +261,7 @@
       "columnType": "Tipo",
       "typeFacilitation": "Facilitazione",
       "typeDifficulty": "Difficoltà",
+      "typeLearningPathAdjustment": "Adeguamento del percorso di apprendimento",
       "columnCategory": "Categoria",
       "columnCreatedAt": "Proposta il",
       "reviewNoteLabel": "Nota di revisione (facoltativa)",
@@ -443,6 +445,95 @@
       "revoked": "Revocato",
       "left": "Uscito",
       "archived": "Archiviato"
+    },
+    "learningPath": {
+      "scope": {
+        "PLATFORM": "Piattaforma",
+        "SCHOOL": "Scuola",
+        "CLASS": "Classe",
+        "STUDENT": "Studente"
+      },
+      "state": {
+        "INHERIT": "Eredita",
+        "ENABLED": "Attivo",
+        "DISABLED": "Disattivato",
+        "DISABLED_AND_WAIVED": "Disattivato ed esonerato",
+        "DISABLED_WITH_ALTERNATIVE": "Disattivato con alternativa",
+        "UNAVAILABLE_FOR_USE": "Non disponibile (piattaforma)"
+      },
+      "reasonCategory": {
+        "PEDAGOGICAL": "Motivi didattici",
+        "ACCESSIBILITY": "Accessibilità",
+        "TEMPORARY_SUPPORT": "Supporto temporaneo",
+        "ALTERNATIVE_ACTIVITY": "Attività alternativa",
+        "CURRICULUM_SCHEDULING": "Programmazione curricolare",
+        "SCHOOL_POLICY": "Politica della scuola",
+        "TEACHER_DECISION": "Decisione del docente",
+        "OTHER_STRUCTURED": "Altro (strutturato)"
+      },
+      "resourceType": {
+        "SUBJECT": "Materia",
+        "TRACK": "Indirizzo",
+        "YEAR": "Anno",
+        "MODULE": "Modulo",
+        "UNIT": "Unità",
+        "UNIT_ELEMENT": "Elemento didattico"
+      },
+      "availability": {
+        "EFFECTIVE_AVAILABLE": "Disponibile",
+        "EFFECTIVE_UNAVAILABLE": "Non disponibile"
+      },
+      "requirement": {
+        "required": "Obbligatorio",
+        "waived": "Esonerato",
+        "alternative": "Sostituito da alternativa"
+      },
+      "lockedNotice": "Bloccato da una policy di livello superiore ({scope}). Non può essere modificato da qui.",
+      "shadowedNotice": "Questa policy è al momento inattiva: un livello superiore la sovrasta. Tornerà attiva se quella restrizione viene rimossa.",
+      "createFormTitle": "Nuova policy",
+      "resourceTypeLabel": "Tipo di risorsa",
+      "resourceRefLabel": "Identificativo risorsa",
+      "stateLabel": "Stato",
+      "reasonCategoryLabel": "Motivazione",
+      "reasonNotesLabel": "Note (facoltative)",
+      "alternativeContentRefLabel": "Contenuto alternativo",
+      "createSubmit": "Salva policy",
+      "createSubmitting": "Salvataggio...",
+      "deleteButton": "Ripristina eredità",
+      "columnResource": "Risorsa",
+      "columnScope": "Ambito",
+      "columnState": "Stato",
+      "columnReason": "Motivazione",
+      "columnActions": "Azioni",
+      "empty": "Nessuna policy esplicita configurata.",
+      "previewTitle": "Anteprima percorso effettivo",
+      "previewColumnResource": "Risorsa",
+      "previewColumnAvailability": "Disponibilità",
+      "previewColumnSource": "Origine",
+      "previewColumnRequirement": "Completamento",
+      "previewEmpty": "Nessun elemento con una policy esplicita da mostrare."
+    },
+    "learningPathPolicies": {
+      "title": "Percorso di apprendimento — Scuola",
+      "description": "Configura lo stato predefinito degli elementi del percorso didattico per l'intera scuola. Le classi e gli studenti ereditano queste impostazioni salvo personalizzazioni specifiche."
+    },
+    "classLearningPath": {
+      "backToClass": "Torna alla classe",
+      "title": "Percorso di apprendimento — Classe",
+      "description": "Personalizza il percorso per questa classe. Ciò che la scuola ha disattivato resta bloccato.",
+      "previewLink": "Anteprima: cosa vedrà la classe"
+    },
+    "studentLearningPath": {
+      "title": "Percorso di apprendimento — Studente",
+      "description": "Personalizza il percorso per questo studente: esonero da un'attività o assegnazione di un contenuto alternativo.",
+      "previewLink": "Anteprima: cosa vedrà lo studente",
+      "registerAlternativeTitle": "Registra un contenuto alternativo",
+      "registerAlternativeDescription": "Prima di poter assegnare uno stato \"Disattivato con alternativa\", registra qui la corrispondenza tra il contenuto originale e quello sostitutivo.",
+      "registerAlternativeOriginalLabel": "Identificativo risorsa originale",
+      "registerAlternativeContentLabel": "Identificativo contenuto alternativo",
+      "registerAlternativeSubmit": "Registra corrispondenza",
+      "registerAlternativeSubmitting": "Registrazione...",
+      "registerAlternativeSuccess": "Corrispondenza registrata. Ora puoi usarla come contenuto alternativo nella policy sottostante."
     }
   },
   "platformAdmin": {

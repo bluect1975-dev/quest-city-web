@@ -25,7 +25,9 @@ import {
   ObservationService,
   FacilitationService,
   FacilitationProposalService,
+  type LearningPathAdjustmentAcceptHook,
 } from "@quest-city-web/student-support";
+import { LearningPathPolicyService, LearningPathAlternativeService, applyLearningPathAdjustmentAcceptance } from "@quest-city-web/learning-path-control";
 import { loadEnv } from "./env";
 
 /**
@@ -150,6 +152,41 @@ export function getFacilitationService(): FacilitationService {
   return new FacilitationService(getStaffIdentityPool());
 }
 
+/**
+ * GLPC (02_41 §23): the hook that lets `FacilitationProposalService`'s
+ * transactional review() atomically write the resulting `learning_path_policy`
+ * row on ACCEPT of a LEARNING_PATH_ADJUSTMENT proposal, without
+ * `@quest-city-web/student-support` ever importing
+ * `@quest-city-web/learning-path-control` (which already depends on
+ * student-support for `resolveStudentSupportScope` -- the reverse import
+ * would be circular). Wired here, the one place both packages are already
+ * imported together.
+ */
+const onAcceptLearningPathAdjustment: LearningPathAdjustmentAcceptHook = async (client, proposal, reviewerIdentity) => {
+  if (!proposal.targetResourceType || !proposal.targetResourceRef || !proposal.targetRequestedState) {
+    throw new Error("LEARNING_PATH_ADJUSTMENT proposal is missing its targetLearningPath fields (facilitation_proposal_target_learning_path_ck should have prevented this).");
+  }
+  await applyLearningPathAdjustmentAcceptance(client, {
+    tenantId: proposal.tenantId,
+    studentProfileId: proposal.studentProfileId,
+    resourceType: proposal.targetResourceType,
+    resourceRef: proposal.targetResourceRef,
+    requestedState: proposal.targetRequestedState,
+    requestedAlternativeContentRef: proposal.targetRequestedAlternativeContentRef,
+    reviewerStaffAccountId: reviewerIdentity.staffAccountId,
+    sourceProposalPublicId: proposal.publicId,
+  });
+};
+
 export function getFacilitationProposalService(): FacilitationProposalService {
-  return new FacilitationProposalService(getStaffIdentityPool());
+  return new FacilitationProposalService(getStaffIdentityPool(), onAcceptLearningPathAdjustment);
+}
+
+/** Granular Learning Path Control (02_41 v1.1, contracts/quest-city-platform-openapi-v1_15.yaml) — same pool-reuse convention as every other factory in this file. */
+export function getLearningPathPolicyService(): LearningPathPolicyService {
+  return new LearningPathPolicyService(getStaffIdentityPool());
+}
+
+export function getLearningPathAlternativeService(): LearningPathAlternativeService {
+  return new LearningPathAlternativeService(getStaffIdentityPool());
 }

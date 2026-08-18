@@ -35,6 +35,9 @@ importers:
       '@quest-city-web/learning-engines':
         specifier: workspace:*
         version: link:../../packages/learning-engines
+      '@quest-city-web/learning-path-control':
+        specifier: workspace:*
+        version: link:../../packages/learning-path-control
       '@quest-city-web/platform-admin':
         specifier: workspace:*
         version: link:../../packages/platform-admin
@@ -376,6 +379,40 @@ importers:
         specifier: 3.0.4
         version: 3.0.4(@types/node@22.10.7)(jsdom@26.0.0)(tsx@4.23.7)
 
+  packages/learning-path-control:
+    dependencies:
+      '@quest-city-web/attempts':
+        specifier: workspace:*
+        version: link:../attempts
+      '@quest-city-web/identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@quest-city-web/staff-identity':
+        specifier: workspace:*
+        version: link:../staff-identity
+      '@quest-city-web/student-support':
+        specifier: workspace:*
+        version: link:../student-support
+      pg:
+        specifier: 8.13.1
+        version: 8.13.1
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.7
+        version: 22.10.7
+      '@types/pg':
+        specifier: 8.11.10
+        version: 8.11.10
+      eslint:
+        specifier: 9.18.0
+        version: 9.18.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.4
+        version: 3.0.4(@types/node@22.10.7)(jsdom@26.0.0)(tsx@4.23.7)
+
   packages/platform-admin:
     dependencies:
       '@quest-city-web/attempts':
@@ -565,6 +602,9 @@ importers:
       '@quest-city-web/learning-engines':
         specifier: workspace:*
         version: link:../../packages/learning-engines
+      '@quest-city-web/learning-path-control':
+        specifier: workspace:*
+        version: link:../../packages/learning-path-control
       '@quest-city-web/platform-admin':
         specifier: workspace:*
         version: link:../../packages/platform-admin
