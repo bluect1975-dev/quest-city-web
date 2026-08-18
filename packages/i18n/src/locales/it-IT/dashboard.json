@@ -549,6 +549,7 @@
       "independentEducators": "Educatori indipendenti",
       "audit": "Registro attività",
       "convergenceRequests": "Richieste di convergenza",
+      "controlCenter": "Centro di controllo",
       "logout": "Esci"
     },
     "brandLabel": "Quest City",
@@ -647,6 +648,107 @@
       "rollbackReviewTitle": "Revisione rollback richiesta",
       "acceptPartialAction": "Accetta parziale",
       "retryRemainingAction": "Riprova le unità rimanenti"
+    },
+    "controlCenter": {
+      "title": "Centro di controllo operativo",
+      "nav": {
+        "overview": "Panoramica",
+        "infrastructure": "Infrastruttura",
+        "usage": "Utilizzo",
+        "liveUsers": "Utenti online",
+        "errors": "Errori",
+        "incidents": "Incidenti",
+        "alerting": "Alert"
+      },
+      "overview": {
+        "title": "Panoramica piattaforma",
+        "platformStatus": "Stato piattaforma",
+        "active": "attive",
+        "suspended": "sospese",
+        "schoolsTotal": "Scuole totali",
+        "independentEducatorsTotal": "Educatori indipendenti",
+        "classesTotal": "Classi totali",
+        "staffUniqueHumansTotal": "Staff (persone uniche)",
+        "studentsEnrolled": "Studenti iscritti",
+        "studentsOnlineNow": "Studenti online ora",
+        "staffOnlineNow": "Staff online ora",
+        "activeLearningAttempts": "Tentativi attivi",
+        "openIncidents": "Incidenti aperti",
+        "staffByRoleEmpty": "Nessun dato per ruolo staff disponibile.",
+        "staffByRoleCaption": "Staff per ruolo",
+        "role": "Ruolo",
+        "activeMemberships": "Membership attive",
+        "uniqueHumans": "Persone uniche"
+      },
+      "infrastructure": {
+        "title": "Infrastruttura",
+        "empty": "Nessun dato di salute servizio disponibile.",
+        "caption": "Stato dei servizi",
+        "service": "Servizio",
+        "state": "Stato",
+        "latency": "Latenza",
+        "lastCheck": "Ultimo controllo"
+      },
+      "usage": {
+        "title": "Utilizzo",
+        "caption": "Metriche di utilizzo",
+        "metric": "Metrica",
+        "value": "Valore"
+      },
+      "liveUsers": {
+        "title": "Utenti online",
+        "studentsOnline": "Studenti online",
+        "staffOnline": "Staff online",
+        "totalOnline": "Totale online",
+        "peakCaption": "Picco di concorrenza",
+        "window": "Finestra",
+        "peakStudents": "Picco studenti",
+        "peakStaff": "Picco staff",
+        "peakTotal": "Picco totale",
+        "today": "Oggi",
+        "sevenDays": "7 giorni",
+        "thirtyDays": "30 giorni"
+      },
+      "errors": {
+        "title": "Errori",
+        "empty": "Nessuna metrica applicativa nelle ultime 24 ore.",
+        "caption": "Metriche applicative recenti",
+        "metricKey": "Metrica",
+        "value": "Valore",
+        "status": "Stato",
+        "sampledAt": "Rilevato il"
+      },
+      "incidents": {
+        "title": "Incidenti",
+        "filterStatus": "Filtra per stato",
+        "filterAll": "Tutti",
+        "empty": "Nessun incidente registrato.",
+        "caption": "Elenco incidenti",
+        "severity": "Severità",
+        "service": "Servizio",
+        "summary": "Descrizione",
+        "status": "Stato",
+        "occurrences": "Occorrenze",
+        "lastSeen": "Ultima rilevazione",
+        "actions": "Azioni",
+        "acknowledge": "Riconosci"
+      },
+      "alerting": {
+        "title": "Alerting Telegram",
+        "channelStatus": "Stato canale",
+        "recipient": "Destinatario",
+        "configurationLegend": "Configurazione",
+        "enabled": "Abilitato",
+        "severityThreshold": "Soglia di severità",
+        "severitySev1": "SEV-1 — Critico",
+        "severitySev2": "SEV-2 — Alto",
+        "severitySev3": "SEV-3 — Medio",
+        "severitySev4": "SEV-4 — Basso",
+        "cooldownSeconds": "Cooldown (secondi)",
+        "save": "Salva",
+        "sendTest": "Invia alert di test",
+        "testResult": "Esito test"
+      }
     }
   }
 }

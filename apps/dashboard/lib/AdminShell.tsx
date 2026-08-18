@@ -46,6 +46,11 @@ export function AdminShell({ context, children }: { context: PlatformContext; ch
       labelKey: "platformAdmin.nav.convergenceRequests",
       visible: true,
     },
+    {
+      href: "/app/platform-admin/control-center/overview",
+      labelKey: "platformAdmin.nav.controlCenter",
+      visible: hasCapability(context.capabilities, "operations.dashboard.view"),
+    },
   ];
 
   return (
