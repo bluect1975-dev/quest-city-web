@@ -78,8 +78,15 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await staffLogout(state.csrfToken);
-    setState({ status: "unauthenticated", context: null, csrfToken: null });
+    try {
+      await staffLogout(state.csrfToken);
+    } finally {
+      // Always clear local state, even if the server call failed (e.g. the
+      // CSRF token was lost to a page reload -- see the class doc comment
+      // above) -- the user's intent to log out must never be silently
+      // stranded by a stale token.
+      setState({ status: "unauthenticated", context: null, csrfToken: null });
+    }
   }, [state.csrfToken]);
 
   const value = useMemo<StaffAuthContextValue>(

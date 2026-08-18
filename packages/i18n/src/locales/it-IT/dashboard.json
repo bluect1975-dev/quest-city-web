@@ -518,6 +518,7 @@
       "description": "Configura lo stato predefinito degli elementi del percorso didattico per l'intera scuola. Le classi e gli studenti ereditano queste impostazioni salvo personalizzazioni specifiche."
     },
     "classLearningPath": {
+      "backToClass": "Torna alla classe",
       "title": "Percorso di apprendimento — Classe",
       "description": "Personalizza il percorso per questa classe. Ciò che la scuola ha disattivato resta bloccato.",
       "previewLink": "Anteprima: cosa vedrà la classe"
@@ -525,7 +526,14 @@
     "studentLearningPath": {
       "title": "Percorso di apprendimento — Studente",
       "description": "Personalizza il percorso per questo studente: esonero da un'attività o assegnazione di un contenuto alternativo.",
-      "previewLink": "Anteprima: cosa vedrà lo studente"
+      "previewLink": "Anteprima: cosa vedrà lo studente",
+      "registerAlternativeTitle": "Registra un contenuto alternativo",
+      "registerAlternativeDescription": "Prima di poter assegnare uno stato \"Disattivato con alternativa\", registra qui la corrispondenza tra il contenuto originale e quello sostitutivo.",
+      "registerAlternativeOriginalLabel": "Identificativo risorsa originale",
+      "registerAlternativeContentLabel": "Identificativo contenuto alternativo",
+      "registerAlternativeSubmit": "Registra corrispondenza",
+      "registerAlternativeSubmitting": "Registrazione...",
+      "registerAlternativeSuccess": "Corrispondenza registrata. Ora puoi usarla come contenuto alternativo nella policy sottostante."
     }
   },
   "platformAdmin": {

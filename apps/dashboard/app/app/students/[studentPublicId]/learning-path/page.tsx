@@ -8,7 +8,7 @@ import { RequireStaffAuth } from "../../../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../../../lib/staff-auth-context";
 import { useAsync } from "../../../../../lib/useAsync";
 import { staffErrorText } from "../../../../../lib/staff-error-text";
-import { createLearningPathPolicy, deleteLearningPathPolicy, getStudentLearningPathPreview, listLearningPathPolicies } from "../../../../../lib/staff-api-client";
+import { createLearningPathAlternative, createLearningPathPolicy, deleteLearningPathPolicy, getStudentLearningPathPreview, listLearningPathPolicies } from "../../../../../lib/staff-api-client";
 import type { EffectiveResolution, LearningPathPolicy, LearningPathReasonCategory, LearningPathResourceType, LearningPathState } from "../../../../../lib/staff-api-types";
 import { RESOURCE_TYPE_VALUES, REASON_CATEGORY_VALUES, STUDENT_STATE_VALUES } from "../../../../../lib/learning-path-constants";
 
@@ -52,6 +52,33 @@ function StudentLearningPathView({ studentPublicId }: { studentPublicId: string 
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [altOriginalResourceRef, setAltOriginalResourceRef] = useState("");
+  const [altAlternativeContentRef, setAltAlternativeContentRef] = useState("");
+  const [registeringAlt, setRegisteringAlt] = useState(false);
+  const [altError, setAltError] = useState<string | null>(null);
+  const [altSuccess, setAltSuccess] = useState(false);
+
+  async function handleRegisterAlternative(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!csrfToken || !altOriginalResourceRef.trim() || !altAlternativeContentRef.trim()) return;
+    setRegisteringAlt(true);
+    setAltError(null);
+    setAltSuccess(false);
+    try {
+      await createLearningPathAlternative({
+        originalResourceType: resourceType,
+        originalResourceRef: altOriginalResourceRef.trim(),
+        alternativeContentRef: altAlternativeContentRef.trim(),
+        csrfToken,
+      });
+      setAltSuccess(true);
+    } catch (error) {
+      setAltError(staffErrorText(error));
+    } finally {
+      setRegisteringAlt(false);
+    }
+  }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,6 +127,26 @@ function StudentLearningPathView({ studentPublicId }: { studentPublicId: string 
     <main>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.title")}</h1>
       <p>{t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.description")}</p>
+
+      <section className="qc-card">
+        <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.registerAlternativeTitle")}</h2>
+        <p>{t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.registerAlternativeDescription")}</p>
+        <form onSubmit={handleRegisterAlternative}>
+          <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.registerAlternativeOriginalLabel")}>
+            {(fieldProps) => <input {...fieldProps} type="text" required value={altOriginalResourceRef} onChange={(e) => setAltOriginalResourceRef(e.target.value)} />}
+          </FormField>
+          <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.registerAlternativeContentLabel")}>
+            {(fieldProps) => <input {...fieldProps} type="text" required value={altAlternativeContentRef} onChange={(e) => setAltAlternativeContentRef(e.target.value)} />}
+          </FormField>
+          <Button type="submit" disabled={registeringAlt || !csrfToken || !altOriginalResourceRef.trim() || !altAlternativeContentRef.trim()}>
+            {registeringAlt
+              ? t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.registerAlternativeSubmitting")
+              : t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.registerAlternativeSubmit")}
+          </Button>
+        </form>
+        {altError ? <StatusMessage kind="error">{altError}</StatusMessage> : null}
+        {altSuccess ? <p role="status">{t(DASHBOARD_CATALOG_IT_IT, "app.studentLearningPath.registerAlternativeSuccess")}</p> : null}
+      </section>
 
       <section className="qc-card">
         <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.learningPath.createFormTitle")}</h2>
