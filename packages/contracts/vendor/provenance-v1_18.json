@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-master-admin-heartbeat",
+  "artifactVersion": "1.18.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "38e54c2",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_18.yaml",
+  "sourceDocument": "02_42_Quest_City_Master_Admin_Operations_Control_Center_Specification_v1_0 (v1.1, §15)",
+  "checksum": "sha256:b9a980f05bcee25bc933162d7b7a015fee68e2af39a3fbf151faa43181840655",
+  "syncedAt": "2026-08-18",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Presence-heartbeat contract correction: POST /presence/heartbeat, additive over v1.17.0. First-level namespace outside /platform/..., three-alternative security array (student/staff/platform, inclusive-OR) for the shared heartbeat endpoint (02_42 v1.1 §15). No Idempotency-Key. Verified byte-identical (sha256 match) against the canonical source before commit.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_18.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_18.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}

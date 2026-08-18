@@ -1,0 +1,185 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.18.0
+  description: >-
+    Targeted, minimal additive correction closing a contract gap
+    identified during the Web implementation of the Master Admin
+    Operations Control Center (02_42 v1.0, feature/master-admin-operations-
+    control-center): 02_42 §14-16 describes a single authenticated
+    heartbeat endpoint reused across all three session domains
+    (student/staff/platform admin), but no prior OpenAPI version defined
+    an HTTP path for it — v1.17.0 only added the admin-facing aggregate
+    read (`GET /platform/operations/presence`), not the write side. This
+    file adds exactly one new endpoint. v1.2.0 through v1.17.0 remain
+    available unchanged as separate immutable artifacts; no prior path or
+    schema is removed or altered.
+
+    Namespace: `POST /presence/heartbeat` is a new top-level resource,
+    deliberately NOT under `/platform/...` (which requires
+    platformSessionCookie on every existing operation, 02_38 §21) and NOT
+    under any single domain's own auth namespace (`/web-auth`,
+    `/staff-auth`, `/platform-auth`) — it must be reachable by whichever
+    of the three session cookies the caller already holds. OpenAPI's
+    top-level `security` array is inclusive-OR across its entries (each
+    array item is one satisfiable alternative; requirements within a
+    single item are AND'd) — this is the standard mechanism for "any one
+    of these three session types", not a deviation from it.
+
+    Server-side actor resolution (02_42 §15): the server resolves
+    actorType/actorId/tenantId from whichever session cookie is actually
+    present and valid on the request — the request body never declares
+    the actor id itself, closing the "heartbeat for another user" spoof
+    vector by construction (mission §11). CSRF is required using
+    whichever CSRF header scheme corresponds to the session domain that
+    authenticated the request (csrfHeader for student, staffCsrfHeader for
+    staff, platformCsrfHeader for platform admin) — the same per-domain
+    CSRF mechanism every other mutating endpoint already uses, not a new
+    one.
+
+    No Idempotency-Key: a heartbeat is a best-effort, frequently-repeated,
+    naturally idempotent presence signal (02_42 §16, server-side write
+    coalescing) — not a critical write in the sense 02_26 §8.1's mandatory
+    Idempotency-Key list covers (tenant/membership/class creation-class
+    operations). Repeating the same heartbeat has no side effect beyond
+    updating last_seen_at, which coalescing already bounds.
+
+    Rate limiting: FIXED_WINDOW, same mechanism as every other endpoint
+    (02_26 §8), tuned loose enough not to interfere with a legitimate
+    client's heartbeat cadence while still bounding abuse.
+
+    This is a CONTRACTS-ONLY release, authored in the canonical
+    repository. No endpoint in this file may be implemented in
+    quest-city-web until this contract change set's own closure (merge to
+    canonical main) completes.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+paths:
+  /presence/heartbeat:
+    post:
+      summary: Report presence for the authenticated actor (student, staff, or
+        platform admin — whichever session cookie is present). Server-side
+        write coalescing applies (02_42 §16); repeated calls inside the
+        coalescing window are accepted but do not necessarily result in a
+        new persisted last_seen_at.
+      operationId: reportPresenceHeartbeat
+      security:
+      - studentSessionCookie: []
+        csrfHeader: []
+      - staffSessionCookie: []
+        staffCsrfHeader: []
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      responses:
+        '204':
+          description: Heartbeat accepted. No response body — whether this
+            specific call resulted in a persisted write (coalescing) is
+            deliberately not disclosed to the client; the client's only
+            contract is "send periodically, at the client's own cadence".
+        '401':
+          description: No valid session of any of the three domains was
+            presented (PLATFORM domain, code PLATFORM_AUTH_REQUIRED reused
+            — the same code every domain's own auth-required response
+            already uses for its own session type).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: A session was present but the corresponding CSRF header
+            was missing or invalid (PLATFORM_FORBIDDEN, reused).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+components:
+  securitySchemes:
+    studentSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_web_session
+      description: Unchanged mechanism (v1.3.0).
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Unchanged mechanism (v1.3.0) — the student-domain CSRF header.
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: Unchanged mechanism (v1.6.0).
+    staffCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Unchanged mechanism (v1.6.0) — the staff-domain CSRF header,
+        same header name as csrfHeader/platformCsrfHeader, issued and
+        validated independently per session domain.
+    platformSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_platform_session
+      description: Unchanged mechanism (v1.8.0).
+    platformCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Unchanged mechanism (v1.8.0) — the platform-domain CSRF header.
+  headers:
+    RetryAfter:
+      description: Seconds until the fixed-window rate limit resets.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    RateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain, RATE_LIMITED).
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - PLATFORM_AUTH_REQUIRED
+          - PLATFORM_FORBIDDEN
+          - RATE_LIMITED
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true

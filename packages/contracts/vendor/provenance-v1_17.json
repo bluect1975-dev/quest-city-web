@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-master-admin-operations-control-center",
+  "artifactVersion": "1.17.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "6cd9c34",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_17.yaml",
+  "sourceDocument": "02_42_Quest_City_Master_Admin_Operations_Control_Center_Specification_v1_0 (Platform Observability, Incident and Telegram Alerting Specification)",
+  "checksum": "sha256:a6236d3769d9da666d19c0b94f03c8b4c19bfcd0af919807f1801a482732c021",
+  "syncedAt": "2026-08-18",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Master Admin Operations Control Center contract: 10 operations under /platform/operations/... (overview, services, metrics, presence, incidents list/detail/acknowledge, alert-configuration read/write, alert-test). Additive over v1.8.0 -- the last vendored version to declare the /platform/... (Platform Admin) path group -- not over v1.16.0 (a separate lineage: assignments/attempts/launch-context). v1.2.0 through v1.16.0 remain unmodified and independently tracked. Introduces 9 new PlatformCapability values (operations.*) and 4 new PLATFORM-domain ErrorEnvelope.code values (INCIDENT_NOT_FOUND, INCIDENT_ALREADY_ACKNOWLEDGED, ALERT_CONFIGURATION_INVALID, ALERT_CHANNEL_NOT_CONFIGURED). Verified byte-identical (sha256 match) against the canonical source before commit.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_17.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_17.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}
