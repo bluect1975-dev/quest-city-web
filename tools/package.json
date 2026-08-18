@@ -22,11 +22,13 @@
     "bootstrap:platform-admin": "tsx bootstrap-platform-admin.ts",
     "generate:theme-assets": "tsx generate-theme-assets.ts",
     "check:duplicates": "node check-duplicates.mjs",
-    "check:filenames": "node check-filenames.mjs"
+    "check:filenames": "node check-filenames.mjs",
+    "operations:health-probe": "tsx operations-health-probe.ts"
   },
   "dependencies": {
     "@quest-city-web/content-runtime": "workspace:*",
     "@quest-city-web/identity": "workspace:*",
+    "@quest-city-web/operations": "workspace:*",
     "@quest-city-web/platform-admin": "workspace:*",
     "@quest-city-web/staff-identity": "workspace:*",
     "@quest-city-web/theme-system": "workspace:*",
