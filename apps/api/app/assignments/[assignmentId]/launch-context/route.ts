@@ -161,6 +161,51 @@ export async function POST(
 
     let attempt = existing;
     if (!attempt) {
+      // GLPC effective-availability gate (02_41 v1.2 §41-bis, 07_15_01 v1.4
+      // §15.2-ter, contracts v1.16.0): resolved and enforced BEFORE any
+      // learning_attempt row is created and BEFORE any learning_path_snapshot
+      // is captured. Only reached for a genuinely new attempt -- `existing`
+      // (above) already short-circuits a resume to reuse the prior row, so
+      // an attempt already ACTIVE under its own immutable snapshot is never
+      // retroactively denied here (finish-current-attempt, 02_41 §34); this
+      // gate applies only to a fresh launch/subsequent session.
+      // `bundle.publicId` stands in for a UNIT_ELEMENT resourceRef by the
+      // same disclosed convention already documented elsewhere in this
+      // route -- no assignment_target/content_entity_index table exists in
+      // this schema (migration 0013 header) -- no second target-resolution
+      // mechanism introduced here.
+      const resolvedAvailability = await resolveEffectiveForLaunchAttempt({
+        tenantId: identity.tenantId,
+        studentProfileId: identity.studentProfileId,
+        resourceType: "UNIT_ELEMENT",
+        resourceRef: bundle.publicId,
+      });
+
+      if (resolvedAvailability.effectiveAvailability === "EFFECTIVE_UNAVAILABLE") {
+        // Reuses the existing GLPC error code (02_41 §46) rather than
+        // minting a second CROSS_RUNTIME-domain synonym (02_41 §48-ter) --
+        // constructed inline (matching the other non-CrossRuntimeError
+        // envelopes above in this same file) rather than extending
+        // CROSS_RUNTIME_ERROR_CODES, which stays fixed at its 8 native
+        // values (07_15_01 v1.4 §14 note) -- domain is CROSS_RUNTIME only
+        // by section-location convention (02_26 v1.20 §18.7), not because
+        // the code is CROSS_RUNTIME-native. No attempt row is created, no
+        // snapshot is captured -- no partial/orphan state, and the
+        // creation-idempotency key stays unconsumed for a future retry
+        // once/if the policy changes.
+        return NextResponse.json(
+          {
+            domain: "CROSS_RUNTIME",
+            code: "LEARNING_PATH_RESOURCE_NOT_AVAILABLE",
+            httpStatus: 409,
+            message: "Questa risorsa non è attualmente disponibile nel tuo percorso di apprendimento.",
+            correlationId: correlationId ?? "",
+            retryable: false,
+          },
+          { status: 409 },
+        );
+      }
+
       attempt = await attempts.create({
         tenantId: identity.tenantId,
         eventId: randomUUID(),
@@ -177,25 +222,14 @@ export async function POST(
         creationIdempotencyKey: idempotencyKey,
       });
 
-      // GLPC (02_41 §33-34, mission §25-29): captured exactly once, at
-      // CREATED, never at resume -- a resumed attempt keeps using its own
-      // original snapshot (finish-current-attempt, §23), so this branch
-      // only runs for a genuinely new attempt row. Best-effort: a
-      // snapshot-capture failure must never block the attempt the student
-      // is otherwise entitled to continue, so it is logged, not thrown.
-      // `bundle.publicId` stands in for a UNIT_ELEMENT resourceRef by
-      // convention -- no curriculum_profile/content_entity_index table
-      // exists in this schema to derive a true curriculum-node id from an
-      // assignment's content_bundle (migration 0013 header); this is the
-      // same disclosed opaque-identity gap, applied at the one place a
-      // learning_attempt actually gets created.
+      // GLPC (02_41 §33-34): captured exactly once, at CREATED, never at
+      // resume -- reuses the same resolution already used for the gate
+      // above (no second resolver call). Persistence of the snapshot row
+      // itself remains best-effort/non-blocking: the gating decision has
+      // already been made and enforced above, so a snapshot-*write*
+      // failure must never retroactively revoke an attempt the student is
+      // already entitled to -- it is logged, not thrown.
       try {
-        const resolvedAvailability = await resolveEffectiveForLaunchAttempt({
-          tenantId: identity.tenantId,
-          studentProfileId: identity.studentProfileId,
-          resourceType: "UNIT_ELEMENT",
-          resourceRef: bundle.publicId,
-        });
         await getLearningPathSnapshotRepository().capture({
           tenantId: identity.tenantId,
           learningAttemptId: attempt.id,
