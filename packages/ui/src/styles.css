@@ -614,6 +614,36 @@ form {
   color: var(--qc-color-admin-bg);
 }
 
+.qc-shell-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--qc-space-1);
+  margin-bottom: var(--qc-space-5);
+  padding-bottom: var(--qc-space-3);
+  border-bottom: 1px solid var(--qc-color-border);
+}
+
+.qc-shell-subnav a {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--qc-space-2) var(--qc-space-3);
+  border-radius: var(--qc-radius-md);
+  color: var(--qc-color-text-muted);
+  font-size: var(--qc-font-size-label);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.qc-shell-subnav a:hover {
+  background: var(--qc-color-surface-muted);
+  color: var(--qc-color-text);
+}
+
+.qc-shell-subnav a[aria-current="page"] {
+  background: var(--qc-color-info-bg);
+  color: var(--qc-color-info-text);
+}
+
 .qc-shell-context {
   display: flex;
   align-items: center;

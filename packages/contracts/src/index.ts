@@ -49,6 +49,27 @@
  * lineage from v1.2 through v1.15 that never carried this path — a
  * pre-existing, disclosed lineage gap (`PRE_EXISTING_OPENAPI_LAUNCH_CONTEXT_LINEAGE_DEBT`),
  * not resolved here.
+ *
+ * `vendor/quest-city-platform-openapi-v1_17.yaml` (provenance in
+ * `vendor/provenance-v1_17.json`) is the Master Admin Operations Control
+ * Center contract (02_42): 10 operations under `/platform/operations/...`
+ * (overview, services, metrics, presence, incidents list/detail/acknowledge,
+ * alert-configuration read/write, alert-test). Additive over v1.8.0 (the
+ * last vendored version to declare the `/platform/...` Platform Admin path
+ * group), a separate lineage from v1.9 through v1.16 (school onboarding,
+ * independent educator, convergence, GLPC — none of which touch
+ * `/platform/...` itself). v1.2.0 through v1.16.0 remain unmodified and
+ * independently tracked. Introduces 9 new `PlatformCapability` values
+ * (`operations.*`) and 4 new PLATFORM-domain `ErrorEnvelope.code` values.
+ *
+ * `vendor/quest-city-platform-openapi-v1_18.yaml` (provenance in
+ * `vendor/provenance-v1_18.json`) closes the presence-heartbeat contract
+ * gap identified during this Web implementation: `02_42 v1.1` §15 adds
+ * `POST /presence/heartbeat`, additive over v1.17.0 — a first-level
+ * namespace outside `/platform/...`, with a three-alternative `security`
+ * array (student/staff/platform, inclusive-OR) so any one of the three
+ * session domains may call it. No `Idempotency-Key` (naturally idempotent,
+ * server-side coalescing already bounds effect).
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";
@@ -62,6 +83,12 @@ export const CONTRACT_ARTIFACT_VERSION_V1_15 = "1.15.0";
 
 export const CONTRACT_ARTIFACT_ID_V1_16 = "qc-platform-openapi-glpc-launch-enforcement";
 export const CONTRACT_ARTIFACT_VERSION_V1_16 = "1.16.0";
+
+export const CONTRACT_ARTIFACT_ID_V1_17 = "qc-platform-openapi-master-admin-operations-control-center";
+export const CONTRACT_ARTIFACT_VERSION_V1_17 = "1.17.0";
+
+export const CONTRACT_ARTIFACT_ID_V1_18 = "qc-platform-openapi-master-admin-heartbeat";
+export const CONTRACT_ARTIFACT_VERSION_V1_18 = "1.18.0";
 
 /**
  * Domain error codes defined by 07_05 §12. The API client must not infer

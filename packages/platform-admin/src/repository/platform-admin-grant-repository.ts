@@ -24,6 +24,20 @@ export const CAPABILITIES = [
   "convergence.preview",
   "convergence.execute",
   "convergence.rollback.review",
+  // Master Admin Operations Control Center (02_42 v1.0 §5, quest-city-roblox
+  // main 6cd9c34, contracts/quest-city-platform-openapi-v1_17.yaml). Nine
+  // granular capabilities, no generic "operations.all" (02_42 §5 explicit
+  // prohibition, same discipline as every other PLATFORM_ADMIN capability
+  // group above).
+  "operations.dashboard.view",
+  "operations.infrastructure.view",
+  "operations.usage.view",
+  "operations.presence.view",
+  "operations.errors.view",
+  "operations.incidents.view",
+  "operations.incidents.manage",
+  "operations.alerting.view",
+  "operations.alerting.manage",
 ] as const;
 
 /** `Capability` is a closed union matching the DB CHECK on `capability_grant.capability` exactly (migration 0006). */

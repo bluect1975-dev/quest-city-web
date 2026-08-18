@@ -10,7 +10,16 @@ export type Capability =
   | "convergence.read"
   | "convergence.preview"
   | "convergence.execute"
-  | "convergence.rollback.review";
+  | "convergence.rollback.review"
+  | "operations.dashboard.view"
+  | "operations.infrastructure.view"
+  | "operations.usage.view"
+  | "operations.presence.view"
+  | "operations.errors.view"
+  | "operations.incidents.view"
+  | "operations.incidents.manage"
+  | "operations.alerting.view"
+  | "operations.alerting.manage";
 
 export interface PlatformContext {
   staffAccountId: string;
@@ -162,3 +171,108 @@ export interface MigrationExecution {
 }
 
 export type RollbackReviewDecision = "ACCEPT_PARTIAL" | "RETRY_REMAINING";
+
+// -- Master Admin Operations Control Center (02_42 v1.1, contracts v1.17.0/v1.18.0) --
+
+export type ServiceHealthState = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+export type MetricSource = "APPLICATION" | "DATABASE" | "HOST" | "CONTAINER" | "REVERSE_PROXY" | "BACKUP" | "TLS" | "EXTERNAL_MONITOR";
+export type OperationalIncidentSeverity = "SEV-1" | "SEV-2" | "SEV-3" | "SEV-4";
+export type OperationalIncidentStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED" | "SUPPRESSED";
+export type AlertConfigurationStatus = "CONFIGURED" | "NOT_CONFIGURED";
+export type AlertDeliveryStatus = "PENDING" | "SENT" | "FAILED";
+
+export interface OperationsOverview {
+  platformStatus: ServiceHealthState;
+  kpi: {
+    schoolsTotal: number;
+    schoolsActive: number;
+    schoolsSuspended: number;
+    independentEducatorsTotal: number;
+    classesTotal: number;
+    staffByRole: Array<{ role: string; activeMemberships: number; uniqueHumans: number }>;
+    staffUniqueHumansTotal: number;
+    studentsEnrolled: number;
+    studentsOnlineNow: number;
+    staffOnlineNow: number;
+    activeLearningAttempts: number;
+  };
+  openIncidents: number;
+  lastBackup: { status: string };
+}
+
+export interface ServiceHealthEntry {
+  service: string;
+  state: ServiceHealthState;
+  latencyMs: number | null;
+  checkedAt: string;
+}
+
+export interface OperationsServices {
+  platformStatus: ServiceHealthState;
+  services: ServiceHealthEntry[];
+}
+
+export interface MetricSample {
+  source: MetricSource;
+  metricKey: string;
+  value: number;
+  unit: string;
+  sampledAt: string;
+  status: "OK" | "WARNING" | "CRITICAL" | "UNKNOWN";
+  threshold: number | null;
+}
+
+export interface OperationsPresence {
+  concurrentStudents: number;
+  concurrentStaff: number;
+  concurrentTotal: number;
+  tenantId: string | null;
+  peak: Record<string, number | null>;
+}
+
+export interface OperationalIncidentSummary {
+  id: string;
+  publicId: string;
+  type: string;
+  severity: OperationalIncidentSeverity;
+  source: MetricSource;
+  service: string;
+  summary: string;
+  status: OperationalIncidentStatus;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  occurrenceCount: number;
+  acknowledgedAt: string | null;
+  acknowledgedBy: string | null;
+  resolvedAt: string | null;
+  resolutionType: string | null;
+  tenantId: string | null;
+}
+
+export interface OperationalIncidentEventSummary {
+  id: string;
+  eventType: string;
+  detail: Record<string, unknown>;
+  actorType: string | null;
+  actorId: string | null;
+  createdAt: string;
+}
+
+export interface OperationalIncidentDetail {
+  incident: OperationalIncidentSummary;
+  events: OperationalIncidentEventSummary[];
+}
+
+export interface AlertConfiguration {
+  status: AlertConfigurationStatus;
+  enabled: boolean;
+  severityThreshold: OperationalIncidentSeverity;
+  cooldownSeconds: number;
+  recipientMasked: string | null;
+}
+
+export interface AlertTestResult {
+  deliveryStatus: AlertDeliveryStatus;
+  sentAt: string;
+  failureCategory: string | null;
+}

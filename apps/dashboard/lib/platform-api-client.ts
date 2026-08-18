@@ -1,12 +1,23 @@
 import { PlatformApiError } from "./platform-api-error";
 import type {
+  AlertConfiguration,
+  AlertTestResult,
   AuditEventSummary,
   ConvergenceRequest,
   IndependentEducatorActivationResponse,
   IndependentEducatorStatusResponse,
   IndependentEducatorSummary,
+  MetricSample,
+  MetricSource,
   MigrationExecution,
   MigrationPlan,
+  OperationalIncidentDetail,
+  OperationalIncidentSeverity,
+  OperationalIncidentStatus,
+  OperationalIncidentSummary,
+  OperationsOverview,
+  OperationsPresence,
+  OperationsServices,
   PlatformContext,
   RollbackReviewDecision,
   SchoolAdminActivationResponse,
@@ -22,7 +33,7 @@ import type {
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL_DASHBOARD ?? "/api";
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "PUT";
   body?: unknown;
   csrfToken?: string | null;
   idempotencyKey?: string;
@@ -228,5 +239,99 @@ export async function rollbackReviewConvergenceRequest(input: {
     `/convergence-requests/${encodeURIComponent(input.id)}/rollback-review`,
     { method: "POST", body: { decision: input.decision }, csrfToken: input.csrfToken },
   );
+  return envelope.data;
+}
+
+// -- Master Admin Operations Control Center (02_42 v1.1, contracts v1.17.0/v1.18.0) --
+
+export async function getOperationsOverview(): Promise<OperationsOverview> {
+  const envelope = await request<Envelope<OperationsOverview>>("/platform/operations/overview");
+  return envelope.data;
+}
+
+export async function listOperationsServices(): Promise<OperationsServices> {
+  const envelope = await request<Envelope<OperationsServices>>("/platform/operations/services");
+  return envelope.data;
+}
+
+export async function listOperationsMetrics(input: {
+  source: MetricSource;
+  metricKey?: string;
+  from: string;
+  to: string;
+}): Promise<MetricSample[]> {
+  const params = new URLSearchParams({ source: input.source, from: input.from, to: input.to });
+  if (input.metricKey) params.set("metricKey", input.metricKey);
+  const envelope = await request<Envelope<MetricSample[]>>(`/platform/operations/metrics?${params.toString()}`);
+  return envelope.data;
+}
+
+export async function getOperationsPresence(tenantId?: string): Promise<OperationsPresence> {
+  const params = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : "";
+  const envelope = await request<Envelope<OperationsPresence>>(`/platform/operations/presence${params}`);
+  return envelope.data;
+}
+
+export async function listOperationsIncidents(filter?: {
+  status?: OperationalIncidentStatus;
+  severity?: OperationalIncidentSeverity;
+  service?: string;
+}): Promise<OperationalIncidentSummary[]> {
+  const params = new URLSearchParams();
+  if (filter?.status) params.set("status", filter.status);
+  if (filter?.severity) params.set("severity", filter.severity);
+  if (filter?.service) params.set("service", filter.service);
+  const query = params.toString();
+  const envelope = await request<Envelope<OperationalIncidentSummary[]>>(`/platform/operations/incidents${query ? `?${query}` : ""}`);
+  return envelope.data;
+}
+
+export async function getOperationsIncident(incidentId: string): Promise<OperationalIncidentDetail> {
+  const envelope = await request<Envelope<OperationalIncidentDetail>>(`/platform/operations/incidents/${encodeURIComponent(incidentId)}`);
+  return envelope.data;
+}
+
+/** `Idempotency-Key` required — pass a fresh `generateIdempotencyKey()` value per distinct acknowledge click. */
+export async function acknowledgeOperationsIncident(input: {
+  incidentId: string;
+  csrfToken: string;
+  idempotencyKey: string;
+}): Promise<OperationalIncidentSummary> {
+  const envelope = await request<Envelope<OperationalIncidentSummary>>(
+    `/platform/operations/incidents/${encodeURIComponent(input.incidentId)}/acknowledge`,
+    { method: "POST", csrfToken: input.csrfToken, idempotencyKey: input.idempotencyKey },
+  );
+  return envelope.data;
+}
+
+export async function getAlertConfiguration(): Promise<AlertConfiguration> {
+  const envelope = await request<Envelope<AlertConfiguration>>("/platform/operations/alert-configuration");
+  return envelope.data;
+}
+
+/** `Idempotency-Key` required — pass a fresh `generateIdempotencyKey()` value per distinct save. */
+export async function updateAlertConfiguration(input: {
+  enabled: boolean;
+  severityThreshold: OperationalIncidentSeverity;
+  cooldownSeconds: number;
+  csrfToken: string;
+  idempotencyKey: string;
+}): Promise<AlertConfiguration> {
+  const envelope = await request<Envelope<AlertConfiguration>>("/platform/operations/alert-configuration", {
+    method: "PUT",
+    body: { enabled: input.enabled, severityThreshold: input.severityThreshold, cooldownSeconds: input.cooldownSeconds },
+    csrfToken: input.csrfToken,
+    idempotencyKey: input.idempotencyKey,
+  });
+  return envelope.data;
+}
+
+/** `Idempotency-Key` required — pass a fresh `generateIdempotencyKey()` value per distinct test send. */
+export async function sendAlertTest(input: { csrfToken: string; idempotencyKey: string }): Promise<AlertTestResult> {
+  const envelope = await request<Envelope<AlertTestResult>>("/platform/operations/alert-test", {
+    method: "POST",
+    csrfToken: input.csrfToken,
+    idempotencyKey: input.idempotencyKey,
+  });
   return envelope.data;
 }

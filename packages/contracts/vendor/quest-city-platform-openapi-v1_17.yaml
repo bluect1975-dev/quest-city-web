@@ -1,0 +1,1046 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.17.0
+  description: >-
+    Quest City API contract formalization for the Master Admin Operations
+    Control Center (02_42 v1.0, "Quest City Master Admin Operations Control
+    Center: Platform Observability, Incident and Telegram Alerting
+    Specification"). This file is additive: v1.2.0 through v1.16.0 remain
+    available unchanged as separate immutable artifacts; no prior path or
+    schema is removed or altered.
+
+    This is a CONTRACTS-ONLY release. It defines the read/mutation surface
+    for a Platform-Admin-only operational dashboard (platform status,
+    infrastructure metrics, school/staff/student/presence counts, incidents,
+    alert configuration) and does not itself implement any endpoint, any
+    metric collector, any incident detector, or any Telegram integration in
+    quest-city-web or any other repository. No endpoint in this file may be
+    implemented until this contract change set's own closure (merge to
+    canonical main) completes, per the two-phase contracts-then-
+    implementation pattern already used for every prior platform-domain
+    tranche (v1.8.0, v1.9.0/v1.10.0, v1.11.0, v1.13.x/v1.14.0).
+
+    Namespace: every path lives under `/platform/operations/...`, a
+    sub-namespace of the existing PLATFORM_ADMIN-only, cross-tenant
+    `/platform/...` namespace (v1.8.0, 02_38 §21) — not a new top-level
+    namespace and not a new session domain. All operations reuse
+    `platformSessionCookie`/`platformCsrfHeader` unchanged.
+
+    Capability mapping (capability-first authorization, 02_27 §5.3, reused
+    unmodified): nine new granular capabilities are introduced —
+    `operations.dashboard.view`, `operations.infrastructure.view`,
+    `operations.usage.view`, `operations.presence.view`,
+    `operations.errors.view`, `operations.incidents.view`,
+    `operations.incidents.manage`, `operations.alerting.view`,
+    `operations.alerting.manage`. Every one of them is illustrative-additive
+    to `PlatformCapability` (02_27 §5.3, 02_38 §4.1 convention), never a
+    generic `operations.all`/superuser capability. `operations.alerting.manage`
+    also governs `POST /platform/operations/alert-test` (02_42 §33) — no
+    separate test-send capability is introduced, to avoid capability
+    explosion for a single closely-related action pair (configure + test the
+    same channel).
+
+    Idempotency: `POST /platform/operations/incidents/{incidentId}/acknowledge`
+    and `POST /platform/operations/alert-test` are tenant-less PLATFORM_ADMIN
+    mutations and both require `Idempotency-Key`, reusing the nullable-
+    tenant_id `idempotency_record` mechanism already established by v1.8.0
+    (02_26 v1.10 §32.4) — `scope_key` is
+    `${actingPlatformAdminStaffAccountId}:${Idempotency-Key}`, scopes
+    `platform_operations_incident_acknowledge` and
+    `platform_operations_alert_test` respectively. `PUT
+    /platform/operations/alert-configuration` also requires `Idempotency-Key`
+    for the same reason (a configuration write with real delivery-channel
+    consequences).
+
+    New PLATFORM-domain error codes (ErrorEnvelope.code, closed enum in this
+    lineage per v1.8.0-v1.14.0 precedent — not opened by this file):
+    `INCIDENT_NOT_FOUND`, `INCIDENT_ALREADY_ACKNOWLEDGED`,
+    `ALERT_CONFIGURATION_INVALID`, `ALERT_CHANNEL_NOT_CONFIGURED`.
+
+    Severity reuse: `OperationalIncidentSeverity` reuses the SEV-1..SEV-4
+    scale already defined narratively by 07_06 §19 verbatim (02_42 §19-20) —
+    this file does not mint a parallel INFO/WARNING/HIGH/CRITICAL taxonomy.
+
+    Out of scope of this file: any metric-collector, health-checker,
+    incident-detector or Telegram-adapter implementation; any VPS/staging
+    deployment; any change to `feature/tranche-e-staging-operations` (paused,
+    unmerged, untouched by this file); any Roblox runtime change (suspended,
+    untouched).
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+security:
+- platformSessionCookie: []
+paths:
+  /platform/operations/overview:
+    get:
+      summary: Global platform status overview — health banner, KPI counts,
+        service-health summary, live concurrency, open incidents, last
+        backup, capability operations.dashboard.view (02_42 §39).
+      operationId: getOperationsOverview
+      security:
+      - platformSessionCookie: []
+      responses:
+        '200':
+          description: Platform overview snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationsOverviewResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+  /platform/operations/services:
+    get:
+      summary: Per-service health state (API, Student Web, Dashboard,
+        PostgreSQL, reverse proxy) plus host resource utilization, capability
+        operations.infrastructure.view (02_42 §16-17,§40).
+      operationId: listOperationsServices
+      security:
+      - platformSessionCookie: []
+      responses:
+        '200':
+          description: Service health list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceHealthListResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+  /platform/operations/metrics:
+    get:
+      summary: Bounded time-series read over operational_metric_sample
+        (infrastructure, usage, activity and error-aggregate metrics alike —
+        one generic metric surface, 02_42 §14,§36), capability
+        operations.infrastructure.view for HOST/CONTAINER/DATABASE/
+        REVERSE_PROXY/BACKUP/TLS sources, operations.usage.view for
+        APPLICATION-source usage/activity metrics, operations.errors.view for
+        APPLICATION-source error-aggregate metrics — the server checks the
+        capability matching the requested source/metricKey category, never a
+        single blanket metrics-read capability.
+      operationId: listOperationsMetrics
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - name: source
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/MetricSource'
+      - name: metricKey
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Metric sample series
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSampleListResponse'
+        '400':
+          description: VALIDATION_ERROR — `to` precedes `from`, or the
+            requested window exceeds the server's configured maximum lookback
+            (02_42 §37, bounded retention).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+  /platform/operations/presence:
+    get:
+      summary: Aggregate live presence counts (ONLINE/IDLE, students/staff,
+        current + peak today/7d/30d), optionally scoped to one tenant for
+        per-school drill-down. Never a named-student list (02_42 §41,§43),
+        capability operations.presence.view.
+      operationId: getOperationsPresence
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - name: tenantId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Optional per-tenant scope for the school-health drill-down
+          (02_42 §42). Omitted means platform-wide aggregate.
+      responses:
+        '200':
+          description: Presence aggregate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationsPresenceResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: TENANT_NOT_FOUND — the optional tenantId scope does not
+            resolve to an existing tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /platform/operations/incidents:
+    get:
+      summary: List operational_incident rows, filterable by status/severity/
+        service/time window, capability operations.incidents.view (02_42 §35).
+      operationId: listOperationsIncidents
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/OperationalIncidentStatus'
+      - name: severity
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/OperationalIncidentSeverity'
+      - name: service
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Incident list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalIncidentListResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+  /platform/operations/incidents/{incidentId}:
+    get:
+      summary: Get one operational_incident with its operational_incident_event
+        timeline (timeline/impact/containment/root-cause fields, 07_06 §19),
+        capability operations.incidents.view.
+      operationId: getOperationsIncident
+      security:
+      - platformSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/IncidentId'
+      responses:
+        '200':
+          description: Incident detail with timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalIncidentDetailResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+        '404':
+          description: INCIDENT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /platform/operations/incidents/{incidentId}/acknowledge:
+    post:
+      summary: Acknowledge an OPEN incident (ACK does not equal RESOLVED —
+        monitoring remains authoritative for recovery, 02_42 §34), capability
+        operations.incidents.manage.
+      operationId: acknowledgeOperationsIncident
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IncidentId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Incident acknowledged. A retry with the same
+            Idempotency-Key and the same incidentId replays this exact
+            response (DUPLICATE_SAME_PAYLOAD) — acknowledging an
+            already-acknowledged incident with the same key is never an
+            error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalIncidentResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN (invalid CSRF token) or
+            CAPABILITY_DENIED (missing operations.incidents.manage).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: INCIDENT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: IDEMPOTENCY_CONFLICT / IDEMPOTENCY_IN_PROGRESS, or
+            INCIDENT_ALREADY_ACKNOWLEDGED for a request using a fresh
+            Idempotency-Key against an incident already acknowledged by a
+            different prior request.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /platform/operations/alert-configuration:
+    get:
+      summary: Read the current Telegram alert-channel configuration. Never
+        returns the bot token or any credential value — CONFIGURED /
+        NOT_CONFIGURED plus masked recipient metadata only (02_42 §25),
+        capability operations.alerting.view.
+      operationId: getOperationsAlertConfiguration
+      security:
+      - platformSessionCookie: []
+      responses:
+        '200':
+          description: Alert configuration (credential-redacted)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertConfigurationResponse'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          $ref: '#/components/responses/CapabilityDenied'
+    put:
+      summary: Replace the Telegram alert-channel configuration (enabled,
+        severity threshold, cooldown). The credential reference itself is
+        never accepted in this request body — it is provisioned exclusively
+        through the server-side secret-management regime (07_06 §9), never
+        through this API (02_42 §25), capability operations.alerting.manage.
+      operationId: putOperationsAlertConfiguration
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertConfigurationRequest'
+      responses:
+        '200':
+          description: Alert configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertConfigurationResponse'
+        '400':
+          description: VALIDATION_ERROR or ALERT_CONFIGURATION_INVALID
+            (e.g. cooldownSeconds below the platform floor, or
+            severityThreshold outside SEV-1..SEV-4)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN or CAPABILITY_DENIED (missing
+            operations.alerting.manage).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: IDEMPOTENCY_CONFLICT / IDEMPOTENCY_IN_PROGRESS
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /platform/operations/alert-test:
+    post:
+      summary: Send a test alert through the currently configured channel
+        (02_42 §33). The message is clearly self-identified as TEST and is
+        never a real incident. Rate-limited independently of the general
+        platform rate limit (tighter window — repeated test sends are an
+        operator debugging action, not a normal traffic pattern), capability
+        operations.alerting.manage.
+      operationId: sendOperationsAlertTest
+      security:
+      - platformSessionCookie: []
+        platformCsrfHeader: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Test alert accepted for delivery. The response reports
+            the resulting alert_delivery.status at acceptance time
+            (PENDING/SENT/FAILED) — delivery to Telegram is asynchronous and
+            best-effort; a FAILED test-send result is never surfaced as an
+            HTTP error, since the request to send it was itself valid (02_42
+            §32).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertTestResponse'
+        '400':
+          description: ALERT_CHANNEL_NOT_CONFIGURED — no channel is
+            CONFIGURED (02_42 §25); there is nothing to test.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/PlatformUnauthorized'
+        '403':
+          description: PLATFORM_FORBIDDEN or CAPABILITY_DENIED (missing
+            operations.alerting.manage).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: IDEMPOTENCY_CONFLICT / IDEMPOTENCY_IN_PROGRESS
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+components:
+  securitySchemes:
+    platformSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_platform_session
+      description: HttpOnly, Secure, SameSite=Lax opaque platform session token
+        (unchanged mechanism, v1.8.0). Carries no tenant scope; every
+        cross-tenant read below is still gated by an explicit capability.
+    platformCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Synchronizer-token CSRF protection, unchanged mechanism,
+        v1.8.0.
+  parameters:
+    IncidentId:
+      name: incidentId
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Reuses the nullable-tenant_id idempotency_record mechanism
+        (v1.8.0). Scope name per operation is documented in this file's
+        info.description.
+  headers:
+    RetryAfter:
+      description: Seconds until the fixed-window rate limit resets, or until
+        the in-flight idempotent request is expected to finish.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    PlatformUnauthorized:
+      description: PLATFORM_AUTH_REQUIRED — no valid platform session
+        (PLATFORM domain)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    CapabilityDenied:
+      description: CAPABILITY_DENIED — authenticated as a platform admin but
+        lacking the specific capability this operation requires (02_27 §5.3).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Fixed-window rate limit exceeded (PLATFORM domain,
+        RATE_LIMITED)
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - PLATFORM_AUTH_REQUIRED
+          - PLATFORM_FORBIDDEN
+          - CAPABILITY_DENIED
+          - VALIDATION_ERROR
+          - RATE_LIMITED
+          - IDEMPOTENCY_CONFLICT
+          - IDEMPOTENCY_IN_PROGRESS
+          - TENANT_NOT_FOUND
+          - INCIDENT_NOT_FOUND
+          - INCIDENT_ALREADY_ACKNOWLEDGED
+          - ALERT_CONFIGURATION_INVALID
+          - ALERT_CHANNEL_NOT_CONFIGURED
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+
+    PlatformCapability:
+      type: string
+      enum:
+      - operations.dashboard.view
+      - operations.infrastructure.view
+      - operations.usage.view
+      - operations.presence.view
+      - operations.errors.view
+      - operations.incidents.view
+      - operations.incidents.manage
+      - operations.alerting.view
+      - operations.alerting.manage
+      description: Nine new granular capabilities introduced by this file
+        (02_42 §19-20). Illustrative-additive to the PlatformCapability
+        vocabulary already exemplified by v1.8.0/02_27 §5.3/02_38 §4.1 — this
+        enum is scoped to what this file introduces, not the full historical
+        union already granted by earlier files. No generic
+        "operations.all"/superuser capability is introduced or permitted.
+
+    MetricSource:
+      type: string
+      enum:
+      - APPLICATION
+      - DATABASE
+      - HOST
+      - CONTAINER
+      - REVERSE_PROXY
+      - BACKUP
+      - TLS
+      - EXTERNAL_MONITOR
+      description: Provider-neutral metric source taxonomy (02_42 §14). The
+        first implementation is LOCAL for every source; EXTERNAL_MONITOR and
+        remote HOST/CONTAINER values are reserved for a future staging/VPS
+        source without requiring a contract change (02_42 §13).
+
+    MetricSampleStatus:
+      type: string
+      enum:
+      - OK
+      - WARNING
+      - CRITICAL
+      - UNKNOWN
+
+    MetricSample:
+      type: object
+      required:
+      - source
+      - metricKey
+      - value
+      - unit
+      - sampledAt
+      - status
+      properties:
+        source:
+          $ref: '#/components/schemas/MetricSource'
+        metricKey:
+          type: string
+        value:
+          type: number
+        unit:
+          type: string
+        sampledAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/MetricSampleStatus'
+        threshold:
+          type:
+          - number
+          - 'null'
+
+    MetricSampleListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricSample'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    ServiceHealthState:
+      type: string
+      enum:
+      - HEALTHY
+      - DEGRADED
+      - CRITICAL
+      - UNKNOWN
+      description: Deterministic aggregation rules defined in 02_42 §16-17 —
+        not decided client-side.
+
+    ServiceHealthEntry:
+      type: object
+      required:
+      - service
+      - state
+      - checkedAt
+      properties:
+        service:
+          type: string
+        state:
+          $ref: '#/components/schemas/ServiceHealthState'
+        checkedAt:
+          type: string
+          format: date-time
+        latencyMs:
+          type:
+          - number
+          - 'null'
+        detail:
+          type: object
+          additionalProperties: true
+
+    ServiceHealthListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - platformStatus
+          - services
+          properties:
+            platformStatus:
+              $ref: '#/components/schemas/ServiceHealthState'
+            services:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceHealthEntry'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    OperationsOverviewResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - platformStatus
+          - kpi
+          - openIncidents
+          - lastBackup
+          properties:
+            platformStatus:
+              $ref: '#/components/schemas/ServiceHealthState'
+            kpi:
+              type: object
+              additionalProperties: true
+              description: schools total/active/suspended, independent
+                educators total, classes total, staff total (unique humans +
+                active memberships), students enrolled, students/staff online
+                now, active learning attempts, requests/minute, error rate
+                (02_42 §39) — flat key/value for dashboard cards, exact key
+                set documented in 02_42 §39, additive-only across future
+                versions of this contract.
+            openIncidents:
+              type: integer
+            lastBackup:
+              type: object
+              additionalProperties: true
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    OperationsPresenceResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - concurrentStudents
+          - concurrentStaff
+          - concurrentTotal
+          - peak
+          properties:
+            concurrentStudents:
+              type: integer
+            concurrentStaff:
+              type: integer
+            concurrentTotal:
+              type: integer
+            tenantId:
+              type:
+              - string
+              - 'null'
+            peak:
+              type: object
+              additionalProperties: true
+              description: peakStudentsToday/7d/30d, peakStaffToday/7d/30d,
+                peakTotalToday/7d/30d (02_42 §10).
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    OperationalIncidentSeverity:
+      type: string
+      enum:
+      - SEV-1
+      - SEV-2
+      - SEV-3
+      - SEV-4
+      description: Reused verbatim from 07_06 §19 (SEV-1 esposizione dati/
+        indisponibilità completa/perdita o corruzione; SEV-2 login o attempt
+        bloccati per molte classi; SEV-3 funzione degradata con workaround;
+        SEV-4 difetto minore o problema cosmetico) — never a parallel
+        INFO/WARNING/HIGH/CRITICAL taxonomy (02_42 §19).
+
+    OperationalIncidentStatus:
+      type: string
+      enum:
+      - OPEN
+      - ACKNOWLEDGED
+      - RESOLVED
+      - SUPPRESSED
+
+    OperationalIncident:
+      type: object
+      required:
+      - id
+      - publicId
+      - type
+      - severity
+      - source
+      - service
+      - summary
+      - status
+      - firstSeenAt
+      - lastSeenAt
+      - occurrenceCount
+      properties:
+        id:
+          type: string
+        publicId:
+          type: string
+        type:
+          type: string
+        severity:
+          $ref: '#/components/schemas/OperationalIncidentSeverity'
+        source:
+          $ref: '#/components/schemas/MetricSource'
+        service:
+          type: string
+        summary:
+          type: string
+        status:
+          $ref: '#/components/schemas/OperationalIncidentStatus'
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        occurrenceCount:
+          type: integer
+        acknowledgedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        acknowledgedBy:
+          type:
+          - string
+          - 'null'
+        resolvedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        resolutionType:
+          type:
+          - string
+          - 'null'
+        tenantId:
+          type:
+          - string
+          - 'null'
+
+    OperationalIncidentEvent:
+      type: object
+      required:
+      - id
+      - incidentId
+      - eventType
+      - createdAt
+      properties:
+        id:
+          type: string
+        incidentId:
+          type: string
+        eventType:
+          type: string
+        detail:
+          type: object
+          additionalProperties: true
+        actorType:
+          type:
+          - string
+          - 'null'
+        actorId:
+          type:
+          - string
+          - 'null'
+        createdAt:
+          type: string
+          format: date-time
+
+    OperationalIncidentListResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationalIncident'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    OperationalIncidentResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/OperationalIncident'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    OperationalIncidentDetailResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - incident
+          - events
+          properties:
+            incident:
+              $ref: '#/components/schemas/OperationalIncident'
+            events:
+              type: array
+              items:
+                $ref: '#/components/schemas/OperationalIncidentEvent'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AlertConfigurationStatus:
+      type: string
+      enum:
+      - CONFIGURED
+      - NOT_CONFIGURED
+
+    AlertConfigurationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - enabled
+      - severityThreshold
+      - cooldownSeconds
+      properties:
+        enabled:
+          type: boolean
+        severityThreshold:
+          $ref: '#/components/schemas/OperationalIncidentSeverity'
+          description: Minimum severity that triggers Telegram delivery
+            (02_42 §29). Below-threshold severities remain visible in the
+            Control Center only.
+        cooldownSeconds:
+          type: integer
+          minimum: 60
+          description: Minimum seconds between repeat Telegram notifications
+            for the same deduplication key (02_42 §28). A platform-wide floor
+            below which no value is accepted, enforced server-side
+            (ALERT_CONFIGURATION_INVALID below the floor).
+
+    AlertConfigurationResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - status
+          - enabled
+          - severityThreshold
+          - cooldownSeconds
+          properties:
+            status:
+              $ref: '#/components/schemas/AlertConfigurationStatus'
+            enabled:
+              type: boolean
+            severityThreshold:
+              $ref: '#/components/schemas/OperationalIncidentSeverity'
+            cooldownSeconds:
+              type: integer
+            recipientMasked:
+              type:
+              - string
+              - 'null'
+              description: Masked recipient metadata only (e.g. a partially
+                redacted chat identifier) — never the bot token, never the
+                full unredacted recipient value (02_42 §25).
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AlertDeliveryStatus:
+      type: string
+      enum:
+      - PENDING
+      - SENT
+      - FAILED
+
+    AlertTestResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - deliveryStatus
+          - sentAt
+          properties:
+            deliveryStatus:
+              $ref: '#/components/schemas/AlertDeliveryStatus'
+            sentAt:
+              type: string
+              format: date-time
+            failureCategory:
+              type:
+              - string
+              - 'null'
+        meta:
+          $ref: '#/components/schemas/Meta'
