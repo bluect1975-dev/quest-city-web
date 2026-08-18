@@ -25,8 +25,15 @@ apps/dashboard/next.config.ts, apps/student-web/next.config.ts
 # only because it blocks `verify.sh`'s mandatory check:duplicates gate.
 # Re-verified genuinely byte-identical (`diff`) before adding, same
 # discipline as the R3B-FIX note above.
-packages/attempts/tsconfig.json, packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/convergence/tsconfig.json, packages/i18n/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/platform-admin/tsconfig.json, packages/staff-identity/tsconfig.json, packages/student-support/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
-packages/attempts/vitest.config.ts, packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/convergence/vitest.config.ts, packages/i18n/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/platform-admin/vitest.config.ts, packages/staff-identity/vitest.config.ts, packages/student-support/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
+# MASTER-ADMIN-OPERATIONS-CONTROL-CENTER (2026-08-18): packages/operations
+# added by this change set with the same standard boilerplate
+# tsconfig.json/vitest.config.ts as every other sibling package (bytes
+# copied directly from packages/platform-admin's committed file, so no
+# CRLF/LF drift versus this working tree's checkout). packages/operations
+# and packages/learning-path-control were both genuine pre-existing
+# allowlist omissions (same class as the GLPC-LAUNCH note above).
+packages/attempts/tsconfig.json, packages/content-runtime/tsconfig.json, packages/content-schema/tsconfig.json, packages/contracts/tsconfig.json, packages/convergence/tsconfig.json, packages/i18n/tsconfig.json, packages/identity/tsconfig.json, packages/learning-engines/tsconfig.json, packages/learning-path-control/tsconfig.json, packages/operations/tsconfig.json, packages/platform-admin/tsconfig.json, packages/staff-identity/tsconfig.json, packages/student-support/tsconfig.json, packages/telemetry/tsconfig.json, packages/test-fixtures/tsconfig.json, packages/theme-system/tsconfig.json
+packages/attempts/vitest.config.ts, packages/content-runtime/vitest.config.ts, packages/content-schema/vitest.config.ts, packages/convergence/vitest.config.ts, packages/i18n/vitest.config.ts, packages/identity/vitest.config.ts, packages/learning-engines/vitest.config.ts, packages/learning-path-control/vitest.config.ts, packages/operations/vitest.config.ts, packages/platform-admin/vitest.config.ts, packages/staff-identity/vitest.config.ts, packages/student-support/vitest.config.ts, packages/telemetry/vitest.config.ts, packages/test-fixtures/vitest.config.ts, packages/theme-system/vitest.config.ts
 packages/attempts/src/repository/types.ts, packages/convergence/src/repository/types.ts, packages/identity/src/repository/types.ts, packages/platform-admin/src/repository/types.ts, packages/staff-identity/src/repository/types.ts
 # Single-line `/// <reference types="@testing-library/jest-dom/vitest" />`
 # stub (WEB-M3B FVR), needed inside each package's own tsconfig `include`
