@@ -63,6 +63,56 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Dependency/CVE scan (Tranche E design report §36)
+        # Blocking on HIGH/CRITICAL with a documented, time-boxed exception
+        # mechanism (tools/audit-exceptions.json) — see
+        # tools/check-dependency-audit.mjs. pnpm audit's own exit code is
+        # NOT the gate here (it exits non-zero on ANY finding, including
+        # LOW/MODERATE we deliberately don't block on) —
+        # check-dependency-audit.mjs's exit code is. The parenthesized
+        # subshell with `|| true` ensures the JSON is still piped through
+        # even when `pnpm audit` itself exits non-zero.
+        run: (pnpm audit --json || true) | node tools/check-dependency-audit.mjs
+
+  container-scan:
+    name: Container image vulnerability scan (Trivy, Tranche E design report §37)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    strategy:
+      matrix:
+        image: [api, dashboard, student-web]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.image }} image (commit-SHA tagged, digest recorded — design report §38)
+        run: |
+          docker build \
+            -f infrastructure/containers/${{ matrix.image }}.Dockerfile \
+            -t quest-city-web-${{ matrix.image }}:${{ github.sha }} \
+            .
+          DIGEST="$(docker inspect --format='{{index .Id}}' quest-city-web-${{ matrix.image }}:${{ github.sha }})"
+          echo "Built quest-city-web-${{ matrix.image }}:${{ github.sha }} — image ID ${DIGEST}"
+          echo "image_id=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan ${{ matrix.image }} image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "quest-city-web-${{ matrix.image }}:${{ github.sha }}"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: true
+          exit-code: "1"
+          format: "table"
+
+      # No push/publish step: this repository has no configured registry
+      # credentials, and Tranche E is design+implementation only — no
+      # external cloud resource is created by this workflow (mission §64
+      # applied to CI as well as to the operator). The mechanism (build,
+      # commit-SHA tag, digest, scan) is real and already runs on every
+      # push/PR; wiring a `docker push` behind real registry secrets is a
+      # one-line addition at the point those secrets are actually
+      # provisioned — see the Tranche E closure report's "next inputs
+      # required" section.
+
   integration:
     name: Docker compose + integration tests (WEB-M0/M1/M2B, real Postgres)
     runs-on: ubuntu-latest

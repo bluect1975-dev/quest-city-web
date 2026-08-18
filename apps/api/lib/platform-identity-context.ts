@@ -25,7 +25,11 @@ function getPlatformAdminPool(): Pool {
     pool = new Pool({
       connectionString: env.databaseUrl,
       ssl: env.databaseSsl ? { rejectUnauthorized: true } : undefined,
-      max: 10,
+      max: env.dbPoolPlatformIdentityMax,
+      idleTimeoutMillis: env.dbPoolPlatformIdentityIdleTimeoutMs,
+      // 0 (the default) means "no timeout" — pg's own default behavior, so
+      // passing it through explicitly changes nothing unless overridden.
+      connectionTimeoutMillis: env.dbPoolPlatformIdentityConnectionTimeoutMs,
     });
   }
   return pool;

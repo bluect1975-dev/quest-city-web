@@ -22,7 +22,9 @@
     "bootstrap:platform-admin": "tsx bootstrap-platform-admin.ts",
     "generate:theme-assets": "tsx generate-theme-assets.ts",
     "check:duplicates": "node check-duplicates.mjs",
-    "check:filenames": "node check-filenames.mjs"
+    "check:filenames": "node check-filenames.mjs",
+    "validate:staging-env": "node validate-staging-env.mjs",
+    "check:dependency-audit": "node check-dependency-audit.mjs"
   },
   "dependencies": {
     "@quest-city-web/content-runtime": "workspace:*",

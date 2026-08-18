@@ -169,4 +169,60 @@ describe("loadEnv", () => {
       expect(pepperB64).not.toContain(env.sessionCookieName);
     });
   });
+
+  describe("Tranche E — per-pool connection tuning (design report §19)", () => {
+    it("defaults reproduce the values every pool hardcoded before these variables existed", () => {
+      const env = loadEnv(baseSource());
+      expect(env.dbPoolHealthMax).toBe(5);
+      expect(env.dbPoolHealthIdleTimeoutMs).toBe(10000);
+      expect(env.dbPoolAttemptsMax).toBe(10);
+      expect(env.dbPoolAttemptsIdleTimeoutMs).toBe(10000);
+      expect(env.dbPoolAttemptsConnectionTimeoutMs).toBe(0);
+      expect(env.dbPoolIdentityMax).toBe(10);
+      expect(env.dbPoolIdentityIdleTimeoutMs).toBe(10000);
+      expect(env.dbPoolIdentityConnectionTimeoutMs).toBe(0);
+      expect(env.dbPoolStaffIdentityMax).toBe(10);
+      expect(env.dbPoolStaffIdentityIdleTimeoutMs).toBe(10000);
+      expect(env.dbPoolStaffIdentityConnectionTimeoutMs).toBe(0);
+      expect(env.dbPoolPlatformIdentityMax).toBe(10);
+      expect(env.dbPoolPlatformIdentityIdleTimeoutMs).toBe(10000);
+      expect(env.dbPoolPlatformIdentityConnectionTimeoutMs).toBe(0);
+    });
+
+    it("honors staging-style overrides for every pool independently", () => {
+      const env = loadEnv(
+        baseSource({
+          DB_POOL_HEALTH_MAX: "2",
+          DB_POOL_ATTEMPTS_MAX: "8",
+          DB_POOL_ATTEMPTS_IDLE_TIMEOUT_MS: "30000",
+          DB_POOL_ATTEMPTS_CONNECTION_TIMEOUT_MS: "5000",
+          DB_POOL_IDENTITY_MAX: "6",
+          DB_POOL_STAFF_IDENTITY_MAX: "6",
+          DB_POOL_PLATFORM_IDENTITY_MAX: "4",
+        }),
+      );
+      expect(env.dbPoolHealthMax).toBe(2);
+      expect(env.dbPoolAttemptsMax).toBe(8);
+      expect(env.dbPoolAttemptsIdleTimeoutMs).toBe(30000);
+      expect(env.dbPoolAttemptsConnectionTimeoutMs).toBe(5000);
+      expect(env.dbPoolIdentityMax).toBe(6);
+      expect(env.dbPoolStaffIdentityMax).toBe(6);
+      expect(env.dbPoolPlatformIdentityMax).toBe(4);
+    });
+
+    it("accepts an explicit 0 connection timeout (pg's own 'wait indefinitely' default)", () => {
+      const env = loadEnv(baseSource({ DB_POOL_IDENTITY_CONNECTION_TIMEOUT_MS: "0" }));
+      expect(env.dbPoolIdentityConnectionTimeoutMs).toBe(0);
+    });
+
+    it("rejects a negative pool max", () => {
+      expect(() => loadEnv(baseSource({ DB_POOL_ATTEMPTS_MAX: "-1" }))).toThrow(/DB_POOL_ATTEMPTS_MAX/);
+    });
+
+    it("rejects a negative idle timeout", () => {
+      expect(() => loadEnv(baseSource({ DB_POOL_ATTEMPTS_IDLE_TIMEOUT_MS: "-1" }))).toThrow(
+        /DB_POOL_ATTEMPTS_IDLE_TIMEOUT_MS/,
+      );
+    });
+  });
 });

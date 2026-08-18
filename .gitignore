@@ -34,3 +34,26 @@ Thumbs.db
 
 # Database data volumes (local dev only)
 infrastructure/database/data/
+
+# Staging TLS material (Tranche E) — generated locally by
+# generate-staging-db-tls.sh, never committed. See
+# infrastructure/database/staging-tls/README.md.
+infrastructure/database/staging-tls/generated/
+
+# Staging backup output (Tranche E local/test target — real off-site storage
+# is external to the repo working tree; this is only the "local" adapter's
+# default destination, see BACKUP_TARGET_ADAPTER in .env.staging.example).
+infrastructure/backups/
+
+# Staging TLS certificate/ACME material for the nginx edge (Tranche E) —
+# populated at implementation time by whichever mechanism is chosen
+# (ACME client / provider-managed gateway), never committed. See
+# nginx.staging.conf's header comment.
+infrastructure/reverse-proxy/staging-tls-certs/*
+!infrastructure/reverse-proxy/staging-tls-certs/.gitkeep
+infrastructure/reverse-proxy/staging-acme-webroot/*
+!infrastructure/reverse-proxy/staging-acme-webroot/.gitkeep
+
+# Staging env file with real values (the *.example template is committed,
+# the real file never is — same convention as .env/.env.local above).
+.env.staging

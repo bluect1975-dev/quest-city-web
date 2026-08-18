@@ -1,0 +1,335 @@
+# Quest City Web — STAGING environment (Tranche E; 07_06 §3-§7). Separate
+# file from `docker-compose.yml` (local dev, plain HTTP, bind-mounted
+# Postgres, hardcoded local-only password) — local dev is completely
+# untouched by this file and everything in it.
+#
+# Run from the repository root:
+#   docker compose -p quest-city-web-staging \
+#     -f infrastructure/deployment/docker-compose.staging.yml \
+#     --env-file .env.staging up -d
+#
+# The explicit -p (COMPOSE_PROJECT_NAME) is mandatory (mission §34/§55) —
+# never rely on the default (directory-name-derived) project name, which
+# risks colliding with an unrelated stack on the same host.
+#
+# Design report cross-references: topology §7, network exposure §8, TLS §9,
+# DB TLS §10, security headers §11, rate limiting §12, secrets §14, DB
+# persistence §18, connection pools §19, container hardening §31.
+
+services:
+  # Tranche E mission §6/§57: fail-fast staging environment guard. Runs to
+  # completion BEFORE `api` starts (service_completed_successfully below) —
+  # a real orchestration-level gate, not an in-process check. See
+  # tools/validate-staging-env.mjs.
+  staging-guard:
+    image: node:24-slim
+    env_file:
+      - ../../.env.staging
+    volumes:
+      - ../../tools/validate-staging-env.mjs:/validate-staging-env.mjs:ro
+    command: ["node", "/validate-staging-env.mjs"]
+    networks:
+      - qc-staging-internal
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    image: postgres:17.2-alpine
+    restart: unless-stopped
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+    env_file:
+      - ../../.env.staging
+    environment:
+      POSTGRES_DB: quest_city_web
+      POSTGRES_USER: quest_city_web
+      # POSTGRES_PASSWORD is intentionally NOT set here — it is read from
+      # .env.staging (gitignored, real staging-only value), never a literal
+      # in this committed file (design report §14: "Nessun valore segreto
+      # in docker-compose.yml versionato").
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:?STAGING_POSTGRES_PASSWORD is required — set it in .env.staging, never a literal here.}
+    # Design report §10: TLS on, hostssl-only pg_hba, both sourced from
+    # infrastructure/database/staging-tls/ (generated cert/key never
+    # committed — see that directory's README.md).
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/var/lib/postgresql/tls/server.crt
+      - -c
+      - ssl_key_file=/var/lib/postgresql/tls/server.key
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - hba_file=/etc/postgresql-staging/pg_hba.staging.conf
+    volumes:
+      # Design report §18: NAMED volume, never the local-dev bind mount
+      # (../database/data) — genuinely Docker-managed persistence, not a
+      # path inside the repository working tree.
+      - qc_staging_pg_data:/var/lib/postgresql/data
+      - ../database/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ../database/staging-tls/generated/server.crt:/var/lib/postgresql/tls/server.crt:ro
+      - ../database/staging-tls/generated/server.key:/var/lib/postgresql/tls/server.key:ro
+      - ../database/staging-tls/pg_hba.staging.conf:/etc/postgresql-staging/pg_hba.staging.conf:ro
+    # design report §8: DB never exposed to the host at all in staging —
+    # no `ports:` block, unlike the local-dev compose file's loopback bind.
+    networks:
+      - qc-staging-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quest_city_web -d quest_city_web"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 90s
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      # Local/test log sink by default (design report §26: Docker's own
+      # logging driver, no custom shipper written from scratch). Swap the
+      # driver to `syslog`/`fluentd`/`gelf` pointing at a real external
+      # endpoint once one is provisioned — no application or compose
+      # structure change needed beyond this block, for every service below.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../../.env.staging
+    environment:
+      # Trust the specific self-signed staging Postgres certificate for
+      # `rejectUnauthorized: true` validation (design report §10;
+      # infrastructure/database/staging-tls/README.md) — a targeted,
+      # single-certificate trust addition, never a weakening of
+      # rejectUnauthorized itself.
+      NODE_EXTRA_CA_CERTS: /run/secrets/postgres-staging-ca.crt
+    volumes:
+      - ../database/staging-tls/generated/server.crt:/run/secrets/postgres-staging-ca.crt:ro
+    networks:
+      - qc-staging-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Next.js standalone needs a writable /tmp for its own cache; the rest
+    # of the filesystem (the build output copied into the image) has no
+    # legitimate reason to be written to at runtime.
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.75"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  student-web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/student-web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+    env_file:
+      - ../../.env.staging
+    networks:
+      - qc-staging-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/w').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/dashboard.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+    env_file:
+      - ../../.env.staging
+    networks:
+      - qc-staging-internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/dashboard').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ../reverse-proxy/nginx.staging.conf:/etc/nginx/nginx.conf:ro
+      # Certificate directory populated by whichever mechanism is chosen at
+      # implementation time (ACME companion / provider-managed gateway) —
+      # see nginx.staging.conf's header comment and the Certificate
+      # Renewal/Failure Runbook. Never committed.
+      - ${NGINX_TLS_CERT_DIR:-../reverse-proxy/staging-tls-certs}:/etc/nginx/tls:ro
+      - ../reverse-proxy/staging-acme-webroot:/var/www/acme
+    ports:
+      # Design report §8: ONLY 80 (redirect/ACME) and 443 (HTTPS) —
+      # deliberately not the local-dev compose's 8080, and no other port.
+      - "80:80"
+      - "443:443"
+    depends_on:
+      api:
+        condition: service_healthy
+      student-web:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+    networks:
+      - qc-staging-internal
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Design report §21-23: one-shot ops services, never started by a plain
+  # `up` (the "ops" profile keeps them out of the default set) — invoked
+  # explicitly:
+  #   docker compose -p quest-city-web-staging -f docker-compose.staging.yml \
+  #     --env-file .env.staging --profile ops run --rm backup
+  #   docker compose -p quest-city-web-staging -f docker-compose.staging.yml \
+  #     --env-file .env.staging --profile ops run --rm restore-drill
+  backup:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/staging-ops.Dockerfile
+    profiles: ["ops"]
+    env_file:
+      - ../../.env.staging
+    volumes:
+      - staging_backup_local_target:/var/backups/quest-city-web/offsite
+    command: ["node", "backup-staging-db.mjs"]
+    networks:
+      - qc-staging-internal
+    security_opt:
+      - no-new-privileges:true
+
+  restore-drill:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/staging-ops.Dockerfile
+    profiles: ["ops"]
+    env_file:
+      - ../../.env.staging
+    environment:
+      # MUST point at an isolated database, never RESTORE_TARGET_DATABASE_URL
+      # == the staging DATABASE_URL — see the Restore Runbook. Left
+      # unresolved by design (`:?`) so an operator cannot forget to point
+      # this somewhere safe.
+      RESTORE_TARGET_DATABASE_URL: ${RESTORE_TARGET_DATABASE_URL:?RESTORE_TARGET_DATABASE_URL is required and must be an ISOLATED database, never the staging DATABASE_URL.}
+    volumes:
+      - staging_backup_local_target:/var/backups/quest-city-web/offsite
+    command: ["node", "restore-staging-db.mjs"]
+    networks:
+      - qc-staging-internal
+    security_opt:
+      - no-new-privileges:true
+
+  # Design report §27: minimum monitoring, scheduled externally (cron/systemd
+  # timer on the host, or an external scheduler) — this service definition
+  # exists so `docker compose run healthcheck` is the one canonical way to
+  # invoke it, whatever triggers that invocation.
+  healthcheck:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/staging-ops.Dockerfile
+    profiles: ["ops"]
+    env_file:
+      - ../../.env.staging
+    volumes:
+      - staging_backup_local_target:/var/backups/quest-city-web/offsite
+    command: ["node", "staging-healthcheck.mjs"]
+    networks:
+      - qc-staging-internal
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  qc-staging-internal:
+    driver: bridge
+
+volumes:
+  qc_staging_pg_data:
+  # Local/test backup target adapter's default destination (design report
+  # §18) — NOT the real off-site EU target. See BACKUP_TARGET_ADAPTER in
+  # .env.staging.example and the Backup Runbook for what closes GAP-02 for
+  # real.
+  staging_backup_local_target:

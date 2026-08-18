@@ -43,7 +43,11 @@ function getStaffIdentityPool(): Pool {
     pool = new Pool({
       connectionString: env.databaseUrl,
       ssl: env.databaseSsl ? { rejectUnauthorized: true } : undefined,
-      max: 10,
+      max: env.dbPoolStaffIdentityMax,
+      idleTimeoutMillis: env.dbPoolStaffIdentityIdleTimeoutMs,
+      // 0 (the default) means "no timeout" — pg's own default behavior, so
+      // passing it through explicitly changes nothing unless overridden.
+      connectionTimeoutMillis: env.dbPoolStaffIdentityConnectionTimeoutMs,
     });
   }
   return pool;

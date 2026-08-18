@@ -1,0 +1,4 @@
+{
+  "$comment": "Tranche E design report §36 / mission §25: dependency-scan false-positive handling. Each entry MUST carry a real justification and an expiry — an exception is a documented, time-boxed decision, never a silent permanent suppression. check-dependency-audit.mjs refuses to honor an entry past its expiresOn date, and CI fails loudly rather than treating an expired exception as still valid.",
+  "exceptions": []
+}
