@@ -247,6 +247,8 @@ export interface OperationalIncidentSummary {
   resolvedAt: string | null;
   resolutionType: string | null;
   tenantId: string | null;
+  /** Tranche E2 (02_42 v1.2 §60, §63): true only for an incident retroactively recorded after an already-sent Level 1 direct Telegram notification -- never a real-time observation. */
+  backfilled: boolean;
 }
 
 export interface OperationalIncidentEventSummary {

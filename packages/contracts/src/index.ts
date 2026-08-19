@@ -70,6 +70,24 @@
  * array (student/staff/platform, inclusive-OR) so any one of the three
  * session domains may call it. No `Idempotency-Key` (naturally idempotent,
  * server-side coalescing already bounds effect).
+ *
+ * `vendor/quest-city-platform-openapi-v1_19.yaml` (provenance in
+ * `vendor/provenance-v1_19.json`) is the Tranche E2 out-of-band external
+ * monitoring contract (`02_42 v1.2` PARTE U, §52-73): `POST
+ * /platform/operations/external-monitor-report`, additive over v1.18.0.
+ * New dedicated machine-to-machine security scheme `externalMonitorHmac`
+ * (HMAC-SHA256 request signing over `X-QC-Monitor-Timestamp/Nonce/
+ * Signature/Key-Id`) — never a session cookie, CSRF token, or Basic Auth,
+ * and grants zero `PlatformCapability` values. No `Idempotency-Key`
+ * (`observationId` in the request body is already the domain-level
+ * idempotency key, independently backed by protocol-level `nonce`
+ * anti-replay — a different rationale than v1.18.0's naturally-idempotent
+ * heartbeat). Severity is deliberately absent from the request schema
+ * (always server-derived from `conditionType`). Seven new PLATFORM-domain
+ * `ErrorEnvelope.code` values. This is the Level 2 (VPS reachable but
+ * degraded) surface only — Level 1 direct Telegram fallback and the
+ * GitHub Actions workflow that would call this endpoint are out of scope
+ * for the Web implementation consuming this contract version.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";

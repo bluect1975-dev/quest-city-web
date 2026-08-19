@@ -24,6 +24,8 @@ export interface OperationalIncident {
   resolutionType: string | null;
   tenantId: string | null;
   lastNotifiedAt: Date | null;
+  /** Tranche E2 (02_42 v1.2 §60, §63, §65) -- true only for a row inserted via `createBackfilled`. Never flips true->false or false->true after insert. */
+  backfilled: boolean;
 }
 
 interface OperationalIncidentRow {
@@ -45,11 +47,12 @@ interface OperationalIncidentRow {
   resolution_type: string | null;
   tenant_id: string | null;
   last_notified_at: Date | null;
+  backfilled: boolean;
 }
 
 const SELECT_COLUMNS = `id, public_id, type, severity, source, service, summary, status, dedup_key,
   first_seen_at, last_seen_at, occurrence_count, acknowledged_at, acknowledged_by_staff_account_id,
-  resolved_at, resolution_type, tenant_id, last_notified_at`;
+  resolved_at, resolution_type, tenant_id, last_notified_at, backfilled`;
 
 function mapRow(row: OperationalIncidentRow): OperationalIncident {
   return {
@@ -71,6 +74,7 @@ function mapRow(row: OperationalIncidentRow): OperationalIncident {
     resolutionType: row.resolution_type,
     tenantId: row.tenant_id,
     lastNotifiedAt: row.last_notified_at,
+    backfilled: row.backfilled,
   };
 }
 
@@ -118,6 +122,87 @@ export class OperationalIncidentRepository {
     );
     const [row] = result.rows;
     if (!row) throw new Error("INSERT ... RETURNING produced no row");
+    return mapRow(row);
+  }
+
+  /**
+   * Tranche E2 backfill insert (02_42 v1.2 §60): reconstructs an incident
+   * retroactively AFTER it was already notified out-of-band by the
+   * Level 1 direct Telegram fallback -- `first_seen_at`/`resolved_at` are
+   * the caller-supplied historical timestamps, never `now()` (unlike
+   * every other write path on this table), so the Control Center never
+   * gives the false impression it observed the incident in real time
+   * (02_42 §60, §63). `resolvedAt: null` reconstructs a still-open
+   * incident (status OPEN); a non-null `resolvedAt` reconstructs an
+   * already-closed one (status RESOLVED) in a single insert -- there is
+   * no intermediate OPEN row to create and then resolve, since neither
+   * transition happened through this Control Center in real time.
+   * Callers MUST NOT invoke `AlertChannelAdapter` for a row created here
+   * (02_42 §60: a backfill never generates a second Telegram
+   * notification) -- enforced by the caller (ExternalMonitorReportService),
+   * not by this repository method itself.
+   */
+  async createBackfilled(input: {
+    type: string;
+    severity: OperationalIncidentSeverity;
+    source: MetricSource;
+    service: string;
+    summary: string;
+    tenantId?: string | null;
+    detectedAt: Date;
+    resolvedAt: Date | null;
+  }): Promise<OperationalIncident> {
+    const publicId = `inc_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
+    const dedupKey = buildIncidentDedupKey(input.type, input.service, input.source);
+    const status = input.resolvedAt ? "RESOLVED" : "OPEN";
+    const resolutionType = input.resolvedAt ? "EXTERNAL_MONITOR_BACKFILL" : null;
+    const result = await this.db.query<OperationalIncidentRow>(
+      `INSERT INTO operational_incident
+         (public_id, type, severity, source, service, summary, dedup_key, tenant_id,
+          first_seen_at, last_seen_at, status, resolved_at, resolution_type, backfilled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, $12, true)
+       RETURNING ${SELECT_COLUMNS}`,
+      [
+        publicId,
+        input.type,
+        input.severity,
+        input.source,
+        input.service,
+        input.summary,
+        dedupKey,
+        input.tenantId ?? null,
+        input.detectedAt,
+        status,
+        input.resolvedAt,
+        resolutionType,
+      ],
+    );
+    const [row] = result.rows;
+    if (!row) throw new Error("createBackfilled: INSERT ... RETURNING produced no row");
+    return mapRow(row);
+  }
+
+  /**
+   * Tranche E2 backfill resolve (02_42 v1.2 §60): resolves an incident
+   * that a backfill report is merging into an already-OPEN row (the rare
+   * case where Level 2 was already independently tracking the same
+   * dedup key when the Level 1 backfill call arrives) using the
+   * caller-supplied historical `resolvedAt`, never `now()` -- symmetric
+   * to `createBackfilled`. Does not mark the row `backfilled = true`: an
+   * incident that genuinely had an OPEN row already existed under real
+   * Level 2 observation for at least part of its life, so it is not
+   * purely retroactive the way a fresh `createBackfilled` row is.
+   */
+  async resolveBackfilled(id: string, resolvedAt: Date): Promise<OperationalIncident> {
+    const result = await this.db.query<OperationalIncidentRow>(
+      `UPDATE operational_incident
+       SET status = 'RESOLVED', resolved_at = $2, resolution_type = 'EXTERNAL_MONITOR_BACKFILL', updated_at = now()
+       WHERE id = $1
+       RETURNING ${SELECT_COLUMNS}`,
+      [id, resolvedAt],
+    );
+    const [row] = result.rows;
+    if (!row) throw new Error("resolveBackfilled: incident not found");
     return mapRow(row);
   }
 

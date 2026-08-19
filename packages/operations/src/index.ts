@@ -66,3 +66,42 @@ export { HealthProbeService } from "./services/health-probe-service";
 export { OverviewService } from "./services/overview-service";
 
 export { collectHostMetrics, collectCpuLoad, collectMemoryUsage, collectDiskUsage, type HostMetricSample } from "./collectors/local-metric-collector";
+
+// Tranche E2 out-of-band external monitoring, Level 2 (02_42 v1.2 PARTE U §52-73).
+export {
+  decodeExternalMonitorHmacSecret,
+  ExternalMonitorHmacSecretError,
+  EXTERNAL_MONITOR_HMAC_SECRET_MIN_BYTES,
+  sha256Hex,
+  buildCanonicalString,
+  computeSignatureHex,
+  signaturesMatch,
+} from "./external-monitor/hmac";
+export {
+  severityForExternalMonitorCondition,
+  defaultServiceForExternalMonitorCondition,
+  EXTERNAL_MONITOR_SOURCE,
+  type ExternalMonitorConditionType,
+  type ExternalMonitorService,
+  type ExternalMonitorState,
+  type ExternalMonitorSummaryCode,
+} from "./external-monitor/condition-mapping";
+export {
+  ExternalMonitorKeyMetadataRepository,
+  type ExternalMonitorKeyMetadata,
+  type ExternalMonitorKeyStatus,
+} from "./external-monitor/repository/external-monitor-key-metadata-repository";
+export { ExternalMonitorNonceRepository } from "./external-monitor/repository/external-monitor-nonce-repository";
+export {
+  ExternalMonitorAuthService,
+  ExternalMonitorAuthError,
+  type ExternalMonitorAuthFailureReason,
+  type VerifyExternalMonitorRequestInput,
+  type VerifiedExternalMonitorRequest,
+} from "./external-monitor/services/external-monitor-auth-service";
+export {
+  ExternalMonitorReportService,
+  type ExternalMonitorReportRequestBody,
+  type ExternalMonitorReportResponseData,
+  type ExternalMonitorEvidence,
+} from "./external-monitor/services/external-monitor-report-service";

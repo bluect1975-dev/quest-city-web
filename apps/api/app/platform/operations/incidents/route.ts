@@ -56,6 +56,12 @@ export async function GET(request: Request): Promise<NextResponse> {
           resolvedAt: incident.resolvedAt?.toISOString() ?? null,
           resolutionType: incident.resolutionType,
           tenantId: incident.tenantId,
+          // Tranche E2 (02_42 v1.2 §60, §63): already-populated on the DTO
+          // type (source has always included EXTERNAL_MONITOR since
+          // v1.0/v1.1) -- backfilled is newly surfaced here so the Control
+          // Center never gives the false impression of real-time
+          // observation for a retroactively-recorded incident.
+          backfilled: incident.backfilled,
         })),
         meta: { request_id: correlationId ?? undefined, api_version: "v1" },
       },

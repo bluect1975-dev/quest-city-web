@@ -8,6 +8,7 @@ import {
   AlertService,
   LocalMockAlertChannelAdapter,
   TelegramAlertChannelAdapter,
+  ExternalMonitorReportService,
   type AlertChannelAdapter,
 } from "@quest-city-web/operations";
 import { loadEnv } from "./env";
@@ -81,4 +82,16 @@ export function getIncidentService(): IncidentService {
 
 export function getAlertService(): AlertService {
   return new AlertService(getOperationsPool(), getAlertChannelAdapter());
+}
+
+/**
+ * Tranche E2 out-of-band external monitoring, Level 2 (02_42 v1.2 PARTE
+ * U §55-60). Shares this file's pool and `AlertChannelAdapter` selection
+ * with every other Operations service -- reusing `getAlertChannelAdapter()`
+ * here is exactly what "no second alerting engine" (02_42 §11, AGENTS.md
+ * §4.31 rule 7) means in code: the external monitor's Level 2 reports
+ * flow through the identical adapter instance as the internal collector.
+ */
+export function getExternalMonitorReportService(): ExternalMonitorReportService {
+  return new ExternalMonitorReportService(getOperationsPool(), getAlertService());
 }

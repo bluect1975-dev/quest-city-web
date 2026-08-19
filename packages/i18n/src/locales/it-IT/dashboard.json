@@ -726,10 +726,13 @@
         "caption": "Elenco incidenti",
         "severity": "Severità",
         "service": "Servizio",
+        "source": "Fonte",
         "summary": "Descrizione",
         "status": "Stato",
         "occurrences": "Occorrenze",
         "lastSeen": "Ultima rilevazione",
+        "backfilled": "Retroattivo",
+        "backfilledHint": "Registrato retroattivamente dopo un avviso Telegram diretto — non osservato in tempo reale.",
         "actions": "Azioni",
         "acknowledge": "Riconosci"
       },

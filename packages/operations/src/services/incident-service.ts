@@ -36,30 +36,59 @@ export interface RecordConditionResult {
 export class IncidentService {
   constructor(private readonly pool: Pool) {}
 
-  async recordCondition(input: RecordConditionInput): Promise<RecordConditionResult> {
+  async recordCondition(
+    input: RecordConditionInput,
+    actor: { type: string; id?: string | null } = { type: "SYSTEM" },
+  ): Promise<RecordConditionResult> {
     const incidents = new OperationalIncidentRepository(this.pool);
     const events = new OperationalIncidentEventRepository(this.pool);
     const dedupKey = buildIncidentDedupKey(input.type, input.service, input.source);
     const existing = await incidents.findOpenOrAcknowledgedByDedupKey(dedupKey);
     if (existing) {
       const updated = await incidents.recordOccurrence(existing.id);
-      await events.record({ incidentId: existing.id, eventType: "OCCURRENCE", actorType: "SYSTEM" });
+      await events.record({ incidentId: existing.id, eventType: "OCCURRENCE", actorType: actor.type, actorId: actor.id ?? null });
       return { incident: updated, isNew: false };
     }
     const created = await incidents.create(input);
-    await events.record({ incidentId: created.id, eventType: "OPENED", actorType: "SYSTEM", detail: { summary: input.summary } });
+    await events.record({
+      incidentId: created.id,
+      eventType: "OPENED",
+      actorType: actor.type,
+      actorId: actor.id ?? null,
+      detail: { summary: input.summary },
+    });
     return { incident: created, isNew: true };
   }
 
-  /** Called by monitoring when a previously-failing condition is observed healthy again (02_42 §27, never a manual-only action). */
-  async resolveByDedupKey(type: string, service: string, source: MetricSource, resolutionType = "AUTO_RECOVERED"): Promise<OperationalIncident | null> {
+  /**
+   * Called by monitoring when a previously-failing condition is observed
+   * healthy again (02_42 §27, never a manual-only action). `actor`
+   * defaults to `SYSTEM` (original local-collector behavior, unchanged);
+   * the Tranche E2 external-monitor report service (02_42 v1.2 §69)
+   * passes `{ type: "EXTERNAL_MONITOR", id: monitorId }` so the event
+   * timeline distinguishes an authenticated external caller from the
+   * internal collector, without introducing a second resolve pathway.
+   */
+  async resolveByDedupKey(
+    type: string,
+    service: string,
+    source: MetricSource,
+    resolutionType = "AUTO_RECOVERED",
+    actor: { type: string; id?: string | null } = { type: "SYSTEM" },
+  ): Promise<OperationalIncident | null> {
     const incidents = new OperationalIncidentRepository(this.pool);
     const events = new OperationalIncidentEventRepository(this.pool);
     const dedupKey = buildIncidentDedupKey(type, service, source);
     const existing = await incidents.findOpenOrAcknowledgedByDedupKey(dedupKey);
     if (!existing) return null;
     const resolved = await incidents.resolve(existing.id, resolutionType);
-    await events.record({ incidentId: existing.id, eventType: "RESOLVED", actorType: "SYSTEM", detail: { resolutionType } });
+    await events.record({
+      incidentId: existing.id,
+      eventType: "RESOLVED",
+      actorType: actor.type,
+      actorId: actor.id ?? null,
+      detail: { resolutionType },
+    });
     return resolved;
   }
 

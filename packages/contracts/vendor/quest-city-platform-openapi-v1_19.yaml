@@ -1,0 +1,436 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.19.0
+  description: >-
+    Contracts-first addition for Tranche E2 — Out-of-band Monitoring
+    (02_42 v1.2 PARTE U, §52-73). Adds exactly one new endpoint: `POST
+    /platform/operations/external-monitor-report`, the Level 2 ingest
+    surface for an external, GitHub-Actions-based infrastructure monitor
+    that observes VPS/API availability from outside the VPS itself. v1.2.0
+    through v1.18.0 remain available unchanged as separate immutable
+    artifacts; no prior path, schema, or security scheme is removed or
+    altered.
+
+    This is NOT a Platform Admin browser surface: it introduces a new,
+    dedicated machine-to-machine security scheme (`externalMonitorHmac`,
+    HMAC-SHA256 request signing, 02_42 §53) and grants zero
+    `PlatformCapability` values. None of the three existing session
+    domains (student/staff/platform admin cookies + CSRF, reused unchanged
+    by v1.2-v1.18) apply to this operation, and this operation grants none
+    of their capabilities in return — a valid signature authenticates the
+    external monitor only for this single path, never for any other
+    `/platform/...` operation.
+
+    No Idempotency-Key header: unlike the mutating Platform Admin
+    operations of v1.17.0 (which reuse the tenant-less idempotency_record
+    mechanism, 02_42 §44), this operation's body already carries
+    `observationId` as its domain-level idempotency key (02_42 §59.B), and
+    the request is independently protected by a `nonce` at the protocol
+    layer (02_42 §53, §59.A) — a second, header-level idempotency key
+    would duplicate an already-covered guarantee, not add one. This is a
+    different rationale than v1.18.0's heartbeat endpoint (naturally
+    idempotent, no domain key at all); it is documented separately here to
+    avoid conflating the two.
+
+    Severity is deliberately NOT part of the request schema: it is always
+    server-derived from `conditionType` via a fixed table (02_42 §57), not
+    accepted from the caller — a compromised or malfunctioning monitor
+    must not be able to self-declare SEV-1 to force noisy escalation.
+
+    Rate limiting: a dedicated, tighter fixed-window limit than the
+    general `/platform/operations/...` surface (02_42 §68), independent
+    from replay protection (02_42 §59.A) — a valid nonce does not exempt a
+    caller from the rate limit, and vice versa.
+
+    This is a CONTRACTS-ONLY release, authored in the canonical
+    repository. No endpoint in this file may be implemented in
+    quest-city-web until this contract change set's own closure (merge to
+    canonical main) completes, and implementation additionally requires a
+    separate future authorization to create the GitHub Actions workflow
+    itself (02_42 §62), not granted by this file.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+paths:
+  /platform/operations/external-monitor-report:
+    post:
+      summary: Submit an out-of-band infrastructure observation from the
+        external monitor (02_42 §55). Machine-to-machine only — never
+        reachable by a Platform Admin browser session. Level 2 of the
+        two-level design (02_42 §52); Level 1 (VPS fully unreachable)
+        bypasses this endpoint entirely and sends Telegram directly
+        (02_42 §61).
+      operationId: submitExternalMonitorReport
+      security:
+      - externalMonitorHmac: []
+      parameters:
+      - $ref: '#/components/parameters/ExternalMonitorTimestamp'
+      - $ref: '#/components/parameters/ExternalMonitorNonce'
+      - $ref: '#/components/parameters/ExternalMonitorKeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalMonitorReportRequest'
+      responses:
+        '200':
+          description: Report accepted and processed (new observation, or a
+            legitimate retry of an already-seen observationId with an
+            identical payload — 02_42 §59.B, response field `deduped` is
+            true in the latter case).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalMonitorReportResponse'
+        '400':
+          description: EXTERNAL_MONITOR_PAYLOAD_INVALID — request body failed
+            schema validation (02_42 §56, §67).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: EXTERNAL_MONITOR_AUTH_INVALID (unknown/revoked keyId or
+            missing auth headers), EXTERNAL_MONITOR_SIGNATURE_INVALID
+            (recomputed signature mismatch), or
+            EXTERNAL_MONITOR_TIMESTAMP_INVALID (timestamp outside the
+            configured tolerance) — 02_42 §53.4, §67. `safeDetails` never
+            includes the expected signature, secret, or canonical string
+            (02_42 §67, oracle-attack prevention).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: EXTERNAL_MONITOR_REPLAY_DETECTED (same keyId+nonce
+            already seen, 02_42 §59.A) or EXTERNAL_MONITOR_OBSERVATION_CONFLICT
+            (same observationId already seen with a different payload,
+            02_42 §59.B).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          $ref: '#/components/responses/ExternalMonitorRateLimited'
+
+components:
+  securitySchemes:
+    externalMonitorHmac:
+      type: apiKey
+      in: header
+      name: X-QC-Monitor-Signature
+      description: HMAC-SHA256 request signing (02_42 §53) — a fourth,
+        dedicated machine-to-machine authentication mechanism, distinct
+        from and never overlapping with the three session-cookie domains
+        (studentSessionCookie/staffSessionCookie/platformSessionCookie,
+        unchanged by this file). The signature is computed over the
+        canonical string `${method}\n${path}\n${timestamp}\n${nonce}\n${sha256hex(body)}`
+        using EXTERNAL_MONITOR_HMAC_SECRET for the keyId presented in
+        X-QC-Monitor-Key-Id, hex-encoded lowercase. Verified server-side
+        with a constant-time comparison, fail-closed on any single check
+        failing (unknown/revoked keyId, timestamp outside tolerance,
+        already-seen nonce, or signature mismatch — 02_42 §53.4). The
+        companion headers (timestamp, nonce, key id) are declared as
+        required operation parameters, not part of this security scheme
+        object, since OpenAPI 3.1 has no native multi-header composite
+        auth scheme type — this mirrors how CSRF is expressed as a
+        parallel apiKey/header scheme alongside its session cookie
+        elsewhere in this lineage (v1.3.0 onward). Never satisfied by any
+        session cookie, CSRF header, Basic Auth, or a static secret
+        without the nonce/timestamp/signature triple (02_42 §53).
+  parameters:
+    ExternalMonitorTimestamp:
+      name: X-QC-Monitor-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9]+$'
+      description: Unix timestamp (seconds) used in the signed canonical
+        string (02_42 §53). Must be within a configurable tolerance of
+        server time (pilot reference value ±300s) or the request is
+        rejected with EXTERNAL_MONITOR_TIMESTAMP_INVALID.
+    ExternalMonitorNonce:
+      name: X-QC-Monitor-Nonce
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Opaque anti-replay token, unique per (keyId, nonce)
+        (02_42 §59.A). A reused pair is rejected with
+        EXTERNAL_MONITOR_REPLAY_DETECTED regardless of body content.
+    ExternalMonitorKeyId:
+      name: X-QC-Monitor-Key-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+      description: Secret rotation identifier (02_42 §54) — CURRENT or
+        PREVIOUS during an overlap window, never the secret itself. A
+        REVOKED or unknown keyId is rejected with
+        EXTERNAL_MONITOR_AUTH_INVALID.
+  headers:
+    RetryAfter:
+      description: Seconds until the fixed-window rate limit resets.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    ExternalMonitorRateLimited:
+      description: Dedicated, tighter fixed-window rate limit exceeded
+        (PLATFORM domain, EXTERNAL_MONITOR_RATE_LIMITED, 02_42 §68) —
+        independent from replay protection (02_42 §59.A).
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          enum:
+          - EXTERNAL_MONITOR_AUTH_INVALID
+          - EXTERNAL_MONITOR_SIGNATURE_INVALID
+          - EXTERNAL_MONITOR_TIMESTAMP_INVALID
+          - EXTERNAL_MONITOR_REPLAY_DETECTED
+          - EXTERNAL_MONITOR_PAYLOAD_INVALID
+          - EXTERNAL_MONITOR_OBSERVATION_CONFLICT
+          - EXTERNAL_MONITOR_RATE_LIMITED
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+        safeDetails:
+          type: object
+          additionalProperties: true
+          description: Never includes the expected signature, the HMAC
+            secret, or the canonical string being verified (02_42 §67).
+
+    ExternalMonitorEnvironment:
+      type: string
+      enum:
+      - STAGING
+      - PRODUCTION
+
+    ExternalMonitorService:
+      type: string
+      enum:
+      - HOST
+      - REVERSE_PROXY
+      - API
+      - DATABASE
+      - BACKUP
+      - TLS
+      description: Bounded subset written into the existing free-string
+        operational_incident.service field (02_42 §25, §56) — not a new
+        global service enum.
+
+    ExternalMonitorConditionType:
+      type: string
+      enum:
+      - VPS_UNREACHABLE
+      - REVERSE_PROXY_UNREACHABLE
+      - TLS_HANDSHAKE_FAILURE
+      - BACKUP_FAILED
+      - EXTERNAL_HTTP_DEGRADED
+      - BACKUP_STALE
+      - TLS_EXPIRY_WARNING
+      description: Default severity per value is fixed by 02_42 §57 (never
+        client-supplied, see ExternalMonitorReportRequest).
+
+    ExternalMonitorState:
+      type: string
+      enum:
+      - DETECTED
+      - RECOVERED
+
+    ExternalMonitorSummaryCode:
+      type: string
+      enum:
+      - CONNECT_TIMEOUT
+      - CONNECT_REFUSED
+      - DNS_RESOLUTION_FAILED
+      - HTTP_STATUS_ERROR
+      - HTTP_LATENCY_EXCEEDED
+      - CERTIFICATE_EXPIRED_SOON
+      - TLS_HANDSHAKE_ERROR
+      - BACKUP_AGE_EXCEEDED
+      - BACKUP_JOB_FAILED
+      - THRESHOLD_RECOVERED
+      description: Machine-readable reason code, never free text (02_42
+        §57). THRESHOLD_RECOVERED is the expected value when state =
+        RECOVERED.
+
+    ExternalMonitorEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        httpStatus:
+          type:
+          - integer
+          - 'null'
+        latencyMs:
+          type:
+          - number
+          - 'null'
+        tlsDaysRemaining:
+          type:
+          - integer
+          - 'null'
+        backupAgeHours:
+          type:
+          - number
+          - 'null'
+        consecutiveFailures:
+          type: integer
+          minimum: 0
+      description: Only typed, bounded fields — deliberately no free-text
+        message/detail field (02_42 §56.1). The monitor cannot inject
+        HTML, stack traces, or student/Restricted+ data because no such
+        field exists in this schema.
+
+    ExternalMonitorReportRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - monitorId
+      - observationId
+      - observedAt
+      - environment
+      - service
+      - conditionType
+      - state
+      - summaryCode
+      - evidence
+      properties:
+        monitorId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Identifies the monitor instance/workflow (e.g.
+            "github-actions:questcity-external-monitor") — not a human
+            user identity (02_42 §56).
+        observationId:
+          type: string
+          format: uuid
+          description: Domain-level idempotency key (02_42 §59.B). A repeat
+            with an identical payload is deduped; a repeat with a
+            different payload is EXTERNAL_MONITOR_OBSERVATION_CONFLICT.
+        observedAt:
+          type: string
+          format: date-time
+          description: When the condition was actually observed — not
+            necessarily "now" (relevant for backfill, 02_42 §60).
+        environment:
+          $ref: '#/components/schemas/ExternalMonitorEnvironment'
+        service:
+          $ref: '#/components/schemas/ExternalMonitorService'
+        conditionType:
+          $ref: '#/components/schemas/ExternalMonitorConditionType'
+        state:
+          $ref: '#/components/schemas/ExternalMonitorState'
+        summaryCode:
+          $ref: '#/components/schemas/ExternalMonitorSummaryCode'
+        evidence:
+          $ref: '#/components/schemas/ExternalMonitorEvidence'
+        backfill:
+          type: boolean
+          default: false
+          description: If true, detectedAt (and resolvedAt when state =
+            RECOVERED) are required, and this report never triggers a
+            second Telegram notification for an already-directly-notified
+            Level 1 event (02_42 §60).
+        detectedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Required only when backfill = true.
+        resolvedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Required only when backfill = true and state =
+            RECOVERED.
+      description: severity is deliberately absent — always server-derived
+        from conditionType via the fixed table in 02_42 §57, never
+        accepted from the caller (02_42 §56).
+
+    ExternalMonitorReportResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          required:
+          - incidentPublicId
+          - status
+          - deduped
+          - alertTriggered
+          properties:
+            incidentPublicId:
+              type: string
+            status:
+              type: string
+              enum:
+              - OPEN
+              - ACKNOWLEDGED
+              - RESOLVED
+              - SUPPRESSED
+            deduped:
+              type: boolean
+              description: True when this call matched an already-seen
+                observationId with an identical payload (02_42 §59.B).
+            alertTriggered:
+              type: boolean
+              description: True if this call caused a new
+                AlertChannelAdapter.sendAlert()/sendRecovery() invocation
+                (02_42 §28). Always false for backfill = true reports
+                (02_42 §60).
+        meta:
+          $ref: '#/components/schemas/Meta'
