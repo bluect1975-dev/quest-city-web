@@ -40,9 +40,21 @@ export function decodeExternalMonitorHmacSecret(raw: string | undefined): Buffer
   return secret;
 }
 
-/** SHA-256 hex digest of the raw request body (empty body -> hash of the empty string, 02_42 §53). */
-export function sha256Hex(rawBody: string): string {
-  return createHash("sha256").update(rawBody, "utf8").digest("hex");
+/**
+ * SHA-256 hex digest of the raw request body (empty body -> hash of the
+ * empty string, 02_42 §53). Accepts either the actual raw bytes
+ * (`Uint8Array`/`Buffer` -- the production path, via
+ * `readBoundedRequestBody`) or a plain `string` (unit-test convenience,
+ * encoded as UTF-8 before hashing). Hashing the real bytes directly,
+ * rather than a UTF-8 re-encoding of an already-`request.text()`-decoded
+ * string, matters: decoding first replaces any invalid UTF-8 byte
+ * sequence with U+FFFD, so re-encoding no longer reproduces the exact
+ * bytes the caller actually signed -- a body containing invalid UTF-8
+ * would then fail signature verification even with a correct signature.
+ */
+export function sha256Hex(rawBody: string | Uint8Array): string {
+  const bytes = typeof rawBody === "string" ? Buffer.from(rawBody, "utf8") : rawBody;
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 /**
@@ -58,7 +70,7 @@ export function buildCanonicalString(input: {
   path: string;
   timestamp: string;
   nonce: string;
-  rawBody: string;
+  rawBody: string | Uint8Array;
 }): string {
   return [input.method.toUpperCase(), input.path, input.timestamp, input.nonce, sha256Hex(input.rawBody)].join("\n");
 }

@@ -48,6 +48,9 @@ pnpm --filter @quest-city-web/tools run migrate
 echo "==> Provisioning Telegram alert channel (no-op if TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are unset)"
 pnpm --filter @quest-city-web/tools run provision:telegram-alert-channel
 
+echo "==> Provisioning external monitor M2M key metadata (no-op if EXTERNAL_MONITOR_HMAC_KEY_ID_CURRENT/EXTERNAL_MONITOR_HMAC_SECRET_CURRENT are unset)"
+pnpm --filter @quest-city-web/tools run provision:external-monitor-key
+
 cat <<'EOF'
 
 ==> Bootstrap complete.

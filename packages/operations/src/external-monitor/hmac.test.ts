@@ -57,6 +57,21 @@ describe("sha256Hex / buildCanonicalString (02_42 v1.2 §53)", () => {
     const canonical = buildCanonicalString({ method: "post", path: "/x", timestamp: "1", nonce: "n", rawBody: "" });
     expect(canonical.startsWith("POST\n")).toBe(true);
   });
+
+  it("hashing a Buffer of the same UTF-8 bytes as a string produces the identical digest (production Buffer path == test string-convenience path)", () => {
+    const text = "hello world";
+    expect(sha256Hex(Buffer.from(text, "utf8"))).toBe(sha256Hex(text));
+  });
+
+  it("hashes the real bytes of a body containing invalid UTF-8, never a lossy re-encoding -- byte-safety gain of the micro-closure fix", () => {
+    // 0xFF is not valid UTF-8 anywhere; decoding it as a string first would
+    // replace it with U+FFFD (as `request.text()` does), so hashing that
+    // decoded-then-re-encoded string would NOT reproduce these exact bytes.
+    const invalidUtf8Bytes = Buffer.from([0x7b, 0xff, 0x7d]); // '{', 0xFF, '}'
+    const lossyRoundTrip = Buffer.from(invalidUtf8Bytes.toString("utf8"), "utf8");
+    expect(lossyRoundTrip.equals(invalidUtf8Bytes)).toBe(false); // proves the round-trip is genuinely lossy
+    expect(sha256Hex(invalidUtf8Bytes)).not.toBe(sha256Hex(lossyRoundTrip)); // the two hashes must differ
+  });
 });
 
 describe("computeSignatureHex / signaturesMatch (02_42 v1.2 §53.4)", () => {

@@ -25,6 +25,7 @@
     "check:filenames": "node check-filenames.mjs",
     "operations:health-probe": "tsx operations-health-probe.ts",
     "provision:telegram-alert-channel": "tsx provision-telegram-alert-channel.ts",
+    "provision:external-monitor-key": "tsx provision-external-monitor-key.ts",
     "validate:staging-env": "node validate-staging-env.mjs",
     "check:dependency-audit": "node check-dependency-audit.mjs"
   },

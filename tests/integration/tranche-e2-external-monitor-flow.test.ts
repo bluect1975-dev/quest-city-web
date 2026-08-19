@@ -160,6 +160,81 @@ describe("ExternalMonitorNonceRepository -- protocol replay protection (02_42 v1
   });
 });
 
+describe("ExternalMonitorNonceRepository.purgeOlderThan -- bounded retention (02_42 v1.2 §59.A, micro-closure mission §7-8)", () => {
+  beforeEach(truncateAll);
+  afterAll(truncateAll);
+
+  async function seedNonceAt(keyId: string, nonce: string, seenAt: Date): Promise<void> {
+    await pool.query(`INSERT INTO external_monitor_nonce_seen (key_id, nonce, seen_at) VALUES ($1, $2, $3)`, [keyId, nonce, seenAt]);
+  }
+
+  it("preserves a recent nonce (inside the retention window)", async () => {
+    const repo = new ExternalMonitorNonceRepository(pool);
+    await seedNonceAt("key-1", "recent-nonce", new Date(Date.now() - 60_000)); // 1 minute old.
+    const cutoff = new Date(Date.now() - 10 * 60_000); // 10-minute pilot reference retention.
+    const pruned = await repo.purgeOlderThan(cutoff);
+    expect(pruned).toBe(0);
+    const { rows } = await pool.query(`SELECT 1 FROM external_monitor_nonce_seen WHERE key_id = 'key-1' AND nonce = 'recent-nonce'`);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("purges a nonce older than the retention cutoff", async () => {
+    const repo = new ExternalMonitorNonceRepository(pool);
+    await seedNonceAt("key-1", "old-nonce", new Date(Date.now() - 15 * 60_000)); // 15 minutes old.
+    const cutoff = new Date(Date.now() - 10 * 60_000);
+    const pruned = await repo.purgeOlderThan(cutoff);
+    expect(pruned).toBe(1);
+    const { rows } = await pool.query(`SELECT 1 FROM external_monitor_nonce_seen WHERE key_id = 'key-1' AND nonce = 'old-nonce'`);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("purges independently across different keyIds -- an expired nonce under one keyId does not affect a fresh nonce under another", async () => {
+    const repo = new ExternalMonitorNonceRepository(pool);
+    await seedNonceAt("key-expired", "n", new Date(Date.now() - 15 * 60_000));
+    await seedNonceAt("key-fresh", "n", new Date(Date.now() - 60_000));
+    const cutoff = new Date(Date.now() - 10 * 60_000);
+    const pruned = await repo.purgeOlderThan(cutoff);
+    expect(pruned).toBe(1);
+    const remaining = await pool.query(`SELECT key_id FROM external_monitor_nonce_seen`);
+    expect(remaining.rows.map((r) => r.key_id)).toEqual(["key-fresh"]);
+  });
+
+  it("is idempotent -- running purge twice in a row is safe and the second run deletes nothing further", async () => {
+    const repo = new ExternalMonitorNonceRepository(pool);
+    await seedNonceAt("key-1", "old-nonce", new Date(Date.now() - 15 * 60_000));
+    const cutoff = new Date(Date.now() - 10 * 60_000);
+    expect(await repo.purgeOlderThan(cutoff)).toBe(1);
+    expect(await repo.purgeOlderThan(cutoff)).toBe(0);
+  });
+
+  it("replay is still rejected for a nonce that is old but still inside the retention window (retention margin never shortens the anti-replay guarantee)", async () => {
+    const repo = new ExternalMonitorNonceRepository(pool);
+    await seedNonceAt("key-1", "still-protected", new Date(Date.now() - 8 * 60_000)); // 8 minutes old -- inside the 10-minute retention margin, well outside the 5-minute timestamp tolerance already.
+    const cutoff = new Date(Date.now() - 10 * 60_000);
+    await repo.purgeOlderThan(cutoff);
+    // Still present -- recordIfNew must still report it as already-seen (replay rejected).
+    expect(await repo.recordIfNew("key-1", "still-protected")).toBe(false);
+  });
+
+  it("a nonce becomes reusable again only after it has actually been purged past the retention window (by design -- the bounded table, not an unbounded log, is the source of truth)", async () => {
+    const repo = new ExternalMonitorNonceRepository(pool);
+    await seedNonceAt("key-1", "eventually-free", new Date(Date.now() - 15 * 60_000));
+    const cutoff = new Date(Date.now() - 10 * 60_000);
+    await repo.purgeOlderThan(cutoff);
+    expect(await repo.recordIfNew("key-1", "eventually-free")).toBe(true);
+  });
+
+  it("concurrent recordIfNew and purgeOlderThan calls do not corrupt state -- a fresh nonce recorded during a concurrent purge is never lost", async () => {
+    const repo = new ExternalMonitorNonceRepository(pool);
+    await seedNonceAt("key-1", "old-during-race", new Date(Date.now() - 15 * 60_000));
+    const cutoff = new Date(Date.now() - 10 * 60_000);
+    const [recordResult] = await Promise.all([repo.recordIfNew("key-1", "fresh-during-race"), repo.purgeOlderThan(cutoff)]);
+    expect(recordResult).toBe(true);
+    const { rows } = await pool.query(`SELECT 1 FROM external_monitor_nonce_seen WHERE key_id = 'key-1' AND nonce = 'fresh-during-race'`);
+    expect(rows).toHaveLength(1);
+  });
+});
+
 describe("ExternalMonitorAuthService -- four fail-closed checks (02_42 v1.2 §53.4)", () => {
   beforeEach(truncateAll);
   afterAll(truncateAll);

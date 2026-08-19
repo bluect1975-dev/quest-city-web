@@ -28,3 +28,11 @@ tools/check-dependency-audit.test.mjs -text
 tools/validate-staging-env.mjs -text
 tools/validate-staging-env.test.mjs -text
 infrastructure/database/staging-tls/generate-staging-db-tls.sh -text
+
+# Tranche E2 Level 2 security & operations micro-closure: same root cause,
+# same fix, applied proactively to the new files this mission introduces
+# (rather than waiting for a post-merge verify.sh failure to surface it).
+apps/api/lib/bounded-body-reader.ts -text
+apps/api/lib/bounded-body-reader.test.ts -text
+tools/provision-external-monitor-key.ts -text
+tools/provision-external-monitor-key.test.mjs -text

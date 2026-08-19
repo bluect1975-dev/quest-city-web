@@ -3,6 +3,7 @@ import { AuditRepository } from "@quest-city-web/identity";
 import { ExternalMonitorAuthService, ExternalMonitorAuthError, type VerifiedExternalMonitorRequest } from "@quest-city-web/operations";
 import type { ApiEnv } from "./env";
 import { getOperationsPoolForQueries } from "./operations-context";
+import { readBoundedRequestBody } from "./bounded-body-reader";
 
 /** 02_42 §62 threat-model-adjacent bound: rejects a body larger than this before it ever reaches JSON.parse or the signature computation. */
 export const EXTERNAL_MONITOR_MAX_BODY_BYTES = 16 * 1024;
@@ -18,18 +19,18 @@ const REASON_TO_CODE = {
  * Structural sibling to `requirePlatformAdminIdentity`
  * (platform-request-context.ts) -- the single entry point the route
  * calls before touching the request body's business meaning. Reads the
- * raw body itself (the signature is computed over the exact raw bytes,
- * never a re-serialized JSON object) and enforces the bounded-size
- * requirement (02_42 §53, mission §5) before anything else runs.
+ * raw body itself, bounded on the actual byte count (never a
+ * `String.length` on an already-decoded, already-fully-materialized
+ * body -- see `readBoundedRequestBody`, Tranche E2 Level 2 micro-closure
+ * gap 1 fix), and signs/verifies over those exact bytes -- never a
+ * re-serialized JSON object, never a UTF-8 re-encoding of a decoded
+ * string.
  */
 export async function verifyExternalMonitorRequest(
   request: Request,
   env: ApiEnv,
 ): Promise<{ verified: VerifiedExternalMonitorRequest; rawBody: string }> {
-  const rawBody = await request.text();
-  if (rawBody.length > EXTERNAL_MONITOR_MAX_BODY_BYTES) {
-    throw new PlatformAdminError("EXTERNAL_MONITOR_PAYLOAD_INVALID", "Request body exceeds the maximum allowed size.");
-  }
+  const rawBodyBytes = await readBoundedRequestBody(request, EXTERNAL_MONITOR_MAX_BODY_BYTES);
 
   const url = new URL(request.url);
   const timestampHeader = request.headers.get("x-qc-monitor-timestamp") ?? "";
@@ -46,10 +47,18 @@ export async function verifyExternalMonitorRequest(
       nonceHeader,
       keyIdHeader,
       signatureHeader,
-      rawBody,
+      // The real bytes, signed/hashed as-is -- never decoded first
+      // (hmac.ts's sha256Hex hashes a Uint8Array directly when given
+      // one, no UTF-8 round-trip).
+      rawBody: rawBodyBytes,
       resolveSecret: (status) =>
         status === "CURRENT" ? env.externalMonitorHmacSecretCurrent : env.externalMonitorHmacSecretPrevious,
     });
+    // Decoded to a string only now, after the bounded read and the
+    // signature check have both already happened -- the only UTF-8
+    // decode in this path, used solely so the route handler can
+    // `JSON.parse` it afterward.
+    const rawBody = rawBodyBytes.length > 0 ? rawBodyBytes.toString("utf8") : "";
     return { verified, rawBody };
   } catch (error) {
     if (error instanceof ExternalMonitorAuthError) {
