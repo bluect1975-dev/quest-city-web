@@ -83,6 +83,13 @@ services:
       # compose file (student-web, dashboard, nginx) receives these.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      # Tranche E2 out-of-band external monitoring, Level 2 (02_42 v1.2
+      # PARTE U §53-54). Same "optional, empty default, server-side only"
+      # posture as the Telegram pair above -- an independent secret,
+      # never the Bot Token (AGENTS.md §4.31 rule 4). No other service in
+      # this compose file (student-web, dashboard, nginx) receives these.
+      EXTERNAL_MONITOR_HMAC_SECRET_CURRENT: ${EXTERNAL_MONITOR_HMAC_SECRET_CURRENT:-}
+      EXTERNAL_MONITOR_HMAC_SECRET_PREVIOUS: ${EXTERNAL_MONITOR_HMAC_SECRET_PREVIOUS:-}
     depends_on:
       postgres:
         condition: service_healthy

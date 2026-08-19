@@ -80,6 +80,7 @@ function IncidentsView({ context }: { context: PlatformContext }) {
             <tr>
               <th scope="col">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.severity")}</th>
               <th scope="col">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.service")}</th>
+              <th scope="col">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.source")}</th>
               <th scope="col">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.summary")}</th>
               <th scope="col">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.status")}</th>
               <th scope="col">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.occurrences")}</th>
@@ -94,6 +95,14 @@ function IncidentsView({ context }: { context: PlatformContext }) {
                   <StatusBadge tone={SEVERITY_TONE[incident.severity]}>{incident.severity}</StatusBadge>
                 </td>
                 <td>{incident.service}</td>
+                <td>
+                  {incident.source}
+                  {incident.backfilled ? (
+                    <span title={t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.backfilledHint")}>
+                      <StatusBadge tone="neutral">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.controlCenter.incidents.backfilled")}</StatusBadge>
+                    </span>
+                  ) : null}
+                </td>
                 <td>{incident.summary}</td>
                 <td>
                   <StatusBadge tone={STATUS_TONE[incident.status]}>{incident.status}</StatusBadge>

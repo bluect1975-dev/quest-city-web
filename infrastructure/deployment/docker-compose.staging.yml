@@ -212,12 +212,15 @@ services:
       DATABASE_URL: postgresql://quest_city_web:${STAGING_POSTGRES_PASSWORD:?STAGING_POSTGRES_PASSWORD is required — set it in .env.staging.}@postgres:5432/quest_city_web?sslmode=require
       DATABASE_SSL: "true"
       # PORT, HEALTH_READY_DB_TIMEOUT_MS, CLASS_CODE_HASH_PEPPER,
-      # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID all stay exactly as defined in
+      # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
+      # EXTERNAL_MONITOR_HMAC_SECRET_CURRENT/_PREVIOUS (Tranche E2, 02_42
+      # v1.2 PARTE U §53-54) all stay exactly as defined in
       # docker-compose.yml — those already use `${VAR}` shell-substitution
       # syntax there (not a hardcoded literal like DATABASE_URL was), so
       # `--env-file .env.staging` resolves them directly from that file's
       # own values without needing a second declaration here. The Telegram
-      # wiring and its LocalMockAlertChannelAdapter fallback contract are
+      # wiring and its LocalMockAlertChannelAdapter fallback contract, and
+      # the external-monitor fail-closed-when-unset contract, are both
       # unchanged and untested-around here.
       #
       # Trust the specific self-signed staging Postgres certificate for

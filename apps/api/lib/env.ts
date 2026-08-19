@@ -1,4 +1,5 @@
 import { decodeClassCodePepper } from "@quest-city-web/identity";
+import { decodeExternalMonitorHmacSecret } from "@quest-city-web/operations";
 
 /**
  * Environment validation at startup (05_01 §11: "schema validation at
@@ -68,6 +69,24 @@ export interface ApiEnv {
   dbPoolPlatformIdentityMax: number;
   dbPoolPlatformIdentityIdleTimeoutMs: number;
   dbPoolPlatformIdentityConnectionTimeoutMs: number;
+  /**
+   * Tranche E2 out-of-band external monitoring, Level 2 (02_42 v1.2 PARTE
+   * U §53-54, AGENTS.md §4.31 rule 3). Optional, same "falls back
+   * gracefully when unconfigured" posture as `TELEGRAM_BOT_TOKEN` (never a
+   * hard startup failure like `classCodeHashPepper`) -- when unset, no
+   * `external_monitor_key_metadata` row can ever verify against a real
+   * secret, so `POST /platform/operations/external-monitor-report`
+   * uniformly fails closed with EXTERNAL_MONITOR_AUTH_INVALID rather than
+   * blocking every other route from starting. Two independent slots (not
+   * one) so a CURRENT/PREVIOUS rotation overlap window (§54) can hold two
+   * simultaneously valid secret values without ever storing either in the
+   * database -- `external_monitor_key_metadata` carries only key-id
+   * status metadata, never the secret bytes themselves. When set, each is
+   * decoded/length-checked exactly like `classCodeHashPepper` (fail fast
+   * on a malformed value, never on mere absence).
+   */
+  externalMonitorHmacSecretCurrent: Buffer | null;
+  externalMonitorHmacSecretPrevious: Buffer | null;
 }
 
 export type EnvSource = Record<string, string | undefined>;
@@ -149,6 +168,27 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
     throw new Error(`${detail} Set CLASS_CODE_HASH_PEPPER (see .env.example) — there is no default value.`);
   }
 
+  // Optional -- absence disables the endpoint's ability to ever verify a
+  // signature (fails closed per-request, not at startup). A malformed
+  // *present* value still fails startup loudly, same as classCodeHashPepper.
+  function decodeOptionalExternalMonitorSecret(envVarName: string, value: string | undefined): Buffer | null {
+    if (!value || value.length === 0) return null;
+    try {
+      return decodeExternalMonitorHmacSecret(value);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`${detail} (${envVarName})`);
+    }
+  }
+  const externalMonitorHmacSecretCurrent = decodeOptionalExternalMonitorSecret(
+    "EXTERNAL_MONITOR_HMAC_SECRET_CURRENT",
+    source.EXTERNAL_MONITOR_HMAC_SECRET_CURRENT,
+  );
+  const externalMonitorHmacSecretPrevious = decodeOptionalExternalMonitorSecret(
+    "EXTERNAL_MONITOR_HMAC_SECRET_PREVIOUS",
+    source.EXTERNAL_MONITOR_HMAC_SECRET_PREVIOUS,
+  );
+
   return {
     databaseUrl,
     databaseSsl: source.DATABASE_SSL === "true",
@@ -191,5 +231,7 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
     dbPoolPlatformIdentityMax,
     dbPoolPlatformIdentityIdleTimeoutMs,
     dbPoolPlatformIdentityConnectionTimeoutMs,
+    externalMonitorHmacSecretCurrent,
+    externalMonitorHmacSecretPrevious,
   };
 }

@@ -7,7 +7,13 @@ import type { Queryable } from "./types";
  * for redaction before calling `record` (07_16 §17: "Non registrare
  * codici, password, token o dati anagrafici completi").
  */
-export type AuditActorType = "STUDENT" | "SYSTEM" | "ADMIN" | "STAFF" | "PLATFORM_ADMIN";
+/**
+ * `EXTERNAL_MONITOR` (Tranche E2, 02_42 v1.2 §69): identifies the
+ * authenticated external monitor (`monitorId` in `actorId`) as a distinct
+ * class from `SYSTEM` (the internal local collector) and from any human
+ * `PLATFORM_ADMIN` actor -- additive, no existing value's meaning changes.
+ */
+export type AuditActorType = "STUDENT" | "SYSTEM" | "ADMIN" | "STAFF" | "PLATFORM_ADMIN" | "EXTERNAL_MONITOR";
 export type AuditResult = "SUCCESS" | "FAILURE";
 
 export interface AuditEventInput {

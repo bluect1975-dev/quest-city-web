@@ -36,6 +36,8 @@ function makeEnv(overrides: Partial<ApiEnv> = {}): ApiEnv {
     dbPoolPlatformIdentityMax: 10,
     dbPoolPlatformIdentityIdleTimeoutMs: 10000,
     dbPoolPlatformIdentityConnectionTimeoutMs: 0,
+    externalMonitorHmacSecretCurrent: null,
+    externalMonitorHmacSecretPrevious: null,
     ...overrides,
   };
 }

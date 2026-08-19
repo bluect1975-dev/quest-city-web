@@ -75,6 +75,19 @@ export const PLATFORM_ADMIN_ERROR_CODES = [
   "INCIDENT_ALREADY_ACKNOWLEDGED",
   "ALERT_CONFIGURATION_INVALID",
   "ALERT_CHANNEL_NOT_CONFIGURED",
+  // Tranche E2 out-of-band external monitoring, Level 2 (02_42 v1.2 PARTE
+  // U §53, §67; OpenAPI v1.19.0) -- seven new PLATFORM-domain codes,
+  // matching the vendored v1.19 contract's ErrorEnvelope.code enum
+  // exactly. Reused unmodified by `submitExternalMonitorReport` -- no
+  // second error envelope/response mapping is introduced for this
+  // machine-to-machine endpoint, only new code values on the existing one.
+  "EXTERNAL_MONITOR_AUTH_INVALID",
+  "EXTERNAL_MONITOR_SIGNATURE_INVALID",
+  "EXTERNAL_MONITOR_TIMESTAMP_INVALID",
+  "EXTERNAL_MONITOR_REPLAY_DETECTED",
+  "EXTERNAL_MONITOR_PAYLOAD_INVALID",
+  "EXTERNAL_MONITOR_OBSERVATION_CONFLICT",
+  "EXTERNAL_MONITOR_RATE_LIMITED",
 ] as const;
 
 export type PlatformAdminErrorCode = (typeof PLATFORM_ADMIN_ERROR_CODES)[number];
@@ -109,6 +122,13 @@ const HTTP_STATUS_BY_CODE: Record<PlatformAdminErrorCode, number> = {
   INCIDENT_ALREADY_ACKNOWLEDGED: 409,
   ALERT_CONFIGURATION_INVALID: 400,
   ALERT_CHANNEL_NOT_CONFIGURED: 400,
+  EXTERNAL_MONITOR_AUTH_INVALID: 401,
+  EXTERNAL_MONITOR_SIGNATURE_INVALID: 401,
+  EXTERNAL_MONITOR_TIMESTAMP_INVALID: 401,
+  EXTERNAL_MONITOR_REPLAY_DETECTED: 409,
+  EXTERNAL_MONITOR_PAYLOAD_INVALID: 400,
+  EXTERNAL_MONITOR_OBSERVATION_CONFLICT: 409,
+  EXTERNAL_MONITOR_RATE_LIMITED: 429,
 };
 
 export class PlatformAdminError extends Error {
@@ -141,7 +161,8 @@ export class PlatformAdminError extends Error {
       retryable:
         this.code === "RATE_LIMITED" ||
         this.code === "IDEMPOTENCY_IN_PROGRESS" ||
-        this.code === "CONVERGENCE_EXECUTION_IN_PROGRESS",
+        this.code === "CONVERGENCE_EXECUTION_IN_PROGRESS" ||
+        this.code === "EXTERNAL_MONITOR_RATE_LIMITED",
       ...(this.safeDetails ? { safeDetails: this.safeDetails } : {}),
     };
   }

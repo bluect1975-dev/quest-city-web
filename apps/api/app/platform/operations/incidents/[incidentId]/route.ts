@@ -46,6 +46,7 @@ export async function GET(
             resolvedAt: detail.incident.resolvedAt?.toISOString() ?? null,
             resolutionType: detail.incident.resolutionType,
             tenantId: detail.incident.tenantId,
+            backfilled: detail.incident.backfilled,
           },
           events: detail.events.map((event) => ({
             id: event.id,

@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-external-monitor-report",
+  "artifactVersion": "1.19.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "ff05f16",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_19.yaml",
+  "sourceDocument": "02_42_Quest_City_Master_Admin_Operations_Control_Center_Specification_v1_0 (v1.2, PARTE U §52-73)",
+  "checksum": "sha256:1f6a764528553d82c03206ca84de6b4e0fd0de7d7ca05ede953f970863bae981",
+  "syncedAt": "2026-08-19",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Tranche E2 Level 2 (out-of-band external monitoring): POST /platform/operations/external-monitor-report, additive over v1.18.0. New dedicated M2M security scheme externalMonitorHmac (HMAC-SHA256 request signing, header quartet X-QC-Monitor-Timestamp/Nonce/Signature/Key-Id), zero PlatformCapability granted, no Idempotency-Key (observationId already serves that role). Severity deliberately absent from the request schema (always server-derived from conditionType). Seven new PLATFORM-domain error codes. Verified byte-identical (sha256 match) against the canonical source before commit. This IS the version being implemented by this change set (unlike v1.2.0-v1.18.0, which were vendored as read-only prerequisites) — implementation is limited to Level 2 only; the GitHub Actions workflow and Level 1 direct Telegram fallback described in the same contract remain out of scope for this change set (02_42 §62, mission authorization boundary).",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_19.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_19.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}
