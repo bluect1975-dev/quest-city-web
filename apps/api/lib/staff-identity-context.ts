@@ -43,7 +43,9 @@ function getStaffIdentityPool(): Pool {
     pool = new Pool({
       connectionString: env.databaseUrl,
       ssl: env.databaseSsl ? { rejectUnauthorized: true } : undefined,
-      max: 10,
+      max: env.dbPoolStaffIdentityMax,
+      idleTimeoutMillis: env.dbPoolStaffIdentityIdleTimeoutMs,
+      connectionTimeoutMillis: env.dbPoolStaffIdentityConnectionTimeoutMs,
     });
   }
   return pool;

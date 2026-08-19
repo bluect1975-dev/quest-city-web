@@ -9,7 +9,8 @@ function getPool(): Pool {
     pool = new Pool({
       connectionString: env.databaseUrl,
       ssl: env.databaseSsl ? { rejectUnauthorized: true } : undefined,
-      max: 5,
+      max: env.dbPoolHealthMax,
+      idleTimeoutMillis: env.dbPoolHealthIdleTimeoutMs,
       connectionTimeoutMillis: env.healthReadyDbTimeoutMs,
     });
   }

@@ -40,7 +40,9 @@ function getAttemptsPool(): Pool {
     pool = new Pool({
       connectionString: env.databaseUrl,
       ssl: env.databaseSsl ? { rejectUnauthorized: true } : undefined,
-      max: 10,
+      max: env.dbPoolAttemptsMax,
+      idleTimeoutMillis: env.dbPoolAttemptsIdleTimeoutMs,
+      connectionTimeoutMillis: env.dbPoolAttemptsConnectionTimeoutMs,
     });
   }
   return pool;

@@ -1,0 +1,416 @@
+# Quest City Web — STAGING overlay (Tranche E1 local staging foundations).
+#
+# This is a Compose OVERRIDE file, not a standalone rewrite of
+# docker-compose.yml. It is applied ON TOP of the local/dev compose file so
+# that staging automatically inherits every current and future capability
+# of `docker-compose.yml` (services, healthchecks, routing-relevant env
+# vars, the Telegram alert channel wiring, provisioning assumptions) without
+# a second file drifting out of sync with the first — the exact failure
+# mode identified in the Tranche E reconciliation report (the previous,
+# now-superseded `docker-compose.staging.yml` was a full rewrite branched
+# from an 11-commit-old base and had already gone stale).
+#
+# Run from the repository root:
+#   docker compose -p quest-city-web-staging \
+#     -f infrastructure/deployment/docker-compose.yml \
+#     -f infrastructure/deployment/docker-compose.staging.yml \
+#     --env-file .env.staging up -d --build
+#
+# The explicit -p (COMPOSE_PROJECT_NAME) avoids colliding with the local
+# dev stack (default project name) on the same host — both can run side by
+# side, on different host ports (see nginx below).
+#
+# Compose merge semantics used deliberately below (verified via a real
+# `docker compose up` end-to-end boot, not assumed — see the E1 closure
+# report for the three corrections this caught): `environment:` maps are
+# deep-merged key-by-key, and an `environment:` key ALWAYS wins over an
+# `env_file:` entry of the same name regardless of which file declares
+# which — so every base-file `environment:` key that staging needs a
+# different value for (api's DATABASE_URL/DATABASE_SSL below) MUST be
+# re-declared under this file's own `environment:`; putting it only in
+# `.env.staging` and relying on `env_file:` silently does nothing (a real
+# boot caught the api container still authenticating as local dev's
+# `changeme_local_only` despite `.env.staging` listing a different
+# DATABASE_URL). `volumes:` entries are merged by mount TARGET path (an
+# override sharing a base entry's target replaces it, e.g. postgres's data
+# directory below; a new target is appended) — every entry that must still
+# exist is repeated explicitly. `ports:`/`command:` (and any other plain
+# list-type key) are COMBINED (appended), never replaced, by Compose's
+# default merge behavior — an override list does NOT remove a base file's
+# entries. Where a base entry must be removed or replaced wholesale
+# (postgres's host port, nginx's ports), the `!reset`/`!override` YAML
+# merge tags are used explicitly below (Compose Specification, supported
+# since Compose v2.24) — a plain list would silently combine instead.
+#
+# Scope: Tranche E1 (local staging foundations) only. No public TLS
+# certificate, no real off-site backup target, no VPS host hardening — all
+# three remain E3 (see the Tranche E reconciliation report; the staging
+# operations guide covering this is Tranche E2, not yet in this
+# repository). No external/out-of-band
+# monitoring wiring here — that is Tranche E2, deliberately not started by
+# this file (no `healthcheck` ops-profile service is defined below; see the
+# E1 closure report §4/§25 for why).
+
+services:
+  # Tranche E design report §6/§57: fail-fast staging environment guard.
+  # Runs to completion BEFORE `api` starts (service_completed_successfully
+  # below) — a real orchestration-level gate, not an in-process check. See
+  # tools/validate-staging-env.mjs.
+  staging-guard:
+    image: node:24-slim
+    env_file:
+      - ../../.env.staging
+    volumes:
+      - ../../tools/validate-staging-env.mjs:/validate-staging-env.mjs:ro
+    command: ["node", "/validate-staging-env.mjs"]
+    networks:
+      - qc-internal
+    security_opt:
+      - no-new-privileges:true
+
+  # Copies the generated TLS cert/key from the bind-mounted host directory
+  # into a Docker-managed named volume with correct ownership/permissions,
+  # before postgres starts. Required because a bind-mounted private key
+  # does not reliably carry a `600` permission bit into the container —
+  # this is most visible on a Windows host (NTFS has no POSIX permission
+  # bits, so Docker Desktop's bind-mount translation exposes the file as
+  # group/world-readable regardless of what `chmod 600` set on the host
+  # side), but the same class of bind-mount-permission mismatch can happen
+  # on other host/Docker configurations too — Postgres refuses to start
+  # with a world/group-readable key either way (Tranche E1 correction,
+  # discovered via a real local boot: `FATAL: could not load private key
+  # file ... Permission denied`). Copying into a named volume, which
+  # Docker's own storage driver manages, sidesteps host-filesystem
+  # permission translation entirely rather than depending on it.
+  #
+  # Uses the SAME image as `postgres` below (not a generic `node:24-slim`)
+  # — a second correction found by testing this end to end: the first
+  # attempt copied as root and `chmod 600`'d it, which is still unreadable
+  # to postgres's own non-root runtime user (a 600 file is owner-only, and
+  # the copying container's root is not that owner). Running the chown
+  # step in postgres's own image guarantees the `postgres` user/group name
+  # resolves to the exact UID/GID the postgres process itself will later
+  # run as, however that image defines it.
+  postgres-tls-init:
+    image: postgres:17.2-alpine
+    user: root
+    volumes:
+      - ../database/staging-tls/generated:/source:ro
+      - qc_staging_pg_tls:/target
+    entrypoint: []
+    command:
+      - sh
+      - -c
+      - "cp /source/server.crt /source/server.key /target/ && chown postgres:postgres /target/server.crt /target/server.key && chmod 600 /target/server.key && chmod 644 /target/server.crt"
+    networks:
+      - qc-internal
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+      postgres-tls-init:
+        condition: service_completed_successfully
+    env_file:
+      - ../../.env.staging
+    environment:
+      # POSTGRES_DB/POSTGRES_USER are inherited unchanged from
+      # docker-compose.yml (environment maps deep-merge). Only the password
+      # is overridden here — a real staging value from .env.staging
+      # (gitignored), never a literal in this committed file.
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:?STAGING_POSTGRES_PASSWORD is required — set it in .env.staging, never a literal here.}
+    # Internal TLS (infrastructure/database/staging-tls/**; ACN/MePA Gap
+    # Analysis GAP-09 "Do not weaken TLS validation"). hostssl-only pg_hba
+    # means a client that does not negotiate TLS is refused outright.
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/var/lib/postgresql/tls/server.crt
+      - -c
+      - ssl_key_file=/var/lib/postgresql/tls/server.key
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - hba_file=/etc/postgresql-staging/pg_hba.staging.conf
+    volumes:
+      # Named volume, never the local-dev bind mount (../database/data) —
+      # genuinely Docker-managed persistence, not a path inside the
+      # repository working tree.
+      - qc_staging_pg_data:/var/lib/postgresql/data
+      - ../database/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - qc_staging_pg_tls:/var/lib/postgresql/tls:ro
+      - ../database/staging-tls/pg_hba.staging.conf:/etc/postgresql-staging/pg_hba.staging.conf:ro
+    # No host port at all in staging — unlike local dev's loopback bind
+    # (127.0.0.1:5434:5432), Postgres is reachable only from other
+    # containers on the qc-internal network.
+    #
+    # `!reset` is required here, not a plain empty list (Tranche E1
+    # correction, discovered via a real `docker compose config` dump):
+    # Compose's default merge behavior for list-type keys like `ports`/
+    # `volumes` is to COMBINE (append) entries across files, not replace
+    # them — an empty `ports: []` in this override contributes nothing to
+    # append, so the base file's `127.0.0.1:5434:5432` mapping silently
+    # survived into the merged config until this was corrected. `!reset`
+    # (Compose Specification's merge-override extension, supported since
+    # Compose v2.24) explicitly clears the inherited value instead.
+    ports: !reset []
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      # Local/test log sink by default — Docker's own logging driver, no
+      # custom shipper written from scratch. Real log shipping (a syslog/
+      # fluentd/gelf driver pointing at an external endpoint) is E3/STRONG,
+      # not E1 — swapping the driver here is the only change needed once a
+      # target is provisioned, for every service in this file.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  api:
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    env_file:
+      # Supplies every var api's own env.ts reads that the base file does
+      # NOT already set via `environment:` (SESSION_*/STAFF_*/PLATFORM_*
+      # cookie+TTL+trusted-origin settings, DB_POOL_*) — env_file entries
+      # are LOWER priority than an `environment:` key for the same name
+      # (Compose Specification), so this can only supply NEW keys, never
+      # override one of the explicit ones below or in the base file.
+      - ../../.env.staging
+    environment:
+      # `environment:` keys always win over `env_file:` regardless of file
+      # order (Tranche E1 correction, discovered via a real local boot: the
+      # api container kept using local-dev's literal
+      # `changeme_local_only`/DATABASE_SSL=false because the base file
+      # already sets both via `environment:`, so this override's `env_file`
+      # entry for the same names was silently ignored). Every base
+      # `environment:` key that staging needs a different value for MUST
+      # be re-declared here explicitly — env_file cannot override it.
+      #
+      # DATABASE_URL is derived from the SAME `STAGING_POSTGRES_PASSWORD`
+      # substitution variable postgres's own `POSTGRES_PASSWORD` uses below
+      # (via `--env-file .env.staging` on the `docker compose` invocation —
+      # see this file's header comment), rather than a second, independent
+      # `DATABASE_URL=` line in `.env.staging` — the original design's own
+      # dual-entry requirement ("must be the same value as
+      # STAGING_POSTGRES_PASSWORD") was exactly the kind of manual-
+      # consistency footgun a real end-to-end test exists to catch; this
+      # makes the two impossible to drift apart by construction.
+      DATABASE_URL: postgresql://quest_city_web:${STAGING_POSTGRES_PASSWORD:?STAGING_POSTGRES_PASSWORD is required — set it in .env.staging.}@postgres:5432/quest_city_web?sslmode=require
+      DATABASE_SSL: "true"
+      # PORT, HEALTH_READY_DB_TIMEOUT_MS, CLASS_CODE_HASH_PEPPER,
+      # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID all stay exactly as defined in
+      # docker-compose.yml — those already use `${VAR}` shell-substitution
+      # syntax there (not a hardcoded literal like DATABASE_URL was), so
+      # `--env-file .env.staging` resolves them directly from that file's
+      # own values without needing a second declaration here. The Telegram
+      # wiring and its LocalMockAlertChannelAdapter fallback contract are
+      # unchanged and untested-around here.
+      #
+      # Trust the specific self-signed staging Postgres certificate for
+      # `rejectUnauthorized: true` validation — a targeted, single-
+      # certificate trust addition, never a weakening of
+      # rejectUnauthorized itself (infrastructure/database/staging-tls/README.md).
+      NODE_EXTRA_CA_CERTS: /run/secrets/postgres-staging-ca.crt
+    volumes:
+      - ../database/staging-tls/generated/server.crt:/run/secrets/postgres-staging-ca.crt:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Next.js standalone needs a writable /tmp for its own cache; the rest
+    # of the filesystem (the build output copied into the image) has no
+    # legitimate reason to be written to at runtime.
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.75"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  student-web:
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+    env_file:
+      - ../../.env.staging
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  dashboard:
+    depends_on:
+      staging-guard:
+        condition: service_completed_successfully
+    env_file:
+      - ../../.env.staging
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    volumes:
+      - ../reverse-proxy/nginx.staging.conf:/etc/nginx/nginx.conf:ro
+      # Certificate directory populated by whichever mechanism is chosen at
+      # E3 implementation time (ACME companion / provider-managed gateway)
+      # — see nginx.staging.conf's header comment and the Certificate
+      # Renewal runbook. Never committed; empty locally unless an operator
+      # places a self-signed pair here for E1's own local HTTPS smoke test.
+      - ${NGINX_TLS_CERT_DIR:-../reverse-proxy/staging-tls-certs}:/etc/nginx/tls:ro
+      - ../reverse-proxy/staging-acme-webroot:/var/www/acme
+    # Distinct host ports from local dev's 8080, so both stacks can run
+    # side by side. In E1 (no real VPS/DNS yet) these stay loopback-bound;
+    # a real public bind is an E3 concern once a domain/host exists.
+    #
+    # `!override` is required here, not a plain list (Tranche E1
+    # correction, discovered via a real `docker compose config` dump, same
+    # root cause as postgres's `ports: !reset []` above): without it,
+    # Compose COMBINES this list with the base file's `8080:80` instead of
+    # replacing it, leaving the plain-HTTP local-dev port reachable
+    # alongside the staging TLS ports. `!override` forces this file's list
+    # to be used verbatim.
+    ports: !override
+      - "127.0.0.1:8081:80"
+      - "127.0.0.1:8444:443"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # One-shot ops services (E1 scope: backup + restore only — never started
+  # by a plain `up`, the "ops" profile keeps them out of the default set):
+  #   docker compose -p quest-city-web-staging \
+  #     -f docker-compose.yml -f docker-compose.staging.yml \
+  #     --env-file .env.staging --profile ops run --rm backup
+  #   ... --profile ops run --rm restore-drill
+  #
+  # Deliberately NOT defined here: a `healthcheck` ops service running
+  # tools/staging-healthcheck.mjs as a standalone cron/webhook alerting
+  # mechanism. The Tranche E reconciliation report classified that specific
+  # file CONFLICTING as-is (it would create a second, parallel alerting
+  # path alongside the Master Admin Operations Control Center's incident
+  # engine/Telegram pipeline) and this mission's own scope explicitly
+  # excludes G8/out-of-band monitoring redesign — that work is Tranche E2.
+  backup:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/staging-ops.Dockerfile
+    profiles: ["ops"]
+    # Overrides staging-ops.Dockerfile's `USER node` for this one-shot
+    # batch job only (Tranche E1 correction, discovered via a real backup
+    # run: `EACCES` writing into `staging_backup_local_target`). A fresh
+    # Docker named volume is root-owned by default; unlike the
+    # long-running, network-facing api/student-web/dashboard services
+    # (which stay non-root/read-only/cap_drop ALL), this container never
+    # serves traffic and only ever touches its own tmp dir and this one
+    # volume — running it as root here is the standard, narrowly-scoped
+    # pattern for volume-permission bootstrapping in one-shot ops/CI jobs.
+    user: root
+    env_file:
+      - ../../.env.staging
+    environment:
+      # Same derivation as api's DATABASE_URL above, same reason: this is
+      # a standalone service (not overriding a base-file one), so there is
+      # no base `environment:` DATABASE_URL to conflict with, but there is
+      # also no other source for it now that the old, duplicate-entry
+      # `DATABASE_URL=` line was removed from `.env.staging`.
+      DATABASE_URL: postgresql://quest_city_web:${STAGING_POSTGRES_PASSWORD:?STAGING_POSTGRES_PASSWORD is required — set it in .env.staging.}@postgres:5432/quest_city_web?sslmode=require
+    volumes:
+      - staging_backup_local_target:/var/backups/quest-city-web/offsite
+      - ../database/staging-tls/generated/server.crt:/run/secrets/postgres-staging-ca.crt:ro
+    command: ["node", "backup-staging-db.mjs"]
+    networks:
+      - qc-internal
+    security_opt:
+      - no-new-privileges:true
+
+  restore-drill:
+    build:
+      context: ../..
+      dockerfile: infrastructure/containers/staging-ops.Dockerfile
+    profiles: ["ops"]
+    # Same reasoning as `backup` above — reads from the same root-owned
+    # named volume.
+    user: root
+    env_file:
+      - ../../.env.staging
+    environment:
+      # MUST point at an isolated database, never the staging DATABASE_URL
+      # — see the Restore runbook. Left unresolved by design (`:?`) so an
+      # operator cannot forget to point this somewhere safe.
+      RESTORE_TARGET_DATABASE_URL: ${RESTORE_TARGET_DATABASE_URL:?RESTORE_TARGET_DATABASE_URL is required and must be an ISOLATED database, never the staging DATABASE_URL.}
+    volumes:
+      - staging_backup_local_target:/var/backups/quest-city-web/offsite
+    command: ["node", "restore-staging-db.mjs"]
+    networks:
+      - qc-internal
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  qc_staging_pg_data:
+  # Populated by postgres-tls-init from the bind-mounted, gitignored
+  # infrastructure/database/staging-tls/generated/ directory — see that
+  # service's comment for why a named volume is used instead of mounting
+  # the host directory directly into postgres.
+  qc_staging_pg_tls:
+  # Local/test backup target adapter's default destination — NOT the real
+  # off-site target (that selection is E3). See BACKUP_TARGET_ADAPTER in
+  # .env.staging.example and the Backup runbook.
+  staging_backup_local_target:

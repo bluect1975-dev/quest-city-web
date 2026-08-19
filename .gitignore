@@ -34,3 +34,16 @@ Thumbs.db
 
 # Database data volumes (local dev only)
 infrastructure/database/data/
+
+# Staging TLS material (Tranche E1) — generated locally, never committed
+infrastructure/database/staging-tls/generated/
+infrastructure/reverse-proxy/staging-tls-certs/*
+!infrastructure/reverse-proxy/staging-tls-certs/.gitkeep
+infrastructure/reverse-proxy/staging-acme-webroot/*
+!infrastructure/reverse-proxy/staging-acme-webroot/.gitkeep
+
+# Staging backups (Tranche E1 local drill only — never real off-site storage)
+infrastructure/backups/
+
+# Staging env (Tranche E1)
+.env.staging
