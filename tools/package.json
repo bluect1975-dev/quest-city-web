@@ -23,7 +23,8 @@
     "generate:theme-assets": "tsx generate-theme-assets.ts",
     "check:duplicates": "node check-duplicates.mjs",
     "check:filenames": "node check-filenames.mjs",
-    "operations:health-probe": "tsx operations-health-probe.ts"
+    "operations:health-probe": "tsx operations-health-probe.ts",
+    "provision:telegram-alert-channel": "tsx provision-telegram-alert-channel.ts"
   },
   "dependencies": {
     "@quest-city-web/content-runtime": "workspace:*",

@@ -45,6 +45,9 @@ source .env
 set +a
 pnpm --filter @quest-city-web/tools run migrate
 
+echo "==> Provisioning Telegram alert channel (no-op if TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are unset)"
+pnpm --filter @quest-city-web/tools run provision:telegram-alert-channel
+
 cat <<'EOF'
 
 ==> Bootstrap complete.

@@ -98,4 +98,31 @@ export class AlertConfigurationRepository {
     if (!row) throw new Error("UPSERT ... RETURNING produced no row");
     return mapRow(row);
   }
+
+  /**
+   * Server-side deployment wiring, distinct from `upsert()` above (the
+   * PLATFORM_ADMIN UI/API path). Sets only `recipient_ref`/`credential_ref`
+   * from server-side secret material -- never `enabled`, `severity_threshold`,
+   * `cooldown_seconds`, or `escalation_json`, which are PLATFORM_ADMIN-owned
+   * operational choices this method must not silently override. On first
+   * provisioning (no row yet) the row is created with the table's own
+   * fail-safe schema defaults (`enabled=false`); a PLATFORM_ADMIN must still
+   * opt in via the UI to start real delivery. Never receives or persists the
+   * Bot Token itself -- `credentialRef` is the env-var-name pointer.
+   */
+  async provisionCredentialReferences(input: { channel: AlertChannel; recipientRef: string; credentialRef: string }): Promise<AlertConfiguration> {
+    const result = await this.db.query<AlertConfigurationRow>(
+      `INSERT INTO alert_configuration (channel, recipient_ref, credential_ref)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (channel) DO UPDATE SET
+         recipient_ref = EXCLUDED.recipient_ref,
+         credential_ref = EXCLUDED.credential_ref,
+         updated_at = now()
+       RETURNING ${SELECT_COLUMNS}`,
+      [input.channel, input.recipientRef, input.credentialRef],
+    );
+    const [row] = result.rows;
+    if (!row) throw new Error("provisionCredentialReferences: INSERT ... RETURNING produced no row");
+    return mapRow(row);
+  }
 }
