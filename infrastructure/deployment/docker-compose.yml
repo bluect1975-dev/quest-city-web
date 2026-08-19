@@ -72,6 +72,17 @@ services:
       # Real staging/production values are provisioned via the secret
       # store (07_06 §9), never committed here or anywhere else.
       CLASS_CODE_HASH_PEPPER: ${CLASS_CODE_HASH_PEPPER:?CLASS_CODE_HASH_PEPPER is required — export it in your shell (see .env.example for how to generate one) before running docker compose.}
+      # Master Admin Operations Control Center's Telegram alert channel
+      # (02_42 §30, 07_06 §9). Optional -- unlike CLASS_CODE_HASH_PEPPER
+      # above, no `:?` guard: apps/api/lib/operations-context.ts falls
+      # back to LocalMockAlertChannelAdapter whenever either is unset, so
+      # local/CI environments never need a Telegram account. Real values
+      # are provisioned via the secret store (07_06 §9) and exported into
+      # the invoking shell/.env before `docker compose up` -- never a
+      # value in this file. Server-side only: no other service in this
+      # compose file (student-web, dashboard, nginx) receives these.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     depends_on:
       postgres:
         condition: service_healthy

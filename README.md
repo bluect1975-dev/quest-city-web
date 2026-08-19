@@ -100,6 +100,19 @@ One variable has no default in `.env.example` and must be set explicitly before 
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
+### Telegram alert channel (Master Admin Operations Control Center)
+
+`TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are optional and empty by default in `.env.example`. `apps/api/lib/operations-context.ts` selects `TelegramAlertChannelAdapter` only when both are set, falling back to `LocalMockAlertChannelAdapter` otherwise — no Telegram account is ever required for local development or CI. They are read only by `apps/api` (never `dashboard`, `student-web`, or `nginx`; never a `NEXT_PUBLIC_*` variable), and the Bot Token value itself is never persisted to the database, logged, or returned by any API response — only `alert_configuration.credential_ref` (the literal string `TELEGRAM_BOT_TOKEN`, a pointer to the secret's env-var name) and a masked `recipient_ref` are stored.
+
+Set both (never just one) via the secret store (`07_06 §9`) in staging/production. `bash infrastructure/scripts/bootstrap.sh` provisions `alert_configuration` automatically and idempotently from these two variables after migrations run — no manual `UPDATE` is ever required. To run provisioning standalone:
+
+```bash
+DATABASE_URL=... TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... \
+  pnpm --filter @quest-city-web/tools run provision:telegram-alert-channel
+```
+
+Provisioning only ever writes `recipient_ref`/`credential_ref` — a PLATFORM_ADMIN's `enabled`/severity threshold/cooldown choices made via the Control Center UI are never overwritten by a re-run. Enabling real delivery for the first time still requires an explicit PLATFORM_ADMIN opt-in in the UI (the channel row is created with `enabled=false` by default).
+
 ## Database migrations
 
 Forward-only SQL migrations live in `infrastructure/database/migrations/` (`NNNN_description.sql`, with a matching `NNNN_description.rollback.sql`). Apply pending migrations with:
