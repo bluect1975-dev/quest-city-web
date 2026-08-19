@@ -25,7 +25,9 @@ function getPlatformAdminPool(): Pool {
     pool = new Pool({
       connectionString: env.databaseUrl,
       ssl: env.databaseSsl ? { rejectUnauthorized: true } : undefined,
-      max: 10,
+      max: env.dbPoolPlatformIdentityMax,
+      idleTimeoutMillis: env.dbPoolPlatformIdentityIdleTimeoutMs,
+      connectionTimeoutMillis: env.dbPoolPlatformIdentityConnectionTimeoutMs,
     });
   }
   return pool;

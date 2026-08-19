@@ -41,6 +41,33 @@ export interface ApiEnv {
    * pepper fails startup rather than surfacing later inside a request.
    */
   classCodeHashPepper: Buffer;
+  /**
+   * Per-pool connection tuning (07_06 §12 "connection pooling quando
+   * necessario"; Tranche E design report §19). Defaults reproduce exactly
+   * what every pool already did before these variables existed — health
+   * pool max=5, all other pools max=10, idleTimeoutMillis unset (which is
+   * node-postgres's own built-in default of 10000ms, already applying
+   * implicitly), connectionTimeoutMillis unset (pg's own "wait
+   * indefinitely" default of 0) for every pool except the health pool,
+   * which already used `healthReadyDbTimeoutMs`. Leaving these variables
+   * unset therefore changes nothing for local dev or CI. Staging overrides
+   * them via environment variables (see docker-compose.staging.yml) —
+   * never by editing these defaults.
+   */
+  dbPoolHealthMax: number;
+  dbPoolHealthIdleTimeoutMs: number;
+  dbPoolAttemptsMax: number;
+  dbPoolAttemptsIdleTimeoutMs: number;
+  dbPoolAttemptsConnectionTimeoutMs: number;
+  dbPoolIdentityMax: number;
+  dbPoolIdentityIdleTimeoutMs: number;
+  dbPoolIdentityConnectionTimeoutMs: number;
+  dbPoolStaffIdentityMax: number;
+  dbPoolStaffIdentityIdleTimeoutMs: number;
+  dbPoolStaffIdentityConnectionTimeoutMs: number;
+  dbPoolPlatformIdentityMax: number;
+  dbPoolPlatformIdentityIdleTimeoutMs: number;
+  dbPoolPlatformIdentityConnectionTimeoutMs: number;
 }
 
 export type EnvSource = Record<string, string | undefined>;
@@ -50,6 +77,16 @@ function parsePositiveInt(source: EnvSource, key: string, fallback: string): num
   const value = Number.parseInt(raw, 10);
   if (Number.isNaN(value) || value <= 0) {
     throw new Error(`${key} must be a positive integer, got: ${raw}`);
+  }
+  return value;
+}
+
+/** Like `parsePositiveInt`, but 0 is valid — used for timeouts where 0 legitimately means "no timeout" (pg's own default). */
+function parseNonNegativeInt(source: EnvSource, key: string, fallback: string): number {
+  const raw = source[key] ?? fallback;
+  const value = Number.parseInt(raw, 10);
+  if (Number.isNaN(value) || value < 0) {
+    throw new Error(`${key} must be a non-negative integer, got: ${raw}`);
   }
   return value;
 }
@@ -70,6 +107,32 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
   // School Pilot Readiness Tranche A: same 12h absolute / 60min inactivity baseline, independently configurable.
   const platformSessionAbsoluteTtlSeconds = parsePositiveInt(source, "PLATFORM_SESSION_ABSOLUTE_TTL_SECONDS", String(12 * 60 * 60));
   const platformSessionInactivityTtlSeconds = parsePositiveInt(source, "PLATFORM_SESSION_INACTIVITY_TTL_SECONDS", String(60 * 60));
+  const dbPoolHealthMax = parsePositiveInt(source, "DB_POOL_HEALTH_MAX", "5");
+  const dbPoolHealthIdleTimeoutMs = parseNonNegativeInt(source, "DB_POOL_HEALTH_IDLE_TIMEOUT_MS", "10000");
+  const dbPoolAttemptsMax = parsePositiveInt(source, "DB_POOL_ATTEMPTS_MAX", "10");
+  const dbPoolAttemptsIdleTimeoutMs = parseNonNegativeInt(source, "DB_POOL_ATTEMPTS_IDLE_TIMEOUT_MS", "10000");
+  const dbPoolAttemptsConnectionTimeoutMs = parseNonNegativeInt(source, "DB_POOL_ATTEMPTS_CONNECTION_TIMEOUT_MS", "0");
+  const dbPoolIdentityMax = parsePositiveInt(source, "DB_POOL_IDENTITY_MAX", "10");
+  const dbPoolIdentityIdleTimeoutMs = parseNonNegativeInt(source, "DB_POOL_IDENTITY_IDLE_TIMEOUT_MS", "10000");
+  const dbPoolIdentityConnectionTimeoutMs = parseNonNegativeInt(source, "DB_POOL_IDENTITY_CONNECTION_TIMEOUT_MS", "0");
+  const dbPoolStaffIdentityMax = parsePositiveInt(source, "DB_POOL_STAFF_IDENTITY_MAX", "10");
+  const dbPoolStaffIdentityIdleTimeoutMs = parseNonNegativeInt(source, "DB_POOL_STAFF_IDENTITY_IDLE_TIMEOUT_MS", "10000");
+  const dbPoolStaffIdentityConnectionTimeoutMs = parseNonNegativeInt(
+    source,
+    "DB_POOL_STAFF_IDENTITY_CONNECTION_TIMEOUT_MS",
+    "0",
+  );
+  const dbPoolPlatformIdentityMax = parsePositiveInt(source, "DB_POOL_PLATFORM_IDENTITY_MAX", "10");
+  const dbPoolPlatformIdentityIdleTimeoutMs = parseNonNegativeInt(
+    source,
+    "DB_POOL_PLATFORM_IDENTITY_IDLE_TIMEOUT_MS",
+    "10000",
+  );
+  const dbPoolPlatformIdentityConnectionTimeoutMs = parseNonNegativeInt(
+    source,
+    "DB_POOL_PLATFORM_IDENTITY_CONNECTION_TIMEOUT_MS",
+    "0",
+  );
   const nodeEnv = source.NODE_ENV ?? "development";
   const sessionCookieSecureOverrideInsecureLocal =
     nodeEnv === "development" && source.SESSION_COOKIE_SECURE_OVERRIDE_INSECURE_LOCAL === "true";
@@ -114,5 +177,19 @@ export function loadEnv(source: EnvSource = process.env): ApiEnv {
       .split(",")
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
+    dbPoolHealthMax,
+    dbPoolHealthIdleTimeoutMs,
+    dbPoolAttemptsMax,
+    dbPoolAttemptsIdleTimeoutMs,
+    dbPoolAttemptsConnectionTimeoutMs,
+    dbPoolIdentityMax,
+    dbPoolIdentityIdleTimeoutMs,
+    dbPoolIdentityConnectionTimeoutMs,
+    dbPoolStaffIdentityMax,
+    dbPoolStaffIdentityIdleTimeoutMs,
+    dbPoolStaffIdentityConnectionTimeoutMs,
+    dbPoolPlatformIdentityMax,
+    dbPoolPlatformIdentityIdleTimeoutMs,
+    dbPoolPlatformIdentityConnectionTimeoutMs,
   };
 }
