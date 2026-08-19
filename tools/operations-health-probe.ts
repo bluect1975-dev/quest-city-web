@@ -10,11 +10,13 @@
 
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { Pool } from "pg";
+import pg from "pg";
+const { Pool } = pg;
 import {
   HealthProbeService,
   PresenceService,
   OperationalMetricSampleRepository,
+  ExternalMonitorNonceRepository,
   LocalMockAlertChannelAdapter,
   TelegramAlertChannelAdapter,
   collectHostMetrics,
@@ -22,6 +24,13 @@ import {
 } from "@quest-city-web/operations";
 
 const RETENTION_DAYS = Number.parseInt(process.env.OPERATIONS_METRIC_RETENTION_DAYS ?? "30", 10);
+// 02_42 v1.2 §59.A pilot reference: 10 minutes (timestamp tolerance ±300s
+// plus a safety margin) -- deliberately independent from
+// OPERATIONS_METRIC_RETENTION_DAYS above (days vs. minutes, two unrelated
+// bounded-retention concerns that happen to share this same periodic
+// tool, per migration 0015's own "periodic purge job operating on
+// seen_at, outside migration scope" note).
+const EXTERNAL_MONITOR_NONCE_RETENTION_MINUTES = Number.parseInt(process.env.EXTERNAL_MONITOR_NONCE_RETENTION_MINUTES ?? "10", 10);
 
 function getAdapter(): AlertChannelAdapter {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -64,6 +73,20 @@ async function main(): Promise<void> {
     const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
     const pruned = await metrics.pruneOlderThan(cutoff);
     console.log(JSON.stringify({ step: "retention_prune", prunedRows: pruned, cutoff: cutoff.toISOString() }));
+
+    // 5. External monitor nonce bounded retention (02_42 v1.2 §59.A,
+    // Security & Operations micro-closure mission §7-8). Same
+    // "caller-driven, periodic job, never a per-request DELETE" pattern
+    // as step 4 -- a nonce inside the retention window is never touched
+    // (the request-time replay check itself, ExternalMonitorAuthService,
+    // is the only thing that reads external_monitor_nonce_seen on the hot
+    // path), so this step never shortens the anti-replay guarantee, only
+    // bounds table growth once entries are safely past both the timestamp
+    // tolerance and the retention margin.
+    const nonces = new ExternalMonitorNonceRepository(pool);
+    const nonceCutoff = new Date(Date.now() - EXTERNAL_MONITOR_NONCE_RETENTION_MINUTES * 60 * 1000);
+    const prunedNonces = await nonces.purgeOlderThan(nonceCutoff);
+    console.log(JSON.stringify({ step: "external_monitor_nonce_prune", prunedRows: prunedNonces, cutoff: nonceCutoff.toISOString() }));
   } finally {
     await pool.end();
   }

@@ -37,7 +37,8 @@ export interface VerifyExternalMonitorRequestInput {
   nonceHeader: string;
   keyIdHeader: string;
   signatureHeader: string;
-  rawBody: string;
+  /** The exact bytes read off the wire (production: a `Buffer` from `readBoundedRequestBody`) -- a plain `string` is accepted for unit-test convenience only, see `hmac.ts`'s `sha256Hex`. */
+  rawBody: string | Uint8Array;
   /** Resolves the raw secret bytes for a given key's status role -- never persisted, always sourced from env (apps/api/lib/env.ts). */
   resolveSecret: (status: ExternalMonitorKeyMetadata["status"]) => Buffer | null;
   /** Injectable for deterministic tests; defaults to the real clock. */
