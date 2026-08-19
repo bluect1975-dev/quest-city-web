@@ -6,3 +6,25 @@
 # regardless of the developer's global core.autocrlf setting.
 packages/contracts/vendor/** -text
 packages/content-schema/schemas/vendor/** -text
+
+# Tranche E1 staging tooling (tools/*.mjs): same root cause as above, a real
+# regression caught by post-merge verification, not a local quirk. On a
+# Windows checkout with the common core.autocrlf=true default, these files
+# are silently rewritten LF -> CRLF, which then makes Vite/esbuild's parser
+# (used by `pnpm -r run test`, i.e. vitest) fail with a misleading
+# "SyntaxError: Invalid or unexpected token" reported against whichever
+# file imports the CRLF one — even though `node --check` accepts the same
+# file without complaint. The committed blobs are plain LF; marking these
+# files binary keeps every checkout byte-identical to that blob regardless
+# of the developer's global core.autocrlf setting.
+tools/backup-staging-db.mjs -text
+tools/backup-staging-db.test.mjs -text
+tools/restore-staging-db.mjs -text
+tools/restore-staging-db.test.mjs -text
+tools/staging-backup-target-adapter.mjs -text
+tools/staging-backup-target-adapter.test.mjs -text
+tools/check-dependency-audit.mjs -text
+tools/check-dependency-audit.test.mjs -text
+tools/validate-staging-env.mjs -text
+tools/validate-staging-env.test.mjs -text
+infrastructure/database/staging-tls/generate-staging-db-tls.sh -text
