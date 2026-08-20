@@ -27,6 +27,7 @@
     "provision:telegram-alert-channel": "tsx provision-telegram-alert-channel.ts",
     "provision:external-monitor-key": "tsx provision-external-monitor-key.ts",
     "validate:staging-env": "node validate-staging-env.mjs",
+    "monitor:external-uptime": "node external-uptime-monitor/run.mjs",
     "check:dependency-audit": "node check-dependency-audit.mjs"
   },
   "dependencies": {

@@ -36,3 +36,18 @@ apps/api/lib/bounded-body-reader.ts -text
 apps/api/lib/bounded-body-reader.test.ts -text
 tools/provision-external-monitor-key.ts -text
 tools/provision-external-monitor-key.test.mjs -text
+
+# Tranche E2 Level 1 external uptime monitor: same proactive fix.
+tools/external-uptime-monitor/cooldown.mjs -text
+tools/external-uptime-monitor/cooldown.test.mjs -text
+tools/external-uptime-monitor/hmac.mjs -text
+tools/external-uptime-monitor/hmac.test.mjs -text
+tools/external-uptime-monitor/level1-telegram.mjs -text
+tools/external-uptime-monitor/level1-telegram.test.mjs -text
+tools/external-uptime-monitor/level2-submit.mjs -text
+tools/external-uptime-monitor/level2-submit.test.mjs -text
+tools/external-uptime-monitor/probe.mjs -text
+tools/external-uptime-monitor/probe.test.mjs -text
+tools/external-uptime-monitor/run.mjs -text
+tools/external-uptime-monitor/run.test.mjs -text
+.github/workflows/external-uptime-monitor.yml -text
