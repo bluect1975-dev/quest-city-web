@@ -137,9 +137,10 @@ services:
       - -c
       - hba_file=/etc/postgresql-staging/pg_hba.staging.conf
     volumes:
-      # Named volume, never the local-dev bind mount (../database/data) —
-      # genuinely Docker-managed persistence, not a path inside the
-      # repository working tree.
+      # Its own distinct named volume, never the base file's local-dev
+      # `postgres-data` volume (or, before the Postgres named-volume fix,
+      # the bind mount it replaced) — genuinely separate Docker-managed
+      # persistence, isolated from the disposable local/verify stack.
       - qc_staging_pg_data:/var/lib/postgresql/data
       - ../database/migrations:/docker-entrypoint-initdb.d/migrations:ro
       - qc_staging_pg_tls:/var/lib/postgresql/tls:ro

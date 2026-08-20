@@ -20,7 +20,7 @@ services:
       POSTGRES_USER: quest_city_web
       POSTGRES_PASSWORD: changeme_local_only
     volumes:
-      - ../database/data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
       - ../database/migrations:/docker-entrypoint-initdb.d/migrations:ro
     ports:
       - "127.0.0.1:5434:5432"
@@ -31,24 +31,31 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-      # start_period (WEB-M3-INFRA-FIX): the bind-mounted data directory
-      # (../database/data) survives `docker compose down` between runs. If a
-      # previous verify.sh invocation was interrupted (background job
-      # killed, terminal closed, `down -v` SIGTERM racing an in-flight
-      # write) instead of shutting Postgres down cleanly, the next startup
-      # must replay WAL (crash recovery) before accepting connections.
-      # Measured locally: clean shutdown -> ready in ~7s; unclean shutdown
-      # after a real migrate+integration-test write load -> ~77s of actual
-      # redo (see infrastructure/database's own log: "database system was
-      # not properly shut down; automatic recovery in progress"), which
-      # exceeds the un-padded ~50s retries*interval budget and made Compose
-      # report postgres unhealthy before recovery finished. During
-      # start_period, failed checks don't count against `retries` and the
-      # container isn't marked unhealthy, but a successful check still
-      # flips it to healthy immediately -- so the fast (clean-shutdown)
-      # path is unaffected. 90s gives ~17% margin over the worst case
-      # observed; the unchanged retries*interval budget after start_period
-      # elapses adds another ~50s of headroom for a heavier redo.
+      # start_period (WEB-M3-INFRA-FIX, corrected by the named-volume fix
+      # below): `postgres-data` is a Compose-managed named volume, scoped to
+      # this project, genuinely removed by `docker compose down -v` — the
+      # exact all-fresh-every-time behavior verify.sh's own unconditional
+      # trailing `down -v` already assumes (it mirrors .github/workflows/
+      # ci.yml's integration job). Previously this mount was a bind mount to
+      # a host path (../database/data) that `down -v` could never remove
+      # (bind mounts are not Docker-managed volumes and are untouched by
+      # `-v`), so a prior run's data silently persisted across every
+      # verify.sh invocation regardless of `-v` — and if that prior run's
+      # Postgres was ever terminated non-gracefully (a killed background
+      # job, an interrupted terminal) rather than via a clean shutdown, the
+      # NEXT run's "fresh" container would instead replay WAL crash recovery
+      # against carried-over data, sometimes for minutes, well past this
+      # health check's budget. A genuine `down -v` now leaves nothing to
+      # recover, so a clean `verify.sh` cycle always starts from a true
+      # `initdb`. start_period stays at 90s regardless: an operator can
+      # still run a plain `docker compose down` (no `-v`) between manual
+      # sessions, which intentionally keeps this named volume (same
+      # semantics a bind mount had) — an unclean stop in that case can still
+      # require crash recovery, and 90s (measured worst case ~77s of redo,
+      # ~17% margin) plus the unchanged retries*interval budget after it
+      # remains the right cushion for that path. A clean start (fresh
+      # `initdb` or a cleanly-shut-down volume) still becomes healthy in
+      # ~7s, unaffected by this padding.
       start_period: 90s
 
   api:
@@ -166,3 +173,15 @@ services:
 networks:
   qc-internal:
     driver: bridge
+
+volumes:
+  # Compose-managed, scoped to this project (default naming: no `name:`
+  # override and no `external: true` — Compose derives the real Docker
+  # volume name from the project name, e.g. `deployment_postgres-data` when
+  # run with the default project name). `docker compose down -v` removes
+  # it; a plain `docker compose down` (no `-v`) keeps it, mirroring the
+  # persistence a local operator previously got from the bind mount this
+  # replaces (see postgres's healthcheck comment above). Never `external:
+  # true` — this is disposable local/verify data, not a volume meant to
+  # outlive or be shared across separate Compose projects.
+  postgres-data:
