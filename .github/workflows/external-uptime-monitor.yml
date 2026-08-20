@@ -1,0 +1,156 @@
+name: External Uptime Monitor
+
+# Tranche E2 Level 1 (02_42 v1.2 PARTE U §52-73, AGENTS.md §4.31). An
+# out-of-band observer, independent of the VPS -- if the VPS/API is fully
+# unreachable this workflow sends a Telegram alert directly, bypassing the
+# Control Center entirely (Level 1, §61). If the VPS is reachable but a
+# condition is degraded, it submits an HMAC-signed report to the existing
+# `POST /platform/operations/external-monitor-report` endpoint instead
+# (Level 2, §55), which feeds the SAME incident/alert pipeline already
+# defined by PARTE J-K -- no second incident engine, no second alerting
+# path.
+#
+# Threat model (§62), followed in full:
+#  1. Trigger limited to schedule + an optional manual workflow_dispatch on
+#     the trusted default branch -- never pull_request/pull_request_target.
+#  2. permissions: minimal and explicit below -- contents:read (checkout)
+#     and actions:read (the anti-storm/recovery cooldown logic queries this
+#     workflow's OWN run history via the Actions REST API, cooldown.mjs).
+#  3. No third-party (non-GitHub-first-party) action is used at all -- the
+#     monitor's own script (tools/external-uptime-monitor/) has zero
+#     runtime dependencies beyond Node built-ins, so only actions/checkout
+#     and actions/setup-node (both first-party) are needed, which this
+#     rule's own text exempts from commit-SHA pinning ("mai un tag mobile
+#     @v3 per un'azione NON di prima parte GitHub").
+#  4. Secrets are masked automatically by GitHub Actions' native log
+#     redaction; no step here ever echoes/prints a secret value (the
+#     script itself never logs TELEGRAM_BOT_TOKEN/
+#     EXTERNAL_MONITOR_HMAC_SECRET/GITHUB_TOKEN -- see
+#     tools/external-uptime-monitor/*.test.mjs's "never logs" assertions).
+#  5. `environment:` protection is declared below where the GitHub plan
+#     allows it (best-effort -- see the job's `environment:` key).
+#  6. `concurrency:` group below prevents overlapping runs of this same
+#     monitor, since the cooldown/recovery logic assumes sequential runs.
+#  7. `timeout-minutes` set explicitly on the job.
+#  8. No unbounded retry anywhere -- every network call in the script uses
+#     a single attempt with a bounded AbortSignal.timeout, never a retry
+#     loop.
+#  9. The Bot Token/HMAC secret are never written to a step output, a job
+#     summary, or an artifact -- only $GITHUB_OUTPUT keys the script itself
+#     controls (booleans, condition types, timestamps -- never a secret
+#     value) are ever set.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: external-uptime-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  monitor:
+    name: Probe, decide Level 1/Level 2, report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: external-monitor
+    # Manual dispatch is restricted to the trusted default branch; schedule
+    # events always run against the default branch already (§62 rule 1).
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      EXTERNAL_MONITOR_WORKFLOW_FILE: external-uptime-monitor.yml
+      EXTERNAL_MONITOR_TARGET_HOST: ${{ vars.EXTERNAL_MONITOR_TARGET_HOST }}
+      EXTERNAL_MONITOR_HEALTH_URL: ${{ vars.EXTERNAL_MONITOR_HEALTH_URL }}
+      EXTERNAL_MONITOR_API_BASE_URL: ${{ vars.EXTERNAL_MONITOR_API_BASE_URL }}
+      EXTERNAL_MONITOR_ENVIRONMENT: ${{ vars.EXTERNAL_MONITOR_ENVIRONMENT || 'PRODUCTION' }}
+      EXTERNAL_MONITOR_ID: github-actions:questcity-external-monitor
+      EXTERNAL_MONITOR_COOLDOWN_MINUTES: "15"
+      EXTERNAL_MONITOR_TLS_EXPIRY_WARNING_DAYS: "14"
+      EXTERNAL_MONITOR_HTTP_LATENCY_THRESHOLD_MS: "3000"
+      # Non-secret rotation identifier (02_42 §54) -- deliberately a
+      # repository VARIABLE, not a secret, per the mission's own "eventuale
+      # key-id/config non segreta" allowance.
+      EXTERNAL_MONITOR_HMAC_KEY_ID: ${{ vars.EXTERNAL_MONITOR_HMAC_KEY_ID }}
+      # Three genuine secrets -- never a committed value, never echoed, never
+      # derived from one another (AGENTS.md §4.31 rule 4: the Bot Token is
+      # never reused as/derived from the HMAC secret).
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      EXTERNAL_MONITOR_HMAC_SECRET: ${{ secrets.EXTERNAL_MONITOR_HMAC_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      # No-op-when-unconfigured (same established pattern as
+      # tools/provision-telegram-alert-channel.ts): no real VPS is
+      # provisioned yet (Tranche E3, explicitly out of this mission's
+      # scope), so this guard lets the workflow exist and be scheduled
+      # without producing spurious failures on every tick until a real
+      # target is configured via repository variables.
+      - name: Check target is configured
+        id: configured
+        run: |
+          if [ -z "$EXTERNAL_MONITOR_TARGET_HOST" ]; then
+            echo "EXTERNAL_MONITOR_TARGET_HOST repository variable is not set -- skipping this run (no VPS provisioned yet, Tranche E3)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Probe target reachability/TLS/HTTP health
+        id: probe
+        if: steps.configured.outputs.skip == 'false'
+        run: node tools/external-uptime-monitor/run.mjs probe
+
+      - name: Query run history for cooldown/recovery state
+        id: history
+        if: steps.configured.outputs.skip == 'false'
+        run: node tools/external-uptime-monitor/run.mjs history
+
+      # This step's own success/skip conclusion is itself the durable
+      # per-run marker cooldown.mjs reads back from future runs (see that
+      # module's header comment) -- its NAME is templated with the specific
+      # conditionType so a later run can recover which condition was active
+      # without needing step output values (not retrievable cross-run via
+      # the REST API).
+      - name: "Level 1 condition detected: ${{ steps.probe.outputs.condition_type }}"
+        id: level1-detected
+        if: steps.configured.outputs.skip == 'false' && steps.probe.outputs.reachable == 'false'
+        run: 'echo "Level 1 condition: ${{ steps.probe.outputs.condition_type }}"'
+
+      - name: Level 1 direct alert sent
+        id: level1-alert
+        if: steps.configured.outputs.skip == 'false' && steps.probe.outputs.reachable == 'false' && steps.history.outputs.in_cooldown == 'false'
+        env:
+          RESULT_JSON: ${{ steps.probe.outputs.result }}
+        run: node tools/external-uptime-monitor/run.mjs level1-alert
+
+      - name: Level 1 direct recovery sent
+        id: level1-recovery
+        if: steps.configured.outputs.skip == 'false' && steps.probe.outputs.reachable == 'true' && steps.history.outputs.was_level1_active == 'true'
+        env:
+          LAST_CONDITION_TYPE: ${{ steps.history.outputs.last_condition_type }}
+        run: node tools/external-uptime-monitor/run.mjs level1-recovery
+
+      - name: Level 1 backfill submitted to Control Center
+        if: steps.level1-recovery.conclusion == 'success'
+        env:
+          OUTAGE_STARTED_AT: ${{ steps.history.outputs.outage_started_at }}
+          LAST_CONDITION_TYPE: ${{ steps.history.outputs.last_condition_type }}
+          RECOVERED_AT: ${{ steps.level1-recovery.outputs.recovered_at }}
+        run: node tools/external-uptime-monitor/run.mjs level1-backfill
+
+      - name: Level 2 degraded-condition report submitted
+        if: steps.configured.outputs.skip == 'false' && steps.probe.outputs.reachable == 'true'
+        env:
+          RESULT_JSON: ${{ steps.probe.outputs.result }}
+        run: node tools/external-uptime-monitor/run.mjs level2-submit
