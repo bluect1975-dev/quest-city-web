@@ -32,9 +32,6 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 
-# Database data volumes (local dev only)
-infrastructure/database/data/
-
 # Staging TLS material (Tranche E1) — generated locally, never committed
 infrastructure/database/staging-tls/generated/
 infrastructure/reverse-proxy/staging-tls-certs/*
