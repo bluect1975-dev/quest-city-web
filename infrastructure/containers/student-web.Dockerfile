@@ -18,6 +18,13 @@ RUN pnpm --filter @quest-city-web/student-web... run build
 
 FROM base AS runtime
 ENV NODE_ENV=production
+# npm (bundled with the node:24-slim base image) is never invoked at
+# runtime -- this container only ever runs `node apps/student-web/server.js`
+# -- but its own bundled dependencies (tar/ip-address/undici, none of them
+# reachable from application code) carry real CVEs that a container scan
+# flags regardless of whether npm itself is ever executed. Removing it is
+# a real reduction in shipped attack surface, not a scanner workaround.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app
 COPY --from=build /workspace/apps/student-web/.next/standalone ./
 COPY --from=build /workspace/apps/student-web/.next/static ./apps/student-web/.next/static
