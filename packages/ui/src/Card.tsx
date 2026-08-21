@@ -6,7 +6,7 @@ export interface CardProps {
   as?: ElementType;
   /** Visual weight: `default` (existing `qc-card` look) or `muted` (lower-emphasis, e.g. a secondary panel). */
   tone?: "default" | "muted";
-  className?: string;
+  className?: string | undefined;
 }
 
 /**

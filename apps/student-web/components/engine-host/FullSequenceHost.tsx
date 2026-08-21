@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Button, StatusBadge, StatusMessage } from "@quest-city-web/ui";
+import { Button, Card, ProgressBar, ProgressSteps, StatusBadge, StatusMessage, type ProgressStepState } from "@quest-city-web/ui";
 import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
 import { createDefaultEngineRuntimeRegistry, type EngineEvaluationResult, type EngineSemanticAction } from "@quest-city-web/learning-engines";
 import {
@@ -35,6 +35,7 @@ import {
 } from "@quest-city-web/content-runtime";
 import { EngineHost } from "./EngineHost";
 import { ScenePresentation } from "../scene/ScenePresentation";
+import { stageTypeLabel } from "../../lib/stage-type-label";
 import {
   createSequenceRuntimeState,
   loadSequenceRuntimeState,
@@ -401,6 +402,17 @@ export default function FullSequenceHost() {
   }
 
   const dispatch = stage.isInteractive ? resolveEngineDispatch(stage, { runtimeRegistry }) : undefined;
+  const isBalanceMachineStage = stage.stageType === "BALANCE_MACHINE_CHALLENGE";
+
+  const progressSteps = stages.map((s) => {
+    const order = s.order;
+    let stepState: ProgressStepState;
+    if (order < stage.order) stepState = "completed";
+    else if (order === stage.order) stepState = "current";
+    else if (order === stage.order + 1) stepState = "next";
+    else stepState = "locked";
+    return { id: s.stageId, label: stageTypeLabel(s.stageType), state: stepState };
+  });
 
   return (
     <main>
@@ -410,21 +422,27 @@ export default function FullSequenceHost() {
       <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "fullSequence.sequenceTitle")}</h2>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "fullSequence.sequenceDescription")}</p>
       {error && <StatusMessage kind="error">{error}</StatusMessage>}
-      <StatusMessage kind="empty">
-        {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageProgress", { params: { index: stageIndex + 1, total: stages.length } })}
-      </StatusMessage>
-      <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageTypeLabel", { params: { stageType: stage.stageType } })}</p>
 
-      {STAGE_SCENES[stage.stageId] && <ScenePresentation semanticRoles={STAGE_SCENES[stage.stageId]!} />}
+      <ProgressSteps steps={progressSteps} />
+      <ProgressBar
+        value={stageIndex}
+        max={stages.length}
+        label={t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageProgress", { params: { index: stageIndex + 1, total: stages.length } })}
+      />
 
-      {!stage.isInteractive && (
-        <>
-          {STAGE_PROMPTS[stage.stageId] && (
-            <div>
-              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.titleKey)}</h3>
-              <p>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.bodyKey)}</p>
-            </div>
-          )}
+      <Card className={isBalanceMachineStage ? "qc-hero-card" : undefined}>
+        <StatusBadge tone="info">{stageTypeLabel(stage.stageType)}</StatusBadge>
+
+        {STAGE_SCENES[stage.stageId] && <ScenePresentation semanticRoles={STAGE_SCENES[stage.stageId]!} />}
+
+        {!stage.isInteractive && (
+          <>
+            {STAGE_PROMPTS[stage.stageId] && (
+              <div>
+                <h3>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.titleKey)}</h3>
+                <p>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.bodyKey)}</p>
+              </div>
+            )}
           {recapStageId && (
             <div>
               <h3>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h3>
@@ -470,6 +488,7 @@ export default function FullSequenceHost() {
             onEvaluated={handleEvaluated}
             onAction={handleAction}
             initialActions={currentAttempt.initialActions}
+            embedded
           />
 
           {stageState && <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.attemptsForStageLabel", { params: { count: stageState.attemptsForStage } })}</p>}
@@ -499,6 +518,7 @@ export default function FullSequenceHost() {
           {stageState?.checkpointReached && <StatusBadge tone="success">{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.checkpointLabel")}</StatusBadge>}
         </>
       )}
+      </Card>
     </main>
   );
 }

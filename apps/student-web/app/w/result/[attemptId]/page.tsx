@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, StatusBadge, StatusMessage } from "@quest-city-web/ui";
+import { Button, Card, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../../lib/student-auth-context";
 import { getAttempt, type AttemptDetail } from "../../../../lib/student-api-client";
 import { StudentApiError } from "../../../../lib/student-api-error";
+import { ATTEMPT_STATE_TONE, attemptStateLabel } from "../../../../lib/attempt-state-label";
 
 /**
  * `/w/result/:attemptId` (WEB-M4, 07_25 v1.0 §7-G/§15). Real data only —
@@ -91,40 +92,42 @@ export default function ResultPage() {
     <main>
       <h1>{t(STUDENT_WEB_CATALOG_IT_IT, "result.title")}</h1>
 
-      <StatusMessage kind="empty">
-        {t(STUDENT_WEB_CATALOG_IT_IT, "result.attemptStateLabel", { params: { state: attempt.attemptState } })}
-      </StatusMessage>
+      <Card className="qc-hero-card">
+        {isConsolidated && isScored && (
+          <StatusBadge tone={isCorrect ? "success" : "warning"}>
+            {isCorrect ? t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultCorrect") : t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultIncorrect")}
+          </StatusBadge>
+        )}
 
-      {!isConsolidated && (
-        <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "result.pendingConsolidation")}</StatusMessage>
-      )}
+        {isConsolidated && !isScored && (
+          <StatusBadge tone="neutral">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultPending")}</StatusBadge>
+        )}
 
-      {isConsolidated && isScored && (
-        <StatusBadge tone={isCorrect ? "success" : "warning"}>
-          {isCorrect ? t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultCorrect") : t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultIncorrect")}
-        </StatusBadge>
-      )}
+        {!isConsolidated && (
+          <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "result.pendingConsolidation")}</StatusMessage>
+        )}
 
-      {isConsolidated && !isScored && (
-        <StatusBadge tone="neutral">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.resultPending")}</StatusBadge>
-      )}
-
-      <p>
-        {t(STUDENT_WEB_CATALOG_IT_IT, "result.startedAtLabel", {
-          params: { date: new Date(attempt.startedAt).toLocaleString("it-IT") },
-        })}
-      </p>
-      {attempt.completedAt && (
         <p>
-          {t(STUDENT_WEB_CATALOG_IT_IT, "result.completedAtLabel", {
-            params: { date: new Date(attempt.completedAt).toLocaleString("it-IT") },
+          {t(STUDENT_WEB_CATALOG_IT_IT, "result.stateLabel")}: <StatusBadge tone={ATTEMPT_STATE_TONE[attempt.attemptState] ?? "neutral"}>{attemptStateLabel(attempt.attemptState)}</StatusBadge>
+        </p>
+
+        <p>
+          {t(STUDENT_WEB_CATALOG_IT_IT, "result.startedAtLabel", {
+            params: { date: new Date(attempt.startedAt).toLocaleString("it-IT") },
           })}
         </p>
-      )}
+        {attempt.completedAt && (
+          <p>
+            {t(STUDENT_WEB_CATALOG_IT_IT, "result.completedAtLabel", {
+              params: { date: new Date(attempt.completedAt).toLocaleString("it-IT") },
+            })}
+          </p>
+        )}
 
-      <Link href="/w/home">
-        <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "result.homeButton")}</Button>
-      </Link>
+        <Link href="/w/home">
+          <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "result.homeButton")}</Button>
+        </Link>
+      </Card>
     </main>
   );
 }

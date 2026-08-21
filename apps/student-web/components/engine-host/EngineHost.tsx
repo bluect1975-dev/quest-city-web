@@ -74,6 +74,18 @@ export interface EngineHostProps {
    * that never pass this prop are unaffected.
    */
   initialActions?: EngineSemanticAction[];
+  /**
+   * Pilot UX/UI Redesign UI-R3 §15: `EngineHost` was originally a
+   * standalone page component (`/w/engine/:id`'s demo sandbox) — its own
+   * "back to /w" link and engine-name heading make sense there, but when
+   * embedded inside `SequenceHost`/`FullSequenceHost` (the real M06
+   * activity shell, which already renders its own back link and stage
+   * framing) they showed up as a confusing second "back" link pointing to
+   * the dev redirect gate `/w` in the middle of a live attempt. `embedded`
+   * suppresses both; the accessibility keyboard hint stays either way.
+   * Defaults to `false` so the standalone sandbox route is unaffected.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -85,17 +97,13 @@ export interface EngineHostProps {
  * one dispatch path, one result renderer shared by all 3 engines rather
  * than per-engine host logic.
  */
-export function EngineHost({ runtimeAdapterId, config, onEvaluated, onAction, initialActions }: EngineHostProps) {
+export function EngineHost({ runtimeAdapterId, config, onEvaluated, onAction, initialActions, embedded = false }: EngineHostProps) {
   const registry = useMemo(() => createDefaultEngineRuntimeRegistry(), []);
   const engine = registry.getByRuntimeAdapterId(runtimeAdapterId);
   const resolvedConfig = config ?? DEMO_CONFIGS[runtimeAdapterId];
 
   if (!engine || resolvedConfig === undefined) {
-    return (
-      <StatusMessage kind="error">
-        {t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.title")}: {runtimeAdapterId}
-      </StatusMessage>
-    );
+    return <StatusMessage kind="error">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.engineUnavailable")}</StatusMessage>;
   }
 
   return (
@@ -103,6 +111,7 @@ export function EngineHost({ runtimeAdapterId, config, onEvaluated, onAction, in
       engine={engine}
       demoConfig={resolvedConfig}
       nameKey={ENGINE_NAME_KEYS[runtimeAdapterId] ?? "engines.index.title"}
+      embedded={embedded}
       {...(onEvaluated ? { onEvaluated } : {})}
       {...(onAction ? { onAction } : {})}
       {...(initialActions ? { initialActions } : {})}
@@ -114,6 +123,7 @@ function ResolvedEngineHost({
   engine,
   demoConfig,
   nameKey,
+  embedded,
   onEvaluated,
   onAction,
   initialActions,
@@ -121,6 +131,7 @@ function ResolvedEngineHost({
   engine: NonNullable<ReturnType<ReturnType<typeof createDefaultEngineRuntimeRegistry>["getByRuntimeAdapterId"]>>;
   demoConfig: unknown;
   nameKey: string;
+  embedded: boolean;
   onEvaluated?: (result: EngineEvaluationResult) => void;
   onAction?: (action: EngineSemanticAction) => void;
   initialActions?: EngineSemanticAction[];
@@ -187,10 +198,14 @@ function ResolvedEngineHost({
 
   return (
     <div>
-      <p>
-        <Link href="/w">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.backLink")}</Link>
-      </p>
-      <h2>{t(STUDENT_WEB_CATALOG_IT_IT, nameKey)}</h2>
+      {!embedded && (
+        <>
+          <p>
+            <Link href="/w">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.backLink")}</Link>
+          </p>
+          <h2>{t(STUDENT_WEB_CATALOG_IT_IT, nameKey)}</h2>
+        </>
+      )}
       <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.keyboardHint")}</StatusMessage>
 
       {engine.runtimeAdapterId === "QC-WEB-ENGINE-BALANCE-MACHINE" && (
