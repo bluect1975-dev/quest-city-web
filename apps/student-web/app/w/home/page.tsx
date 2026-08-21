@@ -3,54 +3,45 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, StatusMessage } from "@quest-city-web/ui";
+import { Button, Card, EmptyState, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../lib/student-auth-context";
-import {
-  getWebM4Activity,
-  getWebTranche1Activity,
-  getWebTranche2Activity,
-  getWebTranche3Activity,
-  getWebTranche4Activity,
-  getWebTranche5Activity,
-  getMyAssignments,
-  type WebM4Activity,
-  type MyAssignment,
-} from "../../../lib/student-api-client";
+import { getMyAssignments, type MyAssignment } from "../../../lib/student-api-client";
 import { StudentApiError } from "../../../lib/student-api-error";
 
-const P0_ENGINES = [
-  { runtimeAdapterId: "QC-WEB-ENGINE-BALANCE-MACHINE", nameKey: "engines.balance.name" },
-  { runtimeAdapterId: "QC-WEB-ENGINE-QUICK-QUESTION", nameKey: "engines.quick.name" },
-  { runtimeAdapterId: "QC-WEB-ENGINE-DRAG-DROP", nameKey: "engines.drag.name" },
-] as const;
+const ASSIGNMENT_STATUS_TONE = {
+  NOT_STARTED: "neutral",
+  IN_PROGRESS: "info",
+  COMPLETED: "success",
+} as const;
 
 /**
- * `/w/home` (WEB-M4, 07_25 v1.0 §7-B, authorization §6): minimal student
- * home — session validity, the one real WEB-M4 learning experience, and an
- * entry point into it. Not the full curriculum browser (§8, out of scope).
+ * `/w/home` (Pilot UX/UI Redesign, UI-R2 — Student Home). Replaces the
+ * previous milestone-by-milestone layout (a "welcome" heading followed by
+ * six near-identical "La tua attività" cards, one hardcoded per M06
+ * tranche, plus a developer-only "Motori didattici disponibili" sandbox
+ * section) with a real hierarchy: one current-mission hero (the M06 full
+ * sequence, `/w/full-sequence` — the actual pilot curriculum path) above
+ * the student's own `STAFF_GENERAL` assignments.
+ *
+ * The six hardcoded per-tranche reads (`getWebM4Activity`..
+ * `getWebTranche5Activity`) and the `/w/engine/:id` / `/w/sequence`
+ * sandbox links are intentionally NOT rendered here anymore — the
+ * previous version of this file already documented them as "for
+ * regression/dev", never the pilot-ready path (`getMyAssignments` was).
+ * Those routes and their backend endpoints are untouched and still
+ * directly covered by their own integration tests
+ * (`tests/integration/web-tranche{1..6}-*-flow.test.ts`); only this
+ * page's product-facing rendering of them is removed.
+ *
+ * No fabricated progress number is shown here (principio di evidenza —
+ * never display data the app doesn't actually have): a real per-stage
+ * progress view exists inside `/w/full-sequence` itself (`FullSequenceHost`,
+ * UI-R3), which has the real `SequenceRuntimeState`.
  */
 export default function StudentHomePage() {
-  const { status, context, logout } = useStudentAuth();
+  const { status, context } = useStudentAuth();
   const router = useRouter();
-  const [activity, setActivity] = useState<WebM4Activity | null>(null);
-  const [activityError, setActivityError] = useState<string | null>(null);
-  const [loadingActivity, setLoadingActivity] = useState(true);
-  const [tranche1Activity, setTranche1Activity] = useState<WebM4Activity | null>(null);
-  const [tranche1ActivityError, setTranche1ActivityError] = useState<string | null>(null);
-  const [loadingTranche1Activity, setLoadingTranche1Activity] = useState(true);
-  const [tranche2Activity, setTranche2Activity] = useState<WebM4Activity | null>(null);
-  const [tranche2ActivityError, setTranche2ActivityError] = useState<string | null>(null);
-  const [loadingTranche2Activity, setLoadingTranche2Activity] = useState(true);
-  const [tranche3Activity, setTranche3Activity] = useState<WebM4Activity | null>(null);
-  const [tranche3ActivityError, setTranche3ActivityError] = useState<string | null>(null);
-  const [loadingTranche3Activity, setLoadingTranche3Activity] = useState(true);
-  const [tranche4Activity, setTranche4Activity] = useState<WebM4Activity | null>(null);
-  const [tranche4ActivityError, setTranche4ActivityError] = useState<string | null>(null);
-  const [loadingTranche4Activity, setLoadingTranche4Activity] = useState(true);
-  const [tranche5Activity, setTranche5Activity] = useState<WebM4Activity | null>(null);
-  const [tranche5ActivityError, setTranche5ActivityError] = useState<string | null>(null);
-  const [loadingTranche5Activity, setLoadingTranche5Activity] = useState(true);
   const [myAssignments, setMyAssignments] = useState<MyAssignment[] | null>(null);
   const [myAssignmentsError, setMyAssignmentsError] = useState<string | null>(null);
   const [loadingMyAssignments, setLoadingMyAssignments] = useState(true);
@@ -61,164 +52,6 @@ export default function StudentHomePage() {
     }
   }, [status, router]);
 
-  useEffect(() => {
-    if (status !== "authenticated" && status !== "authenticated-read-only") {
-      return;
-    }
-    let cancelled = false;
-    getWebM4Activity()
-      .then((result) => {
-        if (!cancelled) setActivity(result);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        setActivityError(
-          caught instanceof StudentApiError
-            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
-            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingActivity(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
-
-  useEffect(() => {
-    if (status !== "authenticated" && status !== "authenticated-read-only") {
-      return;
-    }
-    let cancelled = false;
-    getWebTranche1Activity()
-      .then((result) => {
-        if (!cancelled) setTranche1Activity(result);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        setTranche1ActivityError(
-          caught instanceof StudentApiError
-            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
-            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTranche1Activity(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
-
-  useEffect(() => {
-    if (status !== "authenticated" && status !== "authenticated-read-only") {
-      return;
-    }
-    let cancelled = false;
-    getWebTranche2Activity()
-      .then((result) => {
-        if (!cancelled) setTranche2Activity(result);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        setTranche2ActivityError(
-          caught instanceof StudentApiError
-            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
-            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTranche2Activity(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
-
-  useEffect(() => {
-    if (status !== "authenticated" && status !== "authenticated-read-only") {
-      return;
-    }
-    let cancelled = false;
-    getWebTranche3Activity()
-      .then((result) => {
-        if (!cancelled) setTranche3Activity(result);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        setTranche3ActivityError(
-          caught instanceof StudentApiError
-            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
-            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTranche3Activity(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
-
-  useEffect(() => {
-    if (status !== "authenticated" && status !== "authenticated-read-only") {
-      return;
-    }
-    let cancelled = false;
-    getWebTranche4Activity()
-      .then((result) => {
-        if (!cancelled) setTranche4Activity(result);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        setTranche4ActivityError(
-          caught instanceof StudentApiError
-            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
-            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTranche4Activity(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
-
-  useEffect(() => {
-    if (status !== "authenticated" && status !== "authenticated-read-only") {
-      return;
-    }
-    let cancelled = false;
-    getWebTranche5Activity()
-      .then((result) => {
-        if (!cancelled) setTranche5Activity(result);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        setTranche5ActivityError(
-          caught instanceof StudentApiError
-            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
-            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingTranche5Activity(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
-
-  /**
-   * `GET /me/assignments` (02_26 v1.12 §34.5): the dynamic replacement for
-   * the hardcoded per-tranche sections above — a School Admin-assigned
-   * `STAFF_GENERAL` activity appears here with no code change, unlike the
-   * sections above which each require a dedicated route/section per
-   * tranche. The hardcoded sections stay for regression/dev; this is the
-   * pilot-ready path.
-   */
   useEffect(() => {
     if (status !== "authenticated" && status !== "authenticated-read-only") {
       return;
@@ -244,11 +77,6 @@ export default function StudentHomePage() {
     };
   }, [status]);
 
-  async function handleLogout() {
-    await logout();
-    router.replace("/w/login");
-  }
-
   if (status === "loading" || status === "unauthenticated") {
     return (
       <main>
@@ -264,7 +92,15 @@ export default function StudentHomePage() {
         <StatusMessage kind="unauthorized">{t(STUDENT_WEB_CATALOG_IT_IT, "home.readOnlySessionWarning")}</StatusMessage>
       )}
 
-      <section className="qc-card">
+      <Card className="qc-hero-card">
+        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceSectionTitle")}</h2>
+        <p>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceDescription")}</p>
+        <Link href="/w/full-sequence">
+          <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startFullSequenceButton")}</Button>
+        </Link>
+      </Card>
+
+      <Card>
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsSectionTitle")}</h2>
         {loadingMyAssignments && (
           <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsLoading")}</StatusMessage>
@@ -273,28 +109,35 @@ export default function StudentHomePage() {
           <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsError")}</StatusMessage>
         )}
         {!loadingMyAssignments && !myAssignmentsError && myAssignments && myAssignments.length === 0 && (
-          <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsEmpty")}</StatusMessage>
+          <EmptyState
+            title={t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsEmptyTitle")}
+            description={t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsEmptyDescription")}
+          />
         )}
         {!loadingMyAssignments && !myAssignmentsError && myAssignments && myAssignments.length > 0 && (
-          <ul>
+          <ul className="qc-assignment-list">
             {myAssignments.map((assignment) => (
-              <li key={assignment.assignmentId}>
-                <p>{assignment.title}</p>
-                <p>
-                  {t(
-                    STUDENT_WEB_CATALOG_IT_IT,
-                    assignment.completionStatus === "COMPLETED"
-                      ? "home.assignmentStatusCompleted"
-                      : assignment.completionStatus === "IN_PROGRESS"
-                        ? "home.assignmentStatusInProgress"
-                        : "home.assignmentStatusNotStarted",
+              <li key={assignment.assignmentId} className="qc-assignment-list-item">
+                <div>
+                  <p className="qc-assignment-list-title">{assignment.title}</p>
+                  <StatusBadge tone={ASSIGNMENT_STATUS_TONE[assignment.completionStatus]}>
+                    {t(
+                      STUDENT_WEB_CATALOG_IT_IT,
+                      assignment.completionStatus === "COMPLETED"
+                        ? "home.assignmentStatusCompleted"
+                        : assignment.completionStatus === "IN_PROGRESS"
+                          ? "home.assignmentStatusInProgress"
+                          : "home.assignmentStatusNotStarted",
+                    )}
+                  </StatusBadge>
+                  {assignment.dueAt && (
+                    <p className="qc-assignment-list-due">
+                      {t(STUDENT_WEB_CATALOG_IT_IT, "home.assignmentDueAt", { params: { dueAt: new Date(assignment.dueAt).toLocaleDateString() } })}
+                    </p>
                   )}
-                </p>
-                {assignment.dueAt && (
-                  <p>{t(STUDENT_WEB_CATALOG_IT_IT, "home.assignmentDueAt", { params: { dueAt: new Date(assignment.dueAt).toLocaleDateString() } })}</p>
-                )}
+                </div>
                 <Link href={`/w/activity/${encodeURIComponent(assignment.assignmentId)}`}>
-                  <Button type="button">
+                  <Button type="button" variant="secondary">
                     {t(
                       STUDENT_WEB_CATALOG_IT_IT,
                       assignment.completionStatus === "COMPLETED"
@@ -309,116 +152,7 @@ export default function StudentHomePage() {
             ))}
           </ul>
         )}
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
-        {loadingActivity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
-        {!loadingActivity && activityError && <StatusMessage kind="empty">{activityError}</StatusMessage>}
-        {!loadingActivity && !activityError && activity && (
-          <>
-            <p>{activity.title}</p>
-            <Link href={`/w/activity/${encodeURIComponent(activity.assignmentId)}`}>
-              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
-            </Link>
-          </>
-        )}
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
-        {loadingTranche1Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
-        {!loadingTranche1Activity && tranche1ActivityError && <StatusMessage kind="empty">{tranche1ActivityError}</StatusMessage>}
-        {!loadingTranche1Activity && !tranche1ActivityError && tranche1Activity && (
-          <>
-            <p>{tranche1Activity.title}</p>
-            <Link href={`/w/activity/${encodeURIComponent(tranche1Activity.assignmentId)}`}>
-              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
-            </Link>
-          </>
-        )}
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
-        {loadingTranche2Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
-        {!loadingTranche2Activity && tranche2ActivityError && <StatusMessage kind="empty">{tranche2ActivityError}</StatusMessage>}
-        {!loadingTranche2Activity && !tranche2ActivityError && tranche2Activity && (
-          <>
-            <p>{tranche2Activity.title}</p>
-            <Link href={`/w/activity/${encodeURIComponent(tranche2Activity.assignmentId)}`}>
-              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
-            </Link>
-          </>
-        )}
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
-        {loadingTranche3Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
-        {!loadingTranche3Activity && tranche3ActivityError && <StatusMessage kind="empty">{tranche3ActivityError}</StatusMessage>}
-        {!loadingTranche3Activity && !tranche3ActivityError && tranche3Activity && (
-          <>
-            <p>{tranche3Activity.title}</p>
-            <Link href={`/w/activity/${encodeURIComponent(tranche3Activity.assignmentId)}`}>
-              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
-            </Link>
-          </>
-        )}
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
-        {loadingTranche4Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
-        {!loadingTranche4Activity && tranche4ActivityError && <StatusMessage kind="empty">{tranche4ActivityError}</StatusMessage>}
-        {!loadingTranche4Activity && !tranche4ActivityError && tranche4Activity && (
-          <>
-            <p>{tranche4Activity.title}</p>
-            <Link href={`/w/activity/${encodeURIComponent(tranche4Activity.assignmentId)}`}>
-              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
-            </Link>
-          </>
-        )}
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.activitySectionTitle")}</h2>
-        {loadingTranche5Activity && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "home.activityLoading")}</StatusMessage>}
-        {!loadingTranche5Activity && tranche5ActivityError && <StatusMessage kind="empty">{tranche5ActivityError}</StatusMessage>}
-        {!loadingTranche5Activity && !tranche5ActivityError && tranche5Activity && (
-          <>
-            <p>{tranche5Activity.title}</p>
-            <Link href={`/w/activity/${encodeURIComponent(tranche5Activity.assignmentId)}`}>
-              <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startActivityButton")}</Button>
-            </Link>
-          </>
-        )}
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceSectionTitle")}</h2>
-        <p>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceDescription")}</p>
-        <Link href="/w/full-sequence">
-          <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startFullSequenceButton")}</Button>
-        </Link>
-      </section>
-
-      <section className="qc-card">
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.title")}</h2>
-        <p>{t(STUDENT_WEB_CATALOG_IT_IT, "engines.index.description")}</p>
-        <ul>
-          {P0_ENGINES.map((entry) => (
-            <li key={entry.runtimeAdapterId}>
-              <Link href={`/w/engine/${entry.runtimeAdapterId}`}>{t(STUDENT_WEB_CATALOG_IT_IT, entry.nameKey)}</Link>
-            </li>
-          ))}
-        </ul>
-        <Link href="/w/sequence">{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.title")}</Link>
-      </section>
-
-      <Button type="button" variant="secondary" onClick={handleLogout}>
-        {t(STUDENT_WEB_CATALOG_IT_IT, "home.logoutButton")}
-      </Button>
+      </Card>
     </main>
   );
 }
