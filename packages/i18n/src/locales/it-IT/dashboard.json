@@ -663,6 +663,10 @@
       "overview": {
         "title": "Panoramica piattaforma",
         "platformStatus": "Stato piattaforma",
+        "platformStatusHealthy": "Operativa",
+        "platformStatusDegraded": "Degradata",
+        "platformStatusCritical": "Critica",
+        "platformStatusUnknown": "Sconosciuto",
         "active": "attive",
         "suspended": "sospese",
         "schoolsTotal": "Scuole totali",
