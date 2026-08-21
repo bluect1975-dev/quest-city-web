@@ -109,6 +109,44 @@ describe("validateStagingEnv", () => {
     expect(result.warnings.some((w) => w.includes("BACKUP_ENCRYPTION_KEY"))).toBe(false);
   });
 
+  describe("off-site backup target (Tranche E3, GAP-02)", () => {
+    it("warns (does not fail) when BACKUP_TARGET_ADAPTER is unset", () => {
+      const result = validateStagingEnv(validStagingEnv());
+      expect(result.failures).toEqual([]);
+      expect(result.warnings.some((w) => w.includes("BACKUP_TARGET_ADAPTER"))).toBe(true);
+    });
+
+    it("does not warn once BACKUP_TARGET_ADAPTER=s3 with a full config", () => {
+      const result = validateStagingEnv(
+        validStagingEnv({
+          BACKUP_TARGET_ADAPTER: "s3",
+          BACKUP_S3_BUCKET: "bucket",
+          BACKUP_S3_ENDPOINT: "https://example.r2.cloudflarestorage.com",
+          BACKUP_S3_ACCESS_KEY_ID: "id",
+          BACKUP_S3_SECRET_ACCESS_KEY: "secret",
+        }),
+      );
+      expect(result.failures).toEqual([]);
+      expect(result.warnings.some((w) => w.includes("BACKUP_TARGET_ADAPTER"))).toBe(false);
+    });
+
+    it.each(["BACKUP_S3_BUCKET", "BACKUP_S3_ENDPOINT", "BACKUP_S3_ACCESS_KEY_ID", "BACKUP_S3_SECRET_ACCESS_KEY"])(
+      "fails when BACKUP_TARGET_ADAPTER=s3 and %s is missing",
+      (missingVar) => {
+        const fullConfig = {
+          BACKUP_TARGET_ADAPTER: "s3",
+          BACKUP_S3_BUCKET: "bucket",
+          BACKUP_S3_ENDPOINT: "https://example.r2.cloudflarestorage.com",
+          BACKUP_S3_ACCESS_KEY_ID: "id",
+          BACKUP_S3_SECRET_ACCESS_KEY: "secret",
+        };
+        delete fullConfig[missingVar];
+        const result = validateStagingEnv(validStagingEnv(fullConfig));
+        expect(result.failures.some((f) => f.includes(missingVar))).toBe(true);
+      },
+    );
+  });
+
   describe("Telegram alert channel — both variables or neither (mirrors provision-telegram-alert-channel.ts)", () => {
     it("warns (does not fail) when neither TELEGRAM_BOT_TOKEN nor TELEGRAM_CHAT_ID is set", () => {
       const result = validateStagingEnv(validStagingEnv());

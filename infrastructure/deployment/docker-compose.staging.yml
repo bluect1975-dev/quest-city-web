@@ -42,11 +42,12 @@
 # merge tags are used explicitly below (Compose Specification, supported
 # since Compose v2.24) — a plain list would silently combine instead.
 #
-# Scope: Tranche E1 (local staging foundations) only. No public TLS
-# certificate, no real off-site backup target, no VPS host hardening — all
-# three remain E3 (see the Tranche E reconciliation report; the staging
-# operations guide covering this is Tranche E2, not yet in this
-# repository). No external/out-of-band
+# Scope: originally Tranche E1 (local staging foundations) only. Real VPS/
+# domain/TLS (ports below), digest-pinned GHCR images (api/student-web/
+# dashboard `image:` above), and the real off-site backup target
+# (BACKUP_TARGET_ADAPTER, near the bottom of this file) are Tranche E3 —
+# see the Tranche E reconciliation report and the E3 residual closure
+# report for what each addition actually closes. No external/out-of-band
 # monitoring wiring here — that is Tranche E2, deliberately not started by
 # this file (no `healthcheck` ops-profile service is defined below; see the
 # E1 closure report §4/§25 for why).
@@ -178,6 +179,18 @@ services:
         max-file: "5"
 
   api:
+    # Tranche E3 / 07_06 §4.1: staging never builds from source — it runs
+    # exactly the image CI built, scanned, and pushed to GHCR, pinned by
+    # immutable digest (never the mutable `:${{ github.sha }}` tag, and
+    # never `latest` — §4.2). The base file's own `build:` block is still
+    # inherited (harmless — local `docker compose up --build` dev workflow
+    # is unaffected) but is never invoked here because the deployment
+    # runbook runs `up -d --no-build`, so Compose only ever resolves this
+    # `image:` reference. Set API_IMAGE_REF in .env.staging to
+    # `ghcr.io/<owner>/quest-city-web-api@sha256:<digest>` from the
+    # `container-scan` CI job's step summary for the commit being
+    # deployed — see 01-deployment.md.
+    image: ${API_IMAGE_REF:?API_IMAGE_REF is required in staging — set it to a real ghcr.io ...@sha256:<digest> reference recorded by CI for the commit being deployed. See 01-deployment.md.}
     depends_on:
       staging-guard:
         condition: service_completed_successfully
@@ -253,6 +266,8 @@ services:
         max-file: "5"
 
   student-web:
+    # See api's `image:` comment above — same 07_06 §4.1 rationale.
+    image: ${STUDENT_WEB_IMAGE_REF:?STUDENT_WEB_IMAGE_REF is required in staging — set it to a real ghcr.io ...@sha256:<digest> reference recorded by CI for the commit being deployed. See 01-deployment.md.}
     depends_on:
       staging-guard:
         condition: service_completed_successfully
@@ -277,6 +292,8 @@ services:
         max-file: "5"
 
   dashboard:
+    # See api's `image:` comment above — same 07_06 §4.1 rationale.
+    image: ${DASHBOARD_IMAGE_REF:?DASHBOARD_IMAGE_REF is required in staging — set it to a real ghcr.io ...@sha256:<digest> reference recorded by CI for the commit being deployed. See 01-deployment.md.}
     depends_on:
       staging-guard:
         condition: service_completed_successfully
