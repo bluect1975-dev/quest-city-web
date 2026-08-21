@@ -29,11 +29,25 @@ const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
  * named property keeps its own literal, non-optional type — a plain
  * `Record` index signature would make every access `T | undefined` under
  * `noUncheckedIndexedAccess`.
+ *
+ * `CLASS_CODE_RESOLVE_IP`/`SESSION_START_IP` recalibrated 30 -> 90 and
+ * `CLASS_CODE_RESOLVE_CODE` 60 -> 150 (Tranche F real load test, mission
+ * §12): a real school class shares one NAT egress IP, and a real 25-student
+ * login burst measured against these original values produced 429 on 11/25
+ * `session/start` attempts and 10/25 `class-code/resolve` attempts in
+ * `pilot-load-test.mjs` scenario L3 against real staging — rate limiting a
+ * class out of its own lesson, not an attacker. New values keep a bounded,
+ * still-enforced ceiling (regression-tested below, never disabled) with
+ * roughly 3x headroom over a full class for realistic retry/typo/reconnect
+ * overhead, while remaining far too tight for meaningful brute-force of an
+ * 8-char class code or 6-digit PIN. `SESSION_START_ENROLLMENT` (per
+ * individual student, protects one student's PIN specifically) is
+ * unaffected — no student in the real load test approached it.
  */
 export const RATE_LIMITS = {
-  CLASS_CODE_RESOLVE_IP: { scope: "CLASS_CODE_RESOLVE_IP", limit: 30, windowMs: FIFTEEN_MINUTES_MS },
-  CLASS_CODE_RESOLVE_CODE: { scope: "CLASS_CODE_RESOLVE_CODE", limit: 60, windowMs: FIFTEEN_MINUTES_MS },
-  SESSION_START_IP: { scope: "SESSION_START_IP", limit: 30, windowMs: FIFTEEN_MINUTES_MS },
+  CLASS_CODE_RESOLVE_IP: { scope: "CLASS_CODE_RESOLVE_IP", limit: 90, windowMs: FIFTEEN_MINUTES_MS },
+  CLASS_CODE_RESOLVE_CODE: { scope: "CLASS_CODE_RESOLVE_CODE", limit: 150, windowMs: FIFTEEN_MINUTES_MS },
+  SESSION_START_IP: { scope: "SESSION_START_IP", limit: 90, windowMs: FIFTEEN_MINUTES_MS },
   SESSION_START_ENROLLMENT: { scope: "SESSION_START_ENROLLMENT", limit: 5, windowMs: FIFTEEN_MINUTES_MS },
 } satisfies Record<string, RateLimitDimension>;
 

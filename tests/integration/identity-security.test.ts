@@ -87,7 +87,7 @@ describe("WEB-M1 Fase 2 security tests (real Postgres)", () => {
   });
 
   describe("rate limiting — remaining 3 dimensions (D7)", () => {
-    it("class-code/resolve: blocks after the per-IP limit (30)", async () => {
+    it("class-code/resolve: blocks after the per-IP limit (Tranche F pilot hardening: 90)", async () => {
       const fixture = await buildFixture();
       const classCodeService = new ClassCodeService(pool, TEST_PEPPER);
       const ip = "198.51.100.10";
@@ -101,7 +101,7 @@ describe("WEB-M1 Fase 2 security tests (real Postgres)", () => {
       expect((blocked as IdentityError).code).toBe("RATE_LIMITED");
     }, 20000);
 
-    it("class-code/resolve: blocks after the per-code limit (60) even across many distinct IPs", async () => {
+    it("class-code/resolve: blocks after the per-code limit (Tranche F pilot hardening: 150) even across many distinct IPs", async () => {
       const fixture = await buildFixture();
       const classCodeService = new ClassCodeService(pool, TEST_PEPPER);
       const limit = RATE_LIMITS.CLASS_CODE_RESOLVE_CODE.limit;
@@ -118,7 +118,7 @@ describe("WEB-M1 Fase 2 security tests (real Postgres)", () => {
       expect((blocked as IdentityError).code).toBe("RATE_LIMITED");
     }, 20000);
 
-    it("session/start: blocks after the per-IP limit (30), independent of enrollment", async () => {
+    it("session/start: blocks after the per-IP limit (Tranche F pilot hardening: 90), independent of enrollment", async () => {
       const fixture = await buildFixture();
       const sessionService = new SessionService(pool, TEST_PEPPER);
       const ip = "198.51.100.99";
