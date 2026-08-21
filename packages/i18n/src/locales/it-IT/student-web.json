@@ -3,6 +3,12 @@
     "title": "Quest City",
     "description": "Esperienza Web Studente di Quest City."
   },
+  "shell": {
+    "brand": "Quest City",
+    "navHome": "Home",
+    "roleLabel": "Studente",
+    "logout": "Esci"
+  },
   "home": {
     "title": "Quest City",
     "underConstructionBefore": "L'Esperienza Web Studente è in costruzione. Questo placeholder conferma che la rotta",

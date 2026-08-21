@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Button } from "@quest-city-web/ui";
+import { BrandMark, Button } from "@quest-city-web/ui";
 import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { useStaffAuth } from "./staff-auth-context";
 import { useTenantMemberships } from "./useTenantMemberships";
@@ -69,7 +69,10 @@ export function AppShell({ context, children }: { context: StaffContext; childre
   return (
     <div className="qc-shell">
       <header className="qc-shell-header">
-        <span className="qc-auth-brand qc-shell-brand">{t(DASHBOARD_CATALOG_IT_IT, "app.brandLabel")}</span>
+        <span className="qc-auth-brand qc-shell-brand">
+          <BrandMark />
+          {t(DASHBOARD_CATALOG_IT_IT, "app.brandLabel")}
+        </span>
         <nav className="qc-shell-nav" aria-label={t(DASHBOARD_CATALOG_IT_IT, "app.nav.home")}>
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined}>
