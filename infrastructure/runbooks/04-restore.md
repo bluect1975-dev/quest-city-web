@@ -2,7 +2,7 @@
 
 **Trigger**: scheduled drill (at least quarterly — 07_06 §13.2) or a real disaster (data corruption, VPS loss).
 **Owner**: DEVOPS.
-**References**: Tranche E design report §23; ACN/MePA Gap Analysis GAP-02; `tools/restore-staging-db.mjs`. Scope: Tranche E1 (local staging foundations) — the drill below is executed for real against a disposable local environment as part of E1 closure; a real off-site drill is E3 (see "Closing GAP-02 for real" below).
+**References**: Tranche E design report §23; ACN/MePA Gap Analysis GAP-02; `tools/restore-staging-db.mjs`. The drill mechanism itself is Tranche E1 (local staging foundations, exercised against a disposable local environment); a real off-site drill against the real `s3` adapter target is Tranche E3 (see "Closing GAP-02 for real" below).
 
 ## Critical safety rule
 
@@ -28,7 +28,7 @@ Every drill run should be logged: date, backup identifier restored, duration, in
 
 ## Closing GAP-02 for real
 
-1. Configure `BACKUP_TARGET_ADAPTER` to a real off-site EU target (not `local`) at implementation time.
+1. Set `BACKUP_TARGET_ADAPTER=s3` and the `BACKUP_S3_*` variables (`.env.staging.example`) to a real off-site bucket — not `local`.
 2. Run a full backup (03-backups.md) to that real target.
-3. Run this restore drill **against a backup pulled from the real off-site target**, on a host/network path that does not assume the original VPS is reachable (the point is proving you can recover even if the VPS itself is gone).
-4. Only then is GAP-02 closed — record the date and evidence.
+3. Run this restore drill **against a backup pulled from the real off-site target, from an environment entirely separate from the VPS** (a different machine/network, a fresh Postgres container with no relationship to staging's own) — the point is proving you can recover even if the VPS itself is gone, so the drill must not covertly depend on anything the VPS still has (its local Docker volume, its network namespace, a cached credential). Tear the isolated environment down afterward — it exists only to prove the artifact is independently usable, not as a standing second copy.
+4. Only then is GAP-02 closed — record the date, the backup identifier restored, and the integrity check results (see "Recording the drill" above).

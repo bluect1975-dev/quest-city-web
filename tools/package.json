@@ -28,9 +28,11 @@
     "provision:external-monitor-key": "tsx provision-external-monitor-key.ts",
     "validate:staging-env": "node validate-staging-env.mjs",
     "monitor:external-uptime": "node external-uptime-monitor/run.mjs",
+    "check:backup-storage-usage": "node check-backup-storage-usage.mjs",
     "check:dependency-audit": "node check-dependency-audit.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1115.0",
     "@quest-city-web/content-runtime": "workspace:*",
     "@quest-city-web/identity": "workspace:*",
     "@quest-city-web/operations": "workspace:*",

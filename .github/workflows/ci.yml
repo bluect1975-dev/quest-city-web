@@ -75,12 +75,24 @@ jobs:
         run: (pnpm audit --json || true) | node tools/check-dependency-audit.mjs
 
   container-scan:
-    name: Container image vulnerability scan (Trivy, Tranche E1)
+    name: Container image vulnerability scan (Trivy) + GHCR publish (Tranche E3)
     runs-on: ubuntu-latest
     needs: build-and-test
+    permissions:
+      contents: read
+      # Required to push to ghcr.io using the ambient GITHUB_TOKEN — no
+      # separate registry credential/secret is provisioned or needed
+      # (07_06 §4.1: "immagini costruite in CI, non direttamente in
+      # production"; §4.2: "niente `latest` in production"). Push only
+      # happens for real merges to main (below) — PR/branch builds still
+      # build and scan, but never publish, so no image reaches the
+      # registry until it has actually landed on main.
+      packages: write
     strategy:
       matrix:
         image: [api, dashboard, student-web]
+    env:
+      IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/quest-city-web-${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
 
@@ -103,16 +115,29 @@ jobs:
           exit-code: "1"
           format: "table"
 
-      # No push/publish step: this repository has no configured registry
-      # credentials, and Tranche E1 is local-foundations scope only — no
-      # external cloud resource is created by this workflow. The mechanism
-      # (build, commit-SHA tag, digest, scan) is real and already runs on
-      # every push/PR; wiring a `docker push` behind real registry secrets
-      # is a one-line addition at the point those secrets are actually
-      # provisioned (E3). This job does not close the api.Dockerfile
-      # header comment's "digest-pinned, never latest in production" claim
-      # — that requires a registry + pin step this job does not add; see
-      # the Tranche E1 closure report for this gap called out explicitly.
+      # Publish + digest-pin (07_06 §4.1) — real merges to main only. PR/
+      # branch runs stop here: built and scanned, never published, so an
+      # unreviewed image never reaches the registry. Tag is the commit SHA
+      # (never `latest` — §4.2) but the value staging actually deploys by
+      # is the immutable digest recorded below, not the mutable SHA tag.
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push ${{ matrix.image }} to GHCR and record its digest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag "quest-city-web-${{ matrix.image }}:${{ github.sha }}" "${IMAGE_REPO}:${{ github.sha }}"
+          docker push "${IMAGE_REPO}:${{ github.sha }}"
+          DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${IMAGE_REPO}:${{ github.sha }}")"
+          echo "Published ${DIGEST}"
+          echo "### ${{ matrix.image }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "image_digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
   integration:
     name: Docker compose + integration tests (WEB-M0/M1/M2B, real Postgres)

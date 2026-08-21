@@ -27,6 +27,8 @@ tools/check-dependency-audit.mjs -text
 tools/check-dependency-audit.test.mjs -text
 tools/validate-staging-env.mjs -text
 tools/validate-staging-env.test.mjs -text
+tools/check-backup-storage-usage.mjs -text
+tools/check-backup-storage-usage.test.mjs -text
 infrastructure/database/staging-tls/generate-staging-db-tls.sh -text
 
 # Tranche E2 Level 2 security & operations micro-closure: same root cause,

@@ -117,12 +117,30 @@ export function validateStagingEnv(env) {
     failures.push(`Exactly one of TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID is set — ${missing} is also required, or neither should be set.`);
   }
 
+  // 8. Off-site backup target (Tranche E3, GAP-02): if BACKUP_TARGET_ADAPTER=s3
+  //    is selected, every var staging-backup-target-adapter.mjs's s3Adapter
+  //    requires must be present — same fail-loud-before-any-container-starts
+  //    rationale as the Telegram check above, catching a half-configured s3
+  //    adapter before the backup/restore-drill ops containers ever run.
+  if (env.BACKUP_TARGET_ADAPTER === "s3") {
+    for (const key of ["BACKUP_S3_BUCKET", "BACKUP_S3_ENDPOINT", "BACKUP_S3_ACCESS_KEY_ID", "BACKUP_S3_SECRET_ACCESS_KEY"]) {
+      if (!env[key]) {
+        failures.push(`${key} is required when BACKUP_TARGET_ADAPTER=s3.`);
+      }
+    }
+  }
+
   // Advisory-only checks — never fail the gate.
   if (!env.BACKUP_ENCRYPTION_KEY) {
     warnings.push("BACKUP_ENCRYPTION_KEY is not set — backups will fail to encrypt until it is configured.");
   }
   if (!hasTelegramToken && !hasTelegramChatId) {
     warnings.push("TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are not set — the alert channel stays on LocalMockAlertChannelAdapter (no real Telegram delivery).");
+  }
+  if ((env.BACKUP_TARGET_ADAPTER ?? "local") === "local") {
+    warnings.push(
+      "BACKUP_TARGET_ADAPTER is 'local' (or unset) — backups are not off-site. GAP-02 (ACN/MePA Gap Analysis) stays open until BACKUP_TARGET_ADAPTER=s3 points at a real bucket.",
+    );
   }
 
   return { failures, warnings, skipped: false };

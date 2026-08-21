@@ -13,11 +13,16 @@ Check the migration(s) applied in this release against `08-database-migration.md
 
 ## Step 2 — Roll back the application image
 
+Look up the previous release's digests in `deploy-releases.log` (written by 01-deployment.md Step 6 — the second-to-last line, not the last, since the last line is the failed release). No rebuild, no re-pull of a moving tag: the previous digest was already pushed to GHCR and is content-addressed, so it is byte-for-byte the same image that ran before, guaranteed by the registry, not by trust.
+
 ```bash
+# Re-point the three image refs at the PREVIOUS release's recorded digests
+# (edit .env.staging's API_IMAGE_REF / STUDENT_WEB_IMAGE_REF /
+# DASHBOARD_IMAGE_REF, or export them inline — either way they must be the
+# exact ghcr.io/...@sha256:... values from deploy-releases.log, never a
+# tag), then:
 docker compose -p quest-city-web-staging -f infrastructure/deployment/docker-compose.yml -f infrastructure/deployment/docker-compose.staging.yml \
-  --env-file .env.staging up -d --no-build \
-  # pin to the previous release's recorded image digest here, not a
-  # floating tag — see the release metadata recorded in 01-deployment.md
+  --env-file .env.staging up -d --no-build
 ```
 
 ## Step 3 — Verify
@@ -28,4 +33,8 @@ docker compose -p quest-city-web-staging -f infrastructure/deployment/docker-com
 
 ## Step 4 — Communicate and record
 
-Log: what failed, what was rolled back to, duration of impact, whether any data was affected. Feed into the incident's post-review if this rollback was triggered by an actual incident (05-incident-response.md — Tranche E2, not yet in this repository).
+Log: what failed, what was rolled back to, duration of impact, whether any data was affected. Append a `deploy-releases.log` line for the rollback itself (same format as 01-deployment.md Step 6, `migration=rollback`) so the file stays a complete, chronological release history — never edit or delete the failed release's own line. Feed into the incident's post-review if this rollback was triggered by an actual incident (05-incident-response.md — Tranche E2, not yet in this repository).
+
+## Rolling forward again
+
+Once the failed release is fixed, deploy it the normal way (01-deployment.md) with a new commit and new CI-built digests — never re-point at the old failed release's digest to "roll forward," since that digest is exactly the broken image. Returning to a since-fixed version of the *current* release, however (e.g. rollback was precautionary and the release turns out fine), is just Step 2 again with the newer digests — no rebuild needed either way, since both directions only ever re-point at already-published, content-addressed images.
