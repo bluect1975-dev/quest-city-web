@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, StatusMessage } from "@quest-city-web/ui";
+import { BrandMark, Button, FormField, StatusMessage } from "@quest-city-web/ui";
 import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { useStaffAuth } from "../../../lib/staff-auth-context";
 import { getStaffContext, startStaffSession } from "../../../lib/staff-api-client";
@@ -70,7 +70,10 @@ export default function StaffLoginPage() {
 
   return (
     <main className="qc-auth-page">
-      <div className="qc-auth-brand">{t(DASHBOARD_CATALOG_IT_IT, "app.brandLabel")}</div>
+      <div className="qc-auth-brand">
+        <BrandMark />
+        {t(DASHBOARD_CATALOG_IT_IT, "app.brandLabel")}
+      </div>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.login.title")}</h1>
       <form onSubmit={handleSubmit}>
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.login.emailLabel")}>

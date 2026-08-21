@@ -724,6 +724,117 @@ form {
   margin-top: 0;
 }
 
+.qc-card-muted {
+  background: var(--qc-color-surface-muted);
+  box-shadow: none;
+}
+
+/* ---------- Icon ---------- */
+.qc-icon {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.qc-brand-mark {
+  flex-shrink: 0;
+}
+
+/* ---------- Progress bar ---------- */
+.qc-progress-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--qc-space-1);
+  margin-bottom: var(--qc-space-4);
+}
+
+.qc-progress-bar-label {
+  font-size: var(--qc-font-size-label);
+  font-weight: 600;
+  color: var(--qc-color-text-muted);
+}
+
+.qc-progress-bar-track {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--qc-color-surface-muted);
+  border: 1px solid var(--qc-color-border);
+  overflow: hidden;
+}
+
+.qc-progress-bar-fill {
+  height: 100%;
+  background: var(--qc-color-primary);
+  border-radius: 999px;
+  transition: width 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qc-progress-bar-fill {
+    transition: none;
+  }
+}
+
+/* ---------- Progress steps ---------- */
+.qc-progress-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--qc-space-2);
+  list-style: none;
+  margin: 0 0 var(--qc-space-4) 0;
+  padding: 0;
+}
+
+.qc-progress-step {
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-1);
+  padding: var(--qc-space-1) var(--qc-space-3);
+  border-radius: 999px;
+  font-size: var(--qc-font-size-meta);
+  font-weight: 650;
+  border: 1px solid var(--qc-color-border);
+  background: var(--qc-color-surface);
+  color: var(--qc-color-text-faint);
+}
+
+.qc-progress-step-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+}
+
+.qc-progress-step-completed {
+  background: var(--qc-color-success-bg);
+  border-color: var(--qc-color-success-border);
+  color: var(--qc-color-success-text);
+}
+
+.qc-progress-step-current {
+  background: var(--qc-color-info-bg);
+  border-color: var(--qc-color-info-text);
+  color: var(--qc-color-info-text);
+  box-shadow: 0 0 0 2px var(--qc-color-info-bg);
+}
+
+.qc-progress-step-current .qc-progress-step-marker::after {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.qc-progress-step-next {
+  color: var(--qc-color-text-muted);
+}
+
+.qc-progress-step-locked {
+  color: var(--qc-color-text-faint);
+  background: var(--qc-color-surface-muted);
+}
+
 /* ---------- Learning-engine views (light layout touch only — never engine logic) ---------- */
 .qc-engine-actions {
   display: flex;

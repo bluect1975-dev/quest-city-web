@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, StatusMessage } from "@quest-city-web/ui";
+import { BrandMark, Button, FormField, StatusMessage } from "@quest-city-web/ui";
 import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../lib/student-auth-context";
 import { getStudentContext, startStudentSession } from "../../../lib/student-api-client";
@@ -52,7 +52,10 @@ export default function StudentLoginPage() {
 
   return (
     <main className="qc-auth-page qc-student-auth-page">
-      <div className="qc-auth-brand">{t(STUDENT_WEB_CATALOG_IT_IT, "meta.title")}</div>
+      <div className="qc-auth-brand">
+        <BrandMark />
+        {t(STUDENT_WEB_CATALOG_IT_IT, "meta.title")}
+      </div>
       <h1>{t(STUDENT_WEB_CATALOG_IT_IT, "login.title")}</h1>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "login.description")}</p>
       <form onSubmit={handleSubmit}>

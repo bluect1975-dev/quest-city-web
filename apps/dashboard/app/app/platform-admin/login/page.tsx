@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, StatusMessage } from "@quest-city-web/ui";
+import { BrandMark, Button, FormField, StatusMessage } from "@quest-city-web/ui";
 import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { usePlatformAuth } from "../../../../lib/platform-auth-context";
 import { getPlatformContext, startPlatformSession } from "../../../../lib/platform-api-client";
@@ -42,6 +42,7 @@ export default function PlatformAdminLoginPage() {
   return (
     <main className="qc-auth-page qc-admin-auth-page">
       <div className="qc-auth-brand">
+        <BrandMark />
         {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.brandLabel")} · {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.brandBadge")}
       </div>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.login.title")}</h1>

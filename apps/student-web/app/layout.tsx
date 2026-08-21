@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { QC_THEME_CORE } from "@quest-city-web/theme-system";
 import { DEFAULT_LOCALE, STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { StudentAuthProvider } from "../lib/student-auth-context";
+import { StudentShell } from "../lib/StudentShell";
 import "@quest-city-web/ui/styles.css";
 import "./globals.css";
 
@@ -21,7 +22,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang={DEFAULT_LOCALE} data-theme={QC_THEME_CORE.themeId}>
       <body>
-        <StudentAuthProvider>{children}</StudentAuthProvider>
+        <StudentAuthProvider>
+          <StudentShell>{children}</StudentShell>
+        </StudentAuthProvider>
       </body>
     </html>
   );

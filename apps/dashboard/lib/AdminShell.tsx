@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Button } from "@quest-city-web/ui";
+import { BrandMark, Button } from "@quest-city-web/ui";
 import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { usePlatformAuth } from "./platform-auth-context";
 import type { Capability, PlatformContext } from "./platform-api-types";
@@ -57,6 +57,7 @@ export function AdminShell({ context, children }: { context: PlatformContext; ch
     <div className="qc-shell qc-admin-shell">
       <header className="qc-shell-header">
         <span className="qc-shell-brand">
+          <BrandMark />
           {t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.brandLabel")}
           <span className="qc-shell-badge">{t(DASHBOARD_CATALOG_IT_IT, "platformAdmin.brandBadge")}</span>
         </span>
