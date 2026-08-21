@@ -53,3 +53,7 @@ tools/external-uptime-monitor/probe.test.mjs -text
 tools/external-uptime-monitor/run.mjs -text
 tools/external-uptime-monitor/run.test.mjs -text
 .github/workflows/external-uptime-monitor.yml -text
+
+# Tranche F pilot hardening: same proactive fix for the new load-test tool.
+tools/pilot-load-test.mjs -text
+tools/pilot-load-test.test.mjs -text
