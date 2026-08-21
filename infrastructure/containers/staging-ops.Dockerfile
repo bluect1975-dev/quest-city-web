@@ -40,12 +40,13 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-# Only `pg` is needed here (restore-staging-db.mjs's integrity-check
-# queries) — installed directly, pinned to the same version the rest of
-# the monorepo uses (apps/api/package.json et al.), rather than pulling in
-# the whole pnpm workspace that this single-purpose image has no other use
-# for.
-RUN npm install --no-save pg@8.13.1
+# `pg` (restore-staging-db.mjs's integrity-check queries) and
+# `@aws-sdk/client-s3` (staging-backup-target-adapter.mjs's real off-site
+# "s3" adapter, Tranche E3) — both installed directly, pinned to the same
+# versions the rest of the monorepo uses (apps/api/package.json,
+# tools/package.json), rather than pulling in the whole pnpm workspace
+# this single-purpose image has no other use for.
+RUN npm install --no-save pg@8.13.1 @aws-sdk/client-s3@3.1115.0
 COPY tools/backup-staging-db.mjs tools/restore-staging-db.mjs tools/staging-backup-target-adapter.mjs ./
 
 USER node
