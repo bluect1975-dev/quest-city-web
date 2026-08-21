@@ -16,4 +16,9 @@ describe("ProgressBar", () => {
     render(<ProgressBar value={99} max={8} label="oltre il massimo" />);
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "8");
   });
+
+  it("gives the progressbar an accessible name via the visible label (UI-R6 axe-core finding)", () => {
+    render(<ProgressBar value={2} max={5} label="2 di 5 completati" />);
+    expect(screen.getByRole("progressbar", { name: "2 di 5 completati" })).toBeInTheDocument();
+  });
 });

@@ -381,6 +381,8 @@
       "columnPriority": "Priorità",
       "columnStatus": "Stato",
       "columnUpdatedAt": "Aggiornato il",
+      "columnAttempt": "Dettaglio tentativo",
+      "columnActions": "Azioni",
       "empty": "Nessun elemento nella coda di revisione.",
       "filterStatusLabel": "Filtra per stato",
       "filterPriorityLabel": "Filtra per priorità",

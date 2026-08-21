@@ -289,7 +289,7 @@ export function SequenceHost({
       <p>
         <Link href="/w">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.backLink")}</Link>
       </p>
-      <h2>{t(STUDENT_WEB_CATALOG_IT_IT, titleKey)}</h2>
+      <h1>{t(STUDENT_WEB_CATALOG_IT_IT, titleKey)}</h1>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, descriptionKey)}</p>
 
       {stages.length > 1 && <ProgressSteps steps={progressSteps} />}
@@ -308,13 +308,13 @@ export function SequenceHost({
           <>
             {stagePrompts?.[stage.stageId] && (
               <div>
-                <h3>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h3>
+                <h2>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h2>
                 <p>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.bodyKey)}</p>
               </div>
             )}
           {recapStageId && (
             <div>
-              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h3>
+              <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h2>
               {(() => {
                 const recapState = state.stageStates.find((s) => s.stageId === recapStageId);
                 if (!recapState) {
@@ -348,7 +348,7 @@ export function SequenceHost({
         <>
           {stagePrompts?.[stage.stageId] && (
             <div>
-              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h3>
+              <h2>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h2>
               <p>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.bodyKey)}</p>
             </div>
           )}
