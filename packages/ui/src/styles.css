@@ -729,6 +729,49 @@ form {
   box-shadow: none;
 }
 
+/* Current-mission hero (Pilot UX/UI Redesign UI-R2 §12) -- one visually
+   dominant card above everything else on a role's home page, so "what do
+   I do right now" reads before any secondary list. A left accent bar,
+   not a different surface color, keeps it from competing with the M06
+   activity shell's own richer treatment (UI-R3, reserved for the
+   Balance Machine stage per §21). */
+.qc-hero-card {
+  border-left: 4px solid var(--qc-color-primary);
+  box-shadow: var(--qc-shadow-raised);
+}
+
+/* ---------- Assignment list ---------- */
+.qc-assignment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--qc-space-3);
+}
+
+.qc-assignment-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--qc-space-4);
+  padding: var(--qc-space-3) var(--qc-space-4);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-md);
+  flex-wrap: wrap;
+}
+
+.qc-assignment-list-title {
+  font-weight: 650;
+  margin: 0 0 var(--qc-space-1) 0;
+}
+
+.qc-assignment-list-due {
+  color: var(--qc-color-text-faint);
+  font-size: var(--qc-font-size-meta);
+  margin: var(--qc-space-1) 0 0 0;
+}
+
 /* ---------- Icon ---------- */
 .qc-icon {
   flex-shrink: 0;

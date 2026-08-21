@@ -16,15 +16,13 @@
     "continueButton": "Continua (a breve)",
     "welcomeTitle": "Ciao, {alias}",
     "readOnlySessionWarning": "La tua sessione è di sola lettura. Accedi di nuovo per continuare un'attività.",
-    "activitySectionTitle": "La tua attività",
-    "activityLoading": "Caricamento dell'attività in corso...",
-    "startActivityButton": "Inizia l'attività",
     "fullSequenceSectionTitle": "Percorso completo",
     "fullSequenceDescription": "Svolgi l'intera unità sulle equazioni di primo grado in un unico percorso, dall'introduzione alla verifica finale.",
     "startFullSequenceButton": "Inizia il percorso completo",
     "myAssignmentsSectionTitle": "Assegnazioni della tua classe",
     "myAssignmentsLoading": "Caricamento delle assegnazioni in corso...",
-    "myAssignmentsEmpty": "Nessuna assegnazione al momento.",
+    "myAssignmentsEmptyTitle": "Nessuna assegnazione al momento",
+    "myAssignmentsEmptyDescription": "Il tuo insegnante non ti ha ancora assegnato nulla qui. Non è un errore: nel frattempo puoi continuare il percorso qui sopra.",
     "myAssignmentsError": "Non è stato possibile caricare le assegnazioni.",
     "assignmentStatusNotStarted": "Da iniziare",
     "assignmentStatusInProgress": "In corso",
@@ -32,8 +30,7 @@
     "startAssignmentButton": "Inizia",
     "resumeAssignmentButton": "Riprendi",
     "reviewAssignmentButton": "Rivedi",
-    "assignmentDueAt": "Scadenza: {dueAt}",
-    "logoutButton": "Esci"
+    "assignmentDueAt": "Scadenza: {dueAt}"
   },
   "engines": {
     "index": {
