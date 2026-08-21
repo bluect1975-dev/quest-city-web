@@ -85,3 +85,25 @@ describe("EngineHost — initialActions resume (Tranche 2, QUICK_QUESTION_SET)",
     expect(screen.queryByText("Domanda 1 di 6")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Pilot UX/UI Redesign UI-R3 §15: `embedded` suppresses the standalone
+ * sandbox's own "back to /w" link and engine-name heading, which showed up
+ * as a confusing second navigation link (pointing to the dev redirect
+ * gate, not `/w/home`) in the middle of a real M06 attempt once EngineHost
+ * is nested inside SequenceHost/FullSequenceHost's own activity shell.
+ */
+describe("EngineHost — embedded mode (UI-R3 activity shell)", () => {
+  it("without embedded (default), renders the standalone back-link and engine-name heading", () => {
+    render(<EngineHost runtimeAdapterId="QC-WEB-ENGINE-BALANCE-MACHINE" config={WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG} />);
+    expect(screen.getByRole("link", { name: "Torna all'elenco" })).toHaveAttribute("href", "/w");
+    expect(screen.getByRole("heading", { name: "Bilancia (Balance Machine)" })).toBeInTheDocument();
+  });
+
+  it("with embedded, suppresses the back-link and heading but keeps the keyboard-navigation hint", () => {
+    render(<EngineHost runtimeAdapterId="QC-WEB-ENGINE-BALANCE-MACHINE" config={WEB_M4_BALANCE_MACHINE_ENGINE_CONFIG} embedded />);
+    expect(screen.queryByRole("link", { name: "Torna all'elenco" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Bilancia (Balance Machine)" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Ogni azione è utilizzabile anche solo con la tastiera/)).toBeInTheDocument();
+  });
+});

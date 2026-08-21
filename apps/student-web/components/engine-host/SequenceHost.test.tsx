@@ -306,6 +306,20 @@ describe("SequenceHost — Tranche 5 INTRO_HOOK", () => {
     await screen.findByText("Stage 1 di 1");
     expect(screen.queryByAltText("Piazza della missione, accademia, sfondo statico")).not.toBeInTheDocument();
   });
+
+  it("shows the friendly stage-type label, never the raw stageType enum", async () => {
+    render(
+      <SequenceHost
+        definition={WEB_TRANCHE5_INTRO_HOOK_SEQUENCE_DEFINITION}
+        runtimeStateId="test-tranche5-runtime-stage-type-label"
+        stageConfigs={{}}
+        titleKey="introHook.sequenceTitle"
+        descriptionKey="introHook.sequenceDescription"
+      />,
+    );
+    expect(await screen.findByText("Introduzione")).toBeInTheDocument();
+    expect(screen.queryByText(/INTRO_HOOK/)).not.toBeInTheDocument();
+  });
 });
 
 /**
@@ -387,7 +401,7 @@ describe("SequenceHost — orchestration-stage-entry trigger (INTRO_HOOK)", () =
         descriptionKey="guidedPractice.sequenceDescription"
       />,
     );
-    await screen.findByText("Domanda rapida (Quick Question)");
+    await screen.findByRole("button", { name: "Conferma soluzione" });
     expect(notifyOrchestrationStageEntry).not.toHaveBeenCalled();
   });
 });

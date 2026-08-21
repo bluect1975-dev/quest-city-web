@@ -45,7 +45,8 @@
       "keyboardHint": "Ogni azione è utilizzabile anche solo con la tastiera: seleziona un elemento, poi seleziona la destinazione.",
       "resultCorrect": "Corretto",
       "resultIncorrect": "Da rivedere",
-      "resultPending": "Non ancora confermato"
+      "resultPending": "Non ancora confermato",
+      "engineUnavailable": "Impossibile avviare questa attività al momento."
     },
     "balance": {
       "name": "Bilancia (Balance Machine)",
@@ -132,10 +133,28 @@
     "launchingGroupMessage": "Preparazione della prossima parte del percorso...",
     "groupUnavailableMessage": "Impossibile avviare questa parte del percorso al momento."
   },
+  "stageTypeLabel": {
+    "INTRO_HOOK": "Introduzione",
+    "PREREQUISITE_CHECK": "Verifica",
+    "MICRO_LESSON": "Lezione",
+    "QUICK_QUESTION_SET": "Domande rapide",
+    "GUIDED_PRACTICE": "Pratica guidata",
+    "INTERACTIVE_EXERCISE": "Esercizio",
+    "BALANCE_MACHINE_CHALLENGE": "Bilancia",
+    "REFLECTION_AND_RESULT": "Riepilogo"
+  },
+  "attemptStateLabel": {
+    "CREATED": "Da iniziare",
+    "IN_PROGRESS": "In corso",
+    "COMPLETION_SUBMITTED": "In fase di verifica",
+    "COMPLETED": "Completato",
+    "ABANDONED": "Abbandonato",
+    "EXPIRED": "Scaduto"
+  },
   "result": {
     "title": "Risultato",
     "loading": "Caricamento del risultato in corso...",
-    "attemptStateLabel": "Stato del tentativo: {state}",
+    "stateLabel": "Stato",
     "pendingConsolidation": "Il risultato è in fase di verifica.",
     "startedAtLabel": "Iniziato il {date}",
     "completedAtLabel": "Completato il {date}",
@@ -145,7 +164,6 @@
     "title": "Sequenza didattica",
     "description": "Superficie minima per eseguire una sequenza multi-stage (R3C.2). Sequenza dimostrativa, non contenuto curriculare M06 reale.",
     "stageProgress": "Stage {index} di {total}",
-    "stageTypeLabel": "Tipo di stage: {stageType}",
     "nonInteractiveContinueButton": "Continua",
     "unresolvedEngineMessage": "Impossibile avviare questo stage: nessun motore disponibile per questa configurazione.",
     "hintButton": "Richiedi un aiuto",

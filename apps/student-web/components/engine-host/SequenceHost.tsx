@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Button, StatusBadge, StatusMessage } from "@quest-city-web/ui";
+import { Button, Card, ProgressBar, ProgressSteps, StatusBadge, StatusMessage, type ProgressStepState } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import {
   createDefaultEngineRuntimeRegistry,
@@ -30,6 +30,7 @@ import {
 } from "../../lib/sequence-runtime-state-client";
 import { getStoredCsrfToken } from "../../lib/session-client";
 import { notifyOrchestrationStageEntry } from "../../lib/student-api-client";
+import { stageTypeLabel } from "../../lib/stage-type-label";
 
 export interface SequenceHostProps {
   definition: SequenceDefinition;
@@ -273,6 +274,16 @@ export function SequenceHost({
   const dispatchDeps = { runtimeRegistry };
   const dispatch = stage.isInteractive ? resolveEngineDispatch(stage, dispatchDeps) : undefined;
 
+  const progressSteps = stages.map((s) => {
+    const order = s.order;
+    let stepState: ProgressStepState;
+    if (order < stage.order) stepState = "completed";
+    else if (order === stage.order) stepState = "current";
+    else if (order === stage.order + 1) stepState = "next";
+    else stepState = "locked";
+    return { id: s.stageId, label: stageTypeLabel(s.stageType), state: stepState };
+  });
+
   return (
     <div>
       <p>
@@ -280,21 +291,27 @@ export function SequenceHost({
       </p>
       <h2>{t(STUDENT_WEB_CATALOG_IT_IT, titleKey)}</h2>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, descriptionKey)}</p>
-      <StatusMessage kind="empty">
-        {t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageProgress", { params: { index: stageIndex + 1, total: stages.length } })}
-      </StatusMessage>
-      <p>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageTypeLabel", { params: { stageType: stage.stageType } })}</p>
 
-      {stageScenes?.[stage.stageId] && <ScenePresentation semanticRoles={stageScenes[stage.stageId]!} />}
+      {stages.length > 1 && <ProgressSteps steps={progressSteps} />}
+      <ProgressBar
+        value={stageIndex}
+        max={stages.length}
+        label={t(STUDENT_WEB_CATALOG_IT_IT, "sequence.stageProgress", { params: { index: stageIndex + 1, total: stages.length } })}
+      />
 
-      {!stage.isInteractive && (
-        <>
-          {stagePrompts?.[stage.stageId] && (
-            <div>
-              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h3>
-              <p>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.bodyKey)}</p>
-            </div>
-          )}
+      <Card>
+        <StatusBadge tone="info">{stageTypeLabel(stage.stageType)}</StatusBadge>
+
+        {stageScenes?.[stage.stageId] && <ScenePresentation semanticRoles={stageScenes[stage.stageId]!} />}
+
+        {!stage.isInteractive && (
+          <>
+            {stagePrompts?.[stage.stageId] && (
+              <div>
+                <h3>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.titleKey)}</h3>
+                <p>{t(STUDENT_WEB_CATALOG_IT_IT, stagePrompts[stage.stageId]!.bodyKey)}</p>
+              </div>
+            )}
           {recapStageId && (
             <div>
               <h3>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h3>
@@ -340,6 +357,7 @@ export function SequenceHost({
             runtimeAdapterId={dispatch.engine.runtimeAdapterId}
             config={stageConfigs?.[stage.stageId]}
             onEvaluated={handleEvaluated}
+            embedded
             {...(onAction ? { onAction } : {})}
             {...(initialActions ? { initialActions } : {})}
           />
@@ -383,6 +401,7 @@ export function SequenceHost({
           )}
         </>
       )}
+      </Card>
     </div>
   );
 }

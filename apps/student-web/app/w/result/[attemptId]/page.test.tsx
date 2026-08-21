@@ -47,6 +47,10 @@ describe("ResultPage", () => {
     render(<ResultPage />);
     expect(await screen.findByText("Corretto")).toBeInTheDocument();
     expect(getAttempt).toHaveBeenCalledWith("att-real-1");
+    // The raw attemptState enum ("COMPLETED") must never reach the page as text —
+    // only its friendly, localized label.
+    expect(screen.getByText("Completato")).toBeInTheDocument();
+    expect(screen.queryByText(/COMPLETED/)).not.toBeInTheDocument();
   });
 
   it("shows a pending-consolidation message when the attempt is not yet CONSOLIDATED", async () => {
