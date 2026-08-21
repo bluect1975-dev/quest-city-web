@@ -107,7 +107,11 @@ jobs:
           echo "image_id=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Scan ${{ matrix.image }} image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        # v0.28.0 (unprefixed) no longer resolves -- aquasecurity/trivy-action's
+        # published tags are v-prefixed (confirmed against the real tag list);
+        # discovered when this job's "Set up job" step failed outright on the
+        # first real run this workflow made past the CVE gate.
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "quest-city-web-${{ matrix.image }}:${{ github.sha }}"
           severity: "CRITICAL,HIGH"
