@@ -44,13 +44,17 @@ describe("StaffReviewPage", () => {
     transitionReviewItemStatus.mockReset();
   });
 
-  it("renders review queue items with their status and priority visible", async () => {
+  it("renders review queue items with friendly, localized status/priority/reason labels — never the raw enum", async () => {
     listReviewQueue.mockResolvedValue([REVIEW_ITEM]);
 
     render(<StaffReviewPage />);
 
-    expect(await screen.findByText("HIGH")).toBeInTheDocument();
-    expect(screen.getByText("OPEN")).toBeInTheDocument();
+    expect(await screen.findByText("Alta")).toBeInTheDocument();
+    expect(screen.getAllByText("Aperto").length).toBeGreaterThan(0); // table cell + the filter dropdown option share the same label
+    expect(screen.getByText("Aiuto richiesto")).toBeInTheDocument();
+    expect(screen.queryByText("HIGH")).not.toBeInTheDocument();
+    expect(screen.queryByText("OPEN")).not.toBeInTheDocument();
+    expect(screen.queryByText("HELP_REQUESTED")).not.toBeInTheDocument();
   });
 
   it("renders the EmptyState when the review queue is empty", async () => {

@@ -740,6 +740,39 @@ form {
   box-shadow: var(--qc-shadow-raised);
 }
 
+/* ---------- Stats card (Pilot UX/UI Redesign UI-R4 §27) ---------- */
+.qc-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--qc-space-4);
+  margin-bottom: var(--qc-space-5);
+}
+
+.qc-stats-card {
+  margin-bottom: 0;
+}
+
+.qc-stats-card-label {
+  margin: 0;
+  font-size: var(--qc-font-size-label);
+  font-weight: 600;
+  color: var(--qc-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.qc-stats-card-value {
+  margin: var(--qc-space-1) 0 0 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--qc-color-text);
+  line-height: 1.2;
+}
+
+.qc-stats-card-action {
+  margin-top: var(--qc-space-3);
+}
+
 /* ---------- Assignment list ---------- */
 .qc-assignment-list {
   list-style: none;
