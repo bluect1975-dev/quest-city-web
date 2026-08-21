@@ -44,3 +44,8 @@ infrastructure/backups/
 
 # Staging env (Tranche E1)
 .env.staging
+
+# Deployment release history (Tranche E3, 01-deployment.md/02-rollback.md) --
+# a host-side operational log appended to on every deploy/rollback, not a
+# repo artifact.
+deploy-releases.log
