@@ -310,11 +310,18 @@ services:
       # places a self-signed pair here for E1's own local HTTPS smoke test.
       - ${NGINX_TLS_CERT_DIR:-../reverse-proxy/staging-tls-certs}:/etc/nginx/tls:ro
       - ../reverse-proxy/staging-acme-webroot:/var/www/acme
-    # Distinct host ports from local dev's 8080, so both stacks can run
-    # side by side. In E1 (no real VPS/DNS yet) these stay loopback-bound;
-    # a real public bind is an E3 concern once a domain/host exists.
+    # Tranche E3 (real VPS/domain now exists): public bind on the standard
+    # web ports, all interfaces — this IS the reverse proxy's whole job
+    # (07_06 §3/§7: only the reverse proxy and 80/443 are exposed
+    # publicly). Previously loopback-bound to non-standard ports
+    # (127.0.0.1:8081/8444) specifically because Tranche E1 had no real
+    # VPS/DNS yet and needed to coexist with local dev's 8080 on the same
+    # dev machine — that constraint no longer applies on a dedicated
+    # staging VPS, and a real external client cannot reach a
+    # loopback-bound port at all, confirmed by a real external `curl`
+    # against the public IP returning connection failure until this fix.
     #
-    # `!override` is required here, not a plain list (Tranche E1
+    # `!override` is still required here, not a plain list (Tranche E1
     # correction, discovered via a real `docker compose config` dump, same
     # root cause as postgres's `ports: !reset []` above): without it,
     # Compose COMBINES this list with the base file's `8080:80` instead of
@@ -322,8 +329,8 @@ services:
     # alongside the staging TLS ports. `!override` forces this file's list
     # to be used verbatim.
     ports: !override
-      - "127.0.0.1:8081:80"
-      - "127.0.0.1:8444:443"
+      - "80:80"
+      - "443:443"
     security_opt:
       - no-new-privileges:true
     deploy:
