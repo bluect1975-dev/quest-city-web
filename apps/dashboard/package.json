@@ -16,7 +16,7 @@
     "@quest-city-web/i18n": "workspace:*",
     "@quest-city-web/theme-system": "workspace:*",
     "@quest-city-web/ui": "workspace:*",
-    "next": "16.2.9",
+    "next": "16.2.12",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
@@ -30,6 +30,6 @@
     "eslint-config-next": "16.2.9",
     "jsdom": "26.0.0",
     "typescript": "5.7.3",
-    "vitest": "3.0.4"
+    "vitest": "3.2.7"
   }
 }
