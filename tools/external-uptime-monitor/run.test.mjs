@@ -158,6 +158,21 @@ describe("level1-backfill subcommand", () => {
     expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 
+  // Regression test (found 2026-08-21 against the real staging endpoint,
+  // Tranche E3 acceptance): conditionFromType() originally returned only
+  // {service, conditionType}, missing the summaryCode/evidence fields
+  // buildReportBody forwards into the request body -- the real API rejected
+  // it with EXTERNAL_MONITOR_PAYLOAD_INVALID ("summaryCode must be a valid
+  // ExternalMonitorSummaryCode value"), invisible to the mocked
+  // buildReportBody in the test above.
+  it("passes a condition with a valid summaryCode (THRESHOLD_RECOVERED) and evidence to buildReportBody", async () => {
+    submitLevel2Report.mockResolvedValue({ ok: true, status: 200, body: { data: { incidentPublicId: "inc_1", deduped: false } } });
+    await main(["node", "run.mjs", "level1-backfill"]);
+    const [args] = buildReportBody.mock.calls[0];
+    expect(args.condition.summaryCode).toBe("THRESHOLD_RECOVERED");
+    expect(args.condition.evidence).toEqual({ httpStatus: null, latencyMs: null, tlsDaysRemaining: null, backupAgeHours: null, consecutiveFailures: 0 });
+  });
+
   it("throws on a failed submit", async () => {
     submitLevel2Report.mockResolvedValue({ ok: false, status: 500, error: "server error", body: null });
     await expect(main(["node", "run.mjs", "level1-backfill"])).rejects.toThrow(/backfill submit failed/);

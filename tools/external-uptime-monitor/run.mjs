@@ -102,7 +102,20 @@ function conditionFromType(conditionType) {
   const SERVICE_BY_CONDITION = { VPS_UNREACHABLE: "HOST", REVERSE_PROXY_UNREACHABLE: "REVERSE_PROXY", TLS_HANDSHAKE_FAILURE: "TLS" };
   const service = SERVICE_BY_CONDITION[conditionType];
   if (!service) throw new Error(`${conditionType} is not a recognized Level 1 conditionType.`);
-  return { service, conditionType };
+  // summaryCode/evidence are only consumed by buildReportBody (the
+  // recovery/backfill Level 2 submit path, 02_42 §56) -- buildAlertMessage/
+  // buildRecoveryMessage only read service/conditionType and ignore the
+  // rest, so it is safe to always include them here rather than having two
+  // separate condition shapes. THRESHOLD_RECOVERED is the canonical
+  // summaryCode for a RECOVERED-state report regardless of which Level 1
+  // condition originally triggered (02_42 §57: "quest'ultimo per state =
+  // RECOVERED").
+  return {
+    service,
+    conditionType,
+    summaryCode: "THRESHOLD_RECOVERED",
+    evidence: { httpStatus: null, latencyMs: null, tlsDaysRemaining: null, backupAgeHours: null, consecutiveFailures: 0 },
+  };
 }
 
 async function cmdLevel1Alert() {
