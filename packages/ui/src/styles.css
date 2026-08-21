@@ -21,7 +21,12 @@
   --qc-color-border-strong: #b7bfc9;
   --qc-color-text: #1a2230;
   --qc-color-text-muted: #5b6472;
-  --qc-color-text-faint: #838d99;
+  /* Pilot UX/UI Redesign UI-R6 (real axe-core scan): #838d99 on white was
+     3.37:1, below WCAG AA's 4.5:1 for normal text -- flagged on form-field
+     hints, the shell's role subtitle, table captions, and locked
+     ProgressSteps labels. #5f6b7a clears 4.5:1 while staying visually
+     "quieter" than --qc-color-text-muted. */
+  --qc-color-text-faint: #5f6b7a;
 
   /* Brand / primary */
   --qc-color-primary: #2454a8;
@@ -52,6 +57,14 @@
   --qc-color-admin-text: #eef1f7;
   --qc-color-admin-text-muted: #a7b0c2;
   --qc-color-admin-accent: #5b8def;
+  /* Pilot UX/UI Redesign UI-R6 (real axe-core scan): white text on
+     --qc-color-admin-accent is only 3.23:1 (the platform-admin login
+     button), below WCAG AA. --qc-color-admin-accent itself stays
+     unchanged because it also backs dark text elsewhere (the shell
+     badge, the active nav item) at a passing 5.47:1 -- darkening it
+     globally would fix the button and break those. This is a second,
+     dedicated token for the white-text-on-accent case only. */
+  --qc-color-admin-accent-strong: #3a63c2;
 
   /* Typography */
   --qc-font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -256,18 +269,27 @@ main.qc-admin-auth-page {
   color: var(--qc-color-admin-accent);
 }
 
-.qc-admin-auth-page label {
+/* main.qc-admin-auth-page (not .qc-admin-auth-page alone) -- Pilot UX/UI
+   Redesign UI-R6 (real axe-core scan): the plain class selector tied with
+   .qc-form-field label/input on specificity, so source order silently
+   decided the winner and the later "Forms" section rules always won,
+   leaving the admin login's actual rendered label/input colors as the
+   LIGHT theme's (#5b6472 label on a dark background: 2.66:1; white input
+   background under near-white admin text: 1.13:1 -- functionally
+   unreadable, not just non-compliant). The extra `main` type selector
+   makes these reliably win regardless of file order. */
+main.qc-admin-auth-page label {
   color: var(--qc-color-admin-text-muted);
 }
 
-.qc-admin-auth-page input {
+main.qc-admin-auth-page input {
   background: var(--qc-color-admin-bg);
   border-color: var(--qc-color-admin-border);
   color: var(--qc-color-admin-text);
 }
 
 .qc-admin-auth-page .qc-button-primary {
-  background: var(--qc-color-admin-accent);
+  background: var(--qc-color-admin-accent-strong);
 }
 
 /* ---------- Buttons ---------- */

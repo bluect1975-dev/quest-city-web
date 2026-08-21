@@ -372,7 +372,7 @@ export default function FullSequenceHost() {
         <p>
           <Link href="/w/home">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.backLink")}</Link>
         </p>
-        <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "fullSequence.sequenceTitle")}</h2>
+        <h1>{t(STUDENT_WEB_CATALOG_IT_IT, "fullSequence.sequenceTitle")}</h1>
         <StatusBadge tone="success">{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.completedMessage")}</StatusBadge>
       </main>
     );
@@ -419,7 +419,7 @@ export default function FullSequenceHost() {
       <p>
         <Link href="/w/home">{t(STUDENT_WEB_CATALOG_IT_IT, "engines.common.backLink")}</Link>
       </p>
-      <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "fullSequence.sequenceTitle")}</h2>
+      <h1>{t(STUDENT_WEB_CATALOG_IT_IT, "fullSequence.sequenceTitle")}</h1>
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "fullSequence.sequenceDescription")}</p>
       {error && <StatusMessage kind="error">{error}</StatusMessage>}
 
@@ -439,13 +439,13 @@ export default function FullSequenceHost() {
           <>
             {STAGE_PROMPTS[stage.stageId] && (
               <div>
-                <h3>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.titleKey)}</h3>
+                <h2>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.titleKey)}</h2>
                 <p>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.bodyKey)}</p>
               </div>
             )}
           {recapStageId && (
             <div>
-              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h3>
+              <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "sequence.recapTitle")}</h2>
               {(() => {
                 const recapState = state.stageStates.find((s) => s.stageId === recapStageId);
                 if (!recapState) {
@@ -477,7 +477,7 @@ export default function FullSequenceHost() {
         <>
           {STAGE_PROMPTS[stage.stageId] && (
             <div>
-              <h3>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.titleKey)}</h3>
+              <h2>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.titleKey)}</h2>
               <p>{t(STUDENT_WEB_CATALOG_IT_IT, STAGE_PROMPTS[stage.stageId]!.bodyKey)}</p>
             </div>
           )}

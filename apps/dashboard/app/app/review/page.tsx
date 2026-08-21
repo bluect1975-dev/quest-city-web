@@ -152,7 +152,7 @@ function ReviewView() {
             },
             {
               key: "attempt",
-              header: "",
+              header: <span className="qc-visually-hidden">{t(DASHBOARD_CATALOG_IT_IT, "app.review.columnAttempt")}</span>,
               render: (row) => (
                 <Link href={`/app/attempts/${encodeURIComponent(row.learningAttemptId)}/review?reviewItemId=${encodeURIComponent(row.id)}`}>
                   {t(DASHBOARD_CATALOG_IT_IT, "app.review.openAttempt")}
@@ -161,7 +161,7 @@ function ReviewView() {
             },
             {
               key: "actions",
-              header: "",
+              header: <span className="qc-visually-hidden">{t(DASHBOARD_CATALOG_IT_IT, "app.review.columnActions")}</span>,
               render: (row) => (
                 <>
                   {NEXT_ACTIONS[row.status].map((target) => (
