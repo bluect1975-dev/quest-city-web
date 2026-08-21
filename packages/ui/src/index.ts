@@ -9,3 +9,4 @@ export { Icon, type IconName, type IconProps } from "./Icon";
 export { ProgressBar, type ProgressBarProps } from "./ProgressBar";
 export { ProgressSteps, type ProgressStep, type ProgressStepState, type ProgressStepsProps } from "./ProgressSteps";
 export { BrandMark, type BrandMarkProps } from "./BrandMark";
+export { StatsCard, type StatsCardProps } from "./StatsCard";

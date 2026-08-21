@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
+import { StatsCard, StatusMessage } from "@quest-city-web/ui";
+import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../lib/RequireStaffAuth";
 import { useAsync } from "../../lib/useAsync";
 import { ROLE_LABEL_KEY } from "../../lib/role-labels";
@@ -32,8 +33,12 @@ export default function StaffHomePage() {
             </p>
           ) : null}
 
-          {context.role === "ASACOM" || context.role === "SUPPORT_TEACHER" ? <AssignedStudentsSummary /> : null}
-          {context.role === "TEACHER" || context.role === "SUPPORT_TEACHER" ? <PendingReviewSummary /> : null}
+          {context.role === "ASACOM" || context.role === "SUPPORT_TEACHER" || context.role === "TEACHER" ? (
+            <div className="qc-stats-grid">
+              {context.role === "ASACOM" || context.role === "SUPPORT_TEACHER" ? <AssignedStudentsSummary /> : null}
+              {context.role === "TEACHER" || context.role === "SUPPORT_TEACHER" ? <PendingReviewSummary /> : null}
+            </div>
+          ) : null}
         </main>
       )}
     </RequireStaffAuth>
@@ -42,30 +47,38 @@ export default function StaffHomePage() {
 
 function AssignedStudentsSummary() {
   const result = useAsync(() => listMyAssignedStudents(), []);
+  if (result.status === "loading") return <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage>;
+  if (result.status === "error") return <StatusMessage kind="error">{result.message}</StatusMessage>;
   return (
-    <section className="qc-card">
-      <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.home.assignedStudentsTitle")}</h2>
-      {result.status === "success" ? (
-        <p>
-          {t(DASHBOARD_CATALOG_IT_IT, "app.home.assignedStudentsCount", { params: { count: result.data.length } })}{" "}
+    <StatsCard
+      label={t(DASHBOARD_CATALOG_IT_IT, "app.home.assignedStudentsTitle")}
+      value={result.data.length}
+      action={
+        result.data.length > 0 ? (
           <Link href="/app/support/my-students">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToMyAssignedStudents")}</Link>
-        </p>
-      ) : null}
-    </section>
+        ) : (
+          t(DASHBOARD_CATALOG_IT_IT, "app.home.assignedStudentsEmpty")
+        )
+      }
+    />
   );
 }
 
 function PendingReviewSummary() {
   const result = useAsync(() => listFacilitationProposalReviewQueue("SUBMITTED"), []);
+  if (result.status === "loading") return <StatusMessage kind="loading">{t(COMMON_CATALOG_IT_IT, "status.loading")}</StatusMessage>;
+  if (result.status === "error") return <StatusMessage kind="error">{result.message}</StatusMessage>;
   return (
-    <section className="qc-card">
-      <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.home.pendingReviewTitle")}</h2>
-      {result.status === "success" ? (
-        <p>
-          {t(DASHBOARD_CATALOG_IT_IT, "app.home.pendingReviewCount", { params: { count: result.data.length } })}{" "}
+    <StatsCard
+      label={t(DASHBOARD_CATALOG_IT_IT, "app.home.pendingReviewTitle")}
+      value={result.data.length}
+      action={
+        result.data.length > 0 ? (
           <Link href="/app/facilitation-review">{t(DASHBOARD_CATALOG_IT_IT, "app.home.goToFacilitationReview")}</Link>
-        </p>
-      ) : null}
-    </section>
+        ) : (
+          t(DASHBOARD_CATALOG_IT_IT, "app.home.pendingReviewEmpty")
+        )
+      }
+    />
   );
 }

@@ -18,6 +18,27 @@ const STATUS_TONE: Record<ReviewQueueItemStatus, "info" | "warning" | "success" 
   DISMISSED: "neutral",
 };
 
+const STATUS_LABEL_KEY: Record<ReviewQueueItemStatus, string> = {
+  OPEN: "app.status.open",
+  IN_REVIEW: "app.status.inReview",
+  RESOLVED: "app.status.resolved",
+  DISMISSED: "app.status.dismissed",
+};
+
+const REASON_LABEL_KEY: Record<ReviewQueueItem["reason"], string> = {
+  INCORRECT_ATTEMPT: "app.review.reasonIncorrectAttempt",
+  OPEN_ANSWER: "app.review.reasonOpenAnswer",
+  PRIORITY_MISCONCEPTION: "app.review.reasonPriorityMisconception",
+  HELP_REQUESTED: "app.review.reasonHelpRequested",
+  MANUALLY_SELECTED: "app.review.reasonManuallySelected",
+};
+
+const PRIORITY_LABEL_KEY: Record<ReviewQueueItemPriority, string> = {
+  LOW: "app.review.priorityLow",
+  MEDIUM: "app.review.priorityMedium",
+  HIGH: "app.review.priorityHigh",
+};
+
 const NEXT_ACTIONS: Record<ReviewQueueItemStatus, ReviewQueueItemStatus[]> = {
   OPEN: ["IN_REVIEW", "DISMISSED"],
   IN_REVIEW: ["OPEN", "RESOLVED", "DISMISSED"],
@@ -109,16 +130,25 @@ function ReviewView() {
       {result.status === "success" && result.data.length > 0 ? (
         <Table
           columns={[
-            { key: "reason", header: t(DASHBOARD_CATALOG_IT_IT, "app.review.columnReason"), render: (row) => row.reason },
+            {
+              key: "reason",
+              header: t(DASHBOARD_CATALOG_IT_IT, "app.review.columnReason"),
+              render: (row) => t(DASHBOARD_CATALOG_IT_IT, REASON_LABEL_KEY[row.reason]),
+            },
             {
               key: "priority",
               header: t(DASHBOARD_CATALOG_IT_IT, "app.review.columnPriority"),
-              render: (row) => row.priority,
+              render: (row) => t(DASHBOARD_CATALOG_IT_IT, PRIORITY_LABEL_KEY[row.priority]),
             },
             {
               key: "status",
               header: t(DASHBOARD_CATALOG_IT_IT, "app.review.columnStatus"),
-              render: (row) => <StatusBadge tone={STATUS_TONE[row.status]}>{row.status}</StatusBadge>,
+              render: (row) => <StatusBadge tone={STATUS_TONE[row.status]}>{t(DASHBOARD_CATALOG_IT_IT, STATUS_LABEL_KEY[row.status])}</StatusBadge>,
+            },
+            {
+              key: "updatedAt",
+              header: t(DASHBOARD_CATALOG_IT_IT, "app.review.columnUpdatedAt"),
+              render: (row) => new Date(row.updatedAt).toLocaleString("it-IT"),
             },
             {
               key: "attempt",
