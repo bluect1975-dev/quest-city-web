@@ -5,6 +5,7 @@ import type {
   AttemptReviewDetail,
   ClassMigrationDecision,
   ClassSummary,
+  ContentCatalogEntry,
   ConvergenceRequest,
   CreateStaffInvitationResult,
   DifficultyOverrideResult,
@@ -153,6 +154,12 @@ export async function listClasses(): Promise<ClassSummary[]> {
 
 export async function getClass(classId: string): Promise<SchoolClassDetail> {
   const envelope = await request<Envelope<SchoolClassDetail>>(`/classes/${encodeURIComponent(classId)}`);
+  return envelope.data;
+}
+
+/** `GET /content` (Pilot Product Experience Remediation Tranche G7) — backs the content-assignment picker. */
+export async function listContentCatalog(): Promise<ContentCatalogEntry[]> {
+  const envelope = await request<Envelope<ContentCatalogEntry[]>>(`/content`);
   return envelope.data;
 }
 

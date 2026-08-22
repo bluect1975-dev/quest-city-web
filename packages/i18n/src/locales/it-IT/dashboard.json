@@ -181,11 +181,24 @@
       "removeStudentAction": "Rimuovi dal roster",
       "removeStudentConfirm": "Rimuovere questo studente dalla classe? Storico e progressi restano intatti.",
       "assignContentTitle": "Assegna contenuto pubblicato alla classe",
-      "assignContentBundleIdLabel": "ID pacchetto contenuti",
+      "assignContentPickerLabel": "Contenuto da assegnare",
+      "assignContentPickerPlaceholder": "Scegli un contenuto pubblicato...",
+      "assignContentPickerEmpty": "Nessun contenuto pubblicato disponibile al momento.",
+      "assignContentPickerError": "Non è stato possibile caricare il catalogo dei contenuti.",
+      "assignContentPickerOptionLabel": "{subject} — {bundleType} — v{version}",
       "assignContentTitleLabel": "Titolo assegnazione",
       "assignContentSubmit": "Assegna",
       "assignContentSubmitting": "Assegnazione in corso...",
-      "assignContentSuccess": "Assegnazione creata e pubblicata."
+      "assignContentSuccess": "Assegnazione creata e pubblicata.",
+      "bundleTypeLabel": {
+        "COURSE_CATALOG_BUNDLE": "Catalogo corso",
+        "LESSON_BUNDLE": "Lezione",
+        "ACTIVITY_BUNDLE": "Attività",
+        "THEME_BUNDLE": "Tema",
+        "ASSET_BUNDLE": "Risorsa",
+        "LOCALIZATION_BUNDLE": "Localizzazione",
+        "RUNTIME_FIXTURE_BUNDLE": "Fixture di runtime"
+      }
     },
     "staff": {
       "title": "Personale",

@@ -17,6 +17,7 @@ import {
   getClass,
   getClassProgress,
   listClassStudents,
+  listContentCatalog,
   listStaffMembers,
   regenerateClassAccessCode,
   removeStudentFromRoster,
@@ -24,6 +25,7 @@ import {
   unassignTeacherFromClass,
 } from "../../../../lib/staff-api-client";
 import type {
+  ContentCatalogEntry,
   ProgressAggregate,
   RosterMode,
   SchoolClassDetail,
@@ -37,6 +39,7 @@ interface ClassDetailData {
   roster: StudentRosterEntry[];
   progress: ProgressAggregate;
   staffMembers: StaffMember[];
+  contentCatalog: ContentCatalogEntry[];
 }
 
 /**
@@ -60,13 +63,14 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
   const canManageTeachers = role === "SCHOOL_ADMIN";
 
   const result = useAsync<ClassDetailData>(async () => {
-    const [schoolClass, roster, progress, staffMembers] = await Promise.all([
+    const [schoolClass, roster, progress, staffMembers, contentCatalog] = await Promise.all([
       getClass(classId),
       listClassStudents(classId),
       getClassProgress(classId),
       canManageTeachers ? listStaffMembers() : Promise.resolve<StaffMember[]>([]),
+      listContentCatalog(),
     ]);
-    return { schoolClass, roster, progress, staffMembers };
+    return { schoolClass, roster, progress, staffMembers, contentCatalog };
   }, [classId, canManageTeachers]);
 
   const [renameValue, setRenameValue] = useState("");
@@ -457,35 +461,56 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
 
           <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentTitle")}</h2>
-            <form onSubmit={handleAssignContent}>
-              <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentBundleIdLabel")}>
-                {(fieldProps) => (
-                  <input
-                    {...fieldProps}
-                    type="text"
-                    required
-                    value={contentBundleId}
-                    onChange={(e) => setContentBundleId(e.target.value)}
-                  />
-                )}
-              </FormField>
-              <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentTitleLabel")}>
-                {(fieldProps) => (
-                  <input
-                    {...fieldProps}
-                    type="text"
-                    required
-                    value={assignmentTitle}
-                    onChange={(e) => setAssignmentTitle(e.target.value)}
-                  />
-                )}
-              </FormField>
-              <Button type="submit" disabled={assignBusy || !csrfToken}>
-                {assignBusy
-                  ? t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentSubmitting")
-                  : t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentSubmit")}
-              </Button>
-            </form>
+            {result.data.contentCatalog.length === 0 ? (
+              <EmptyState
+                title={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentPickerEmpty")}
+                description=""
+              />
+            ) : (
+              <form onSubmit={handleAssignContent}>
+                <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentPickerLabel")}>
+                  {(fieldProps) => (
+                    <select
+                      {...fieldProps}
+                      required
+                      value={contentBundleId}
+                      onChange={(e) => setContentBundleId(e.target.value)}
+                    >
+                      <option value="" disabled>
+                        {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentPickerPlaceholder")}
+                      </option>
+                      {result.data.contentCatalog.map((entry) => (
+                        <option key={entry.contentBundleId} value={entry.contentBundleId}>
+                          {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentPickerOptionLabel", {
+                            params: {
+                              subject: entry.subjectId,
+                              bundleType: t(DASHBOARD_CATALOG_IT_IT, `app.classDetail.bundleTypeLabel.${entry.bundleType}`),
+                              version: entry.bundleVersion,
+                            },
+                          })}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </FormField>
+                <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentTitleLabel")}>
+                  {(fieldProps) => (
+                    <input
+                      {...fieldProps}
+                      type="text"
+                      required
+                      value={assignmentTitle}
+                      onChange={(e) => setAssignmentTitle(e.target.value)}
+                    />
+                  )}
+                </FormField>
+                <Button type="submit" disabled={assignBusy || !csrfToken || !contentBundleId}>
+                  {assignBusy
+                    ? t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentSubmitting")
+                    : t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentSubmit")}
+                </Button>
+              </form>
+            )}
             {assignError ? <StatusMessage kind="error">{assignError}</StatusMessage> : null}
             {assignSuccess ? <p role="status">{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentSuccess")}</p> : null}
           </section>

@@ -184,6 +184,21 @@ export interface RemoveRosterMemberResult {
   status: "LEFT";
 }
 
+/**
+ * `GET /content` (Pilot Product Experience Remediation Tranche G7,
+ * `UX-CONTENT-ASSIGNMENT-01`). No `title` field: `content_bundle` has none
+ * in this schema (`NEW-GAP-CONTENT-BUNDLE-NO-TITLE-01`) — the caller
+ * composes a display label from `subjectId`/`bundleType`/`bundleVersion`
+ * instead of showing `contentBundleId` (the internal public id) as text.
+ */
+export interface ContentCatalogEntry {
+  contentBundleId: string;
+  subjectId: string;
+  bundleType: "COURSE_CATALOG_BUNDLE" | "LESSON_BUNDLE" | "ACTIVITY_BUNDLE" | "THEME_BUNDLE" | "ASSET_BUNDLE" | "LOCALIZATION_BUNDLE" | "RUNTIME_FIXTURE_BUNDLE";
+  bundleVersion: string;
+  publishedAt: string | null;
+}
+
 export interface GeneralAssignment {
   assignmentId: string;
   classId: string;

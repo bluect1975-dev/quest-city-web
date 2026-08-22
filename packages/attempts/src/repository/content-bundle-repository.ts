@@ -75,6 +75,37 @@ export class ContentBundleRepository {
     return mapRow(row, await this.runtimeChannelsFor(row.id));
   }
 
+  /**
+   * `GET /content` (Pilot Product Experience Remediation Tranche G7,
+   * `UX-CONTENT-ASSIGNMENT-01`) — the content catalog a teacher picks from
+   * instead of typing a raw `public_id`. `content_bundle` is GLOBAL, not
+   * tenant-scoped (see the table's own doc comment), so this never takes a
+   * `tenantId` — every PUBLISHED, WEB-compatible bundle is visible to
+   * every authenticated staff member, same scope the raw-ID text field
+   * already implicitly allowed (any staff member who knew an ID could
+   * assign it). `subjectId` filters on the exact stored code (e.g. `MAT`)
+   * — there is no `subject_catalogue` lookup table in this schema yet, so
+   * no human-readable subject name exists to filter or display by; see
+   * `NEW-GAP-CONTENT-BUNDLE-NO-TITLE-01`.
+   */
+  async findPublishedForWebRuntime(filters: { subjectId?: string } = {}): Promise<ContentBundle[]> {
+    const conditions = [`cb.status = 'PUBLISHED'`, `crc.runtime_channel = 'WEB'`];
+    const values: string[] = [];
+    if (filters.subjectId) {
+      values.push(filters.subjectId);
+      conditions.push(`cb.subject_id = $${values.length}`);
+    }
+    const result = await this.db.query<ContentBundleRow>(
+      `SELECT DISTINCT ${SELECT_COLUMNS.split(", ").map((c) => `cb.${c}`).join(", ")}
+       FROM content_bundle cb
+       JOIN content_bundle_runtime_channel crc ON crc.content_bundle_id = cb.id
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY cb.subject_id ASC, cb.bundle_type ASC, cb.published_at DESC NULLS LAST`,
+      values,
+    );
+    return Promise.all(result.rows.map(async (row) => mapRow(row, await this.runtimeChannelsFor(row.id))));
+  }
+
   /** Public-format identifier lookup (`bnd_...`) — for any caller (e.g. a staff-facing form) that only knows the content bundle's public id, never its internal uuid. */
   async findByPublicId(publicId: string): Promise<ContentBundle | null> {
     const result = await this.db.query<ContentBundleRow>(
