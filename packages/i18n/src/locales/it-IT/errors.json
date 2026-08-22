@@ -1,4 +1,5 @@
 {
+  "INTERNAL_ERROR": "Si è verificato un errore imprevisto. Riprova; se il problema persiste, contatta il supporto.",
   "CLASS_CODE_INVALID": "Il codice classe inserito non è valido.",
   "ACCESS_CREDENTIALS_INVALID": "Alias o PIN non corretti.",
   "ENROLLMENT_SUSPENDED": "L'iscrizione è sospesa. Contatta il tuo insegnante.",

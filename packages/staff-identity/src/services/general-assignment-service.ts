@@ -91,7 +91,16 @@ export class GeneralAssignmentService {
       if (!schoolClass) {
         throw new StaffIdentityError("CLASS_ACCESS_DENIED");
       }
-      const contentBundle = await this.contentBundles.findById(contentBundleId);
+      // `contentBundleId` here is the caller-facing PUBLIC id (`bnd_...` — the
+      // only form of this identifier ever surfaced to staff, e.g. via the
+      // dashboard's "assign content" form): resolved to the internal uuid
+      // before any further use. Looking this up by internal id instead (as a
+      // prior version of this method did) crashed with an uncaught Postgres
+      // "invalid input syntax for type uuid" on any real public-id input —
+      // an ungraceful 500 (INTERNAL_ERROR) instead of a proper 404-shaped
+      // ASSIGNMENT_CONTENT_NOT_PUBLISHED/validation error, found live during
+      // the Pilot UX/UI Redesign mission's own user-acceptance test.
+      const contentBundle = await this.contentBundles.findByPublicId(contentBundleId);
       if (!contentBundle || contentBundle.status !== "PUBLISHED") {
         throw new StaffIdentityError("ASSIGNMENT_CONTENT_NOT_PUBLISHED");
       }
@@ -110,7 +119,9 @@ export class GeneralAssignmentService {
         createdByActorType: "STAFF",
         createdByActorId: identity.staffAccountId,
         completionPolicy: "FIRST_VALID_COMPLETION",
-        contentBundleId,
+        // The resolved internal uuid — never the raw public-id input, which
+        // is not a valid value for this column (a real FK to content_bundle.id).
+        contentBundleId: contentBundle.id,
         allowedRuntimeChannels,
         originType: "STAFF_GENERAL",
         targetStudentProfileId: null,
