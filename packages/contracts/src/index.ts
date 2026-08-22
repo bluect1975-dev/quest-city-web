@@ -108,6 +108,12 @@
  * above — no `quest-city-roblox` access in this change set, so no vendored
  * OpenAPI version was added. Covered by `tests/integration/product-
  * experience-g7-content-catalog.test.ts`. `PRE_EXISTING_OPENAPI_CONTENT_CATALOG_LINEAGE_DEBT`.
+ *
+ * DISCLOSED GAP — `GET /classes/{classId}/assignments` (Pilot Product
+ * Experience Remediation Tranche G8, `UX-CLASS-ASSIGNMENT-LIST-01`): same
+ * situation as `GET /me/class` and `GET /content` above. Covered by
+ * `tests/integration/product-experience-g8-class-assignment-list.test.ts`.
+ * `PRE_EXISTING_OPENAPI_CLASS_ASSIGNMENT_LIST_LINEAGE_DEBT`.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";

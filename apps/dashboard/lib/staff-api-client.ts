@@ -3,6 +3,7 @@ import type {
   AcceptStaffInvitationResult,
   AttemptHistoryEntry,
   AttemptReviewDetail,
+  ClassAssignmentSummary,
   ClassMigrationDecision,
   ClassSummary,
   ContentCatalogEntry,
@@ -165,6 +166,12 @@ export async function listContentCatalog(): Promise<ContentCatalogEntry[]> {
 
 export async function listClassStudents(classId: string): Promise<StudentRosterEntry[]> {
   const envelope = await request<Envelope<StudentRosterEntry[]>>(`/classes/${encodeURIComponent(classId)}/students`);
+  return envelope.data;
+}
+
+/** `GET /classes/{classId}/assignments` (Pilot Product Experience Remediation Tranche G8) — persistent list of what's been assigned to the class. */
+export async function listClassAssignments(classId: string): Promise<ClassAssignmentSummary[]> {
+  const envelope = await request<Envelope<ClassAssignmentSummary[]>>(`/classes/${encodeURIComponent(classId)}/assignments`);
   return envelope.data;
 }
 

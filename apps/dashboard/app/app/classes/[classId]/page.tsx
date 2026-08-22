@@ -16,6 +16,7 @@ import {
   createGeneralAssignment,
   getClass,
   getClassProgress,
+  listClassAssignments,
   listClassStudents,
   listContentCatalog,
   listStaffMembers,
@@ -25,6 +26,7 @@ import {
   unassignTeacherFromClass,
 } from "../../../../lib/staff-api-client";
 import type {
+  ClassAssignmentSummary,
   ContentCatalogEntry,
   ProgressAggregate,
   RosterMode,
@@ -40,6 +42,7 @@ interface ClassDetailData {
   progress: ProgressAggregate;
   staffMembers: StaffMember[];
   contentCatalog: ContentCatalogEntry[];
+  classAssignments: ClassAssignmentSummary[];
 }
 
 /**
@@ -63,14 +66,15 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
   const canManageTeachers = role === "SCHOOL_ADMIN";
 
   const result = useAsync<ClassDetailData>(async () => {
-    const [schoolClass, roster, progress, staffMembers, contentCatalog] = await Promise.all([
+    const [schoolClass, roster, progress, staffMembers, contentCatalog, classAssignments] = await Promise.all([
       getClass(classId),
       listClassStudents(classId),
       getClassProgress(classId),
       canManageTeachers ? listStaffMembers() : Promise.resolve<StaffMember[]>([]),
       listContentCatalog(),
+      listClassAssignments(classId),
     ]);
-    return { schoolClass, roster, progress, staffMembers, contentCatalog };
+    return { schoolClass, roster, progress, staffMembers, contentCatalog, classAssignments };
   }, [classId, canManageTeachers]);
 
   const [renameValue, setRenameValue] = useState("");
@@ -237,6 +241,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
       setContentBundleId("");
       setAssignmentTitle("");
       setAssignSuccess(true);
+      result.reload();
     } catch (error) {
       setAssignError(staffErrorText(error));
     } finally {
@@ -457,6 +462,40 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
                 {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.addStudentPinResult")} <code>{generatedPin}</code>
               </p>
             ) : null}
+          </section>
+
+          <section className="qc-card">
+            <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignmentsListTitle")}</h2>
+            {result.data.classAssignments.length === 0 ? (
+              <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignmentsListEmpty")} />
+            ) : (
+              <Table
+                columns={[
+                  { key: "title", header: t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignmentsColumnTitle"), render: (row) => row.title },
+                  {
+                    key: "status",
+                    header: t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignmentsColumnStatus"),
+                    render: (row) => (
+                      <StatusBadge tone={row.status === "PUBLISHED" ? "success" : row.status === "ARCHIVED" ? "neutral" : "info"}>
+                        {t(DASHBOARD_CATALOG_IT_IT, `app.classDetail.assignmentStatusLabel.${row.status}`)}
+                      </StatusBadge>
+                    ),
+                  },
+                  {
+                    key: "origin",
+                    header: t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignmentsColumnOrigin"),
+                    render: (row) => t(DASHBOARD_CATALOG_IT_IT, `app.classDetail.assignmentOriginLabel.${row.originType}`),
+                  },
+                  {
+                    key: "createdAt",
+                    header: t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignmentsColumnDate"),
+                    render: (row) => new Date(row.createdAt).toLocaleDateString(),
+                  },
+                ]}
+                rows={result.data.classAssignments}
+                rowKey={(row) => row.assignmentId}
+              />
+            )}
           </section>
 
           <section className="qc-card">

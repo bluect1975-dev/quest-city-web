@@ -208,6 +208,22 @@ export interface GeneralAssignment {
   createdAt: string;
 }
 
+/**
+ * `GET /classes/{classId}/assignments` (Pilot Product Experience
+ * Remediation Tranche G8, `UX-CLASS-ASSIGNMENT-LIST-01`) — every
+ * assignment on the class, any status/origin (never the narrower
+ * student-discovery filter). No `contentBundleId` — the class detail
+ * page never displays a raw content id to the teacher (mission §32).
+ */
+export interface ClassAssignmentSummary {
+  assignmentId: string;
+  title: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  originType: "STAFF_GENERAL" | "ADMIN_SEED" | "RECOVERY_FROM_REVIEW";
+  createdAt: string;
+  dueAt: string | null;
+}
+
 export interface RecoveryAssignment {
   assignmentId: string;
   originTeacherFeedbackId: string;
