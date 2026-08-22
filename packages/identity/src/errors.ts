@@ -13,6 +13,14 @@ export const IDENTITY_ERROR_CODES = [
   "CSRF_INVALID",
   "RATE_LIMITED",
   "VALIDATION_ERROR",
+  // Pilot Product Experience Remediation Tranche G9 (SEC-STUDENT-PIN-01) —
+  // same HTTP 423 (Locked) as STAFF_ACCOUNT_LOCKED/PLATFORM_ACCOUNT_LOCKED,
+  // deliberately distinct from ACCESS_CREDENTIALS_INVALID (401) so the
+  // client can show "temporarily locked" rather than "wrong PIN" — this IS
+  // raised only once the account is already locked, never on the failed
+  // attempt that causes the lock (that attempt still gets
+  // ACCESS_CREDENTIALS_INVALID, matching the staff precedent exactly).
+  "STUDENT_ACCOUNT_LOCKED",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -26,6 +34,7 @@ const HTTP_STATUS_BY_CODE: Record<IdentityErrorCode, number> = {
   CSRF_INVALID: 403,
   RATE_LIMITED: 429,
   VALIDATION_ERROR: 400,
+  STUDENT_ACCOUNT_LOCKED: 423,
 };
 
 export class IdentityError extends Error {

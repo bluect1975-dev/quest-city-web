@@ -15,6 +15,9 @@ export interface SchoolEnrollment {
   validFrom: Date;
   validUntil: Date | null;
   createdAt: Date;
+  /** Pilot Product Experience Remediation Tranche G9 (SEC-STUDENT-PIN-01, migration 0016). */
+  failedPinCount: number;
+  pinLockedUntil: Date | null;
 }
 
 interface SchoolEnrollmentRow {
@@ -30,6 +33,8 @@ interface SchoolEnrollmentRow {
   valid_from: Date;
   valid_until: Date | null;
   created_at: Date;
+  failed_pin_count: number;
+  pin_locked_until: Date | null;
 }
 
 function mapEnrollment(row: SchoolEnrollmentRow): SchoolEnrollment {
@@ -46,11 +51,13 @@ function mapEnrollment(row: SchoolEnrollmentRow): SchoolEnrollment {
     validFrom: row.valid_from,
     validUntil: row.valid_until,
     createdAt: row.created_at,
+    failedPinCount: row.failed_pin_count,
+    pinLockedUntil: row.pin_locked_until,
   };
 }
 
 const SELECT_COLUMNS = `id, tenant_id, class_id, student_profile_id, access_alias, access_alias_normalized,
-       pin_hash, status, path_id, valid_from, valid_until, created_at`;
+       pin_hash, status, path_id, valid_from, valid_until, created_at, failed_pin_count, pin_locked_until`;
 
 export class SchoolEnrollmentRepository {
   constructor(private readonly db: Queryable) {}
@@ -186,5 +193,49 @@ export class SchoolEnrollmentRepository {
       throw new Error("INSERT ... RETURNING produced no row");
     }
     return mapEnrollment(row);
+  }
+
+  /**
+   * A successful `session/start`: resets the failure counter and lockout.
+   * Mirrors `StaffAccountRepository.recordSuccessfulLogin` exactly (Pilot
+   * Product Experience Remediation Tranche G9, SEC-STUDENT-PIN-01).
+   */
+  async recordSuccessfulPin(id: string, tenantId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE school_enrollment SET failed_pin_count = 0, pin_locked_until = NULL WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId],
+    );
+  }
+
+  /**
+   * Increments the failure counter and, once `maxFailedPinAttempts` is
+   * reached, sets `pin_locked_until`. Mirrors
+   * `StaffAccountRepository.recordFailedLogin` exactly — same atomic
+   * single-`UPDATE` shape, same "threshold reached on THIS increment"
+   * check (`failed_pin_count + 1 >= $3`), so a lockout can never be missed
+   * under concurrent requests. Returns the updated count/lock state so the
+   * caller decides the error code without a second round-trip (Pilot
+   * Product Experience Remediation Tranche G9, SEC-STUDENT-PIN-01).
+   */
+  async recordFailedPin(
+    id: string,
+    tenantId: string,
+    maxFailedPinAttempts: number,
+    lockoutDurationSeconds: number,
+  ): Promise<{ failedPinCount: number; pinLockedUntil: Date | null }> {
+    const result = await this.db.query<{ failed_pin_count: number; pin_locked_until: Date | null }>(
+      `UPDATE school_enrollment
+       SET failed_pin_count = failed_pin_count + 1,
+           pin_locked_until = CASE
+             WHEN failed_pin_count + 1 >= $3 THEN now() + make_interval(secs => $4)
+             ELSE pin_locked_until
+           END
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING failed_pin_count, pin_locked_until`,
+      [id, tenantId, maxFailedPinAttempts, lockoutDurationSeconds],
+    );
+    const [row] = result.rows;
+    if (!row) throw new Error("UPDATE ... RETURNING produced no row");
+    return { failedPinCount: row.failed_pin_count, pinLockedUntil: row.pin_locked_until };
   }
 }

@@ -10,6 +10,7 @@ const EXPECTED_STATUS: Record<string, number> = {
   CSRF_INVALID: 403,
   RATE_LIMITED: 429,
   VALIDATION_ERROR: 400,
+  STUDENT_ACCOUNT_LOCKED: 423,
 };
 
 describe("IdentityError", () => {

@@ -113,6 +113,17 @@ export class SessionService {
       throw new IdentityError("ACCESS_CREDENTIALS_INVALID");
     }
 
+    // Pilot Product Experience Remediation Tranche G9 (SEC-STUDENT-PIN-01).
+    // Checked BEFORE the status/PIN checks below, same ordering as
+    // StaffAuthService.start's lockedUntil check — a locked account never
+    // leaks whether the PIN in THIS request would have been correct.
+    if (enrollment.pinLockedUntil && enrollment.pinLockedUntil.getTime() > Date.now()) {
+      await this.recordAccessFailure(tenant.id, enrollment, "PIN_LOCKED");
+      throw new IdentityError("STUDENT_ACCOUNT_LOCKED", undefined, {
+        retryAfterSeconds: Math.ceil((enrollment.pinLockedUntil.getTime() - Date.now()) / 1000),
+      });
+    }
+
     if (enrollment.status === "SUSPENDED") {
       await this.recordAccessFailure(tenant.id, enrollment, "ENROLLMENT_SUSPENDED");
       throw new IdentityError("ENROLLMENT_SUSPENDED");
@@ -124,8 +135,26 @@ export class SessionService {
 
     const pinValid = await verifyPin(input.pin, enrollment.pinHash);
     if (!pinValid) {
+      // The lockout write happens regardless of the audit reason recorded
+      // below — every failed PIN counts toward the threshold, matching
+      // StaffAuthService's recordFailedLogin call on password mismatch.
+      const { pinLockedUntil } = await this.enrollments.recordFailedPin(
+        enrollment.id,
+        tenant.id,
+        this.config.maxFailedPinAttempts,
+        this.config.pinLockoutDurationSeconds,
+      );
       await this.recordAccessFailure(tenant.id, enrollment, "PIN_MISMATCH");
+      if (pinLockedUntil) {
+        throw new IdentityError("STUDENT_ACCOUNT_LOCKED", undefined, {
+          retryAfterSeconds: Math.ceil((pinLockedUntil.getTime() - Date.now()) / 1000),
+        });
+      }
       throw new IdentityError("ACCESS_CREDENTIALS_INVALID");
+    }
+
+    if (enrollment.failedPinCount > 0 || enrollment.pinLockedUntil) {
+      await this.enrollments.recordSuccessfulPin(enrollment.id, tenant.id);
     }
 
     if (enrollment.status === "INVITED") {
