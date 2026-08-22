@@ -102,6 +102,12 @@
  * resolve by vendoring a proper `v1_20` (or successor) contract version
  * once a `quest-city-roblox` sync is actually performed — same disclosed-
  * debt pattern as v1_16's `PRE_EXISTING_OPENAPI_LAUNCH_CONTEXT_LINEAGE_DEBT`.
+ *
+ * DISCLOSED GAP — `GET /content` (Pilot Product Experience Remediation
+ * Tranche G7, `UX-CONTENT-ASSIGNMENT-01`): same situation as `GET /me/class`
+ * above — no `quest-city-roblox` access in this change set, so no vendored
+ * OpenAPI version was added. Covered by `tests/integration/product-
+ * experience-g7-content-catalog.test.ts`. `PRE_EXISTING_OPENAPI_CONTENT_CATALOG_LINEAGE_DEBT`.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";
