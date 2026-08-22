@@ -56,6 +56,8 @@ function fakeEnrollment(overrides: Partial<SchoolEnrollment> = {}): SchoolEnroll
     validFrom: new Date(),
     validUntil: null,
     createdAt: new Date(),
+    failedPinCount: 0,
+    pinLockedUntil: null,
     ...overrides,
   };
 }

@@ -39,6 +39,11 @@ function getSessionSecurityConfig(): SessionSecurityConfig {
   return {
     absoluteTtlSeconds: env.sessionAbsoluteTtlSeconds,
     inactivityTtlSeconds: env.sessionInactivityTtlSeconds,
+    // Pilot Product Experience Remediation Tranche G9 (SEC-STUDENT-PIN-01)
+    // — hardcoded, not env-configurable, same convention as staff's own
+    // getStaffSessionSecurityConfig() in staff-identity-context.ts.
+    maxFailedPinAttempts: 10,
+    pinLockoutDurationSeconds: 15 * 60,
   };
 }
 

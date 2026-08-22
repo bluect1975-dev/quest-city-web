@@ -3,6 +3,7 @@
   "CLASS_CODE_INVALID": "Il codice classe inserito non è valido.",
   "ACCESS_CREDENTIALS_INVALID": "Alias o PIN non corretti.",
   "ENROLLMENT_SUSPENDED": "L'iscrizione è sospesa. Contatta il tuo insegnante.",
+  "STUDENT_ACCOUNT_LOCKED": "Troppi tentativi non riusciti: l'accesso è temporaneamente bloccato. Riprova tra qualche minuto.",
   "SESSION_EXPIRED": "La sessione è scaduta. Accedi di nuovo.",
   "TENANT_ACCESS_DENIED": "Non hai accesso a questa scuola.",
   "CSRF_INVALID": "La richiesta non è valida. Riprova.",
