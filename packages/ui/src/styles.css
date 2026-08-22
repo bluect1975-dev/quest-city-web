@@ -827,6 +827,43 @@ form {
   margin: var(--qc-space-1) 0 0 0;
 }
 
+/* ---------- Detail list (Pilot Product Experience Remediation G4) ----------
+ * Label/value pairs for a real profile-style surface (class info, student
+ * profile) — no existing primitive covered this before this mission (only
+ * `Table` for tabular data, `StatsCard` for a single big number). */
+.qc-detail-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--qc-space-3);
+}
+
+.qc-detail-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--qc-space-4);
+  padding-bottom: var(--qc-space-3);
+  border-bottom: 1px solid var(--qc-color-border);
+}
+
+.qc-detail-list > div:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.qc-detail-list dt {
+  color: var(--qc-color-text-muted);
+  font-size: var(--qc-font-size-label);
+  font-weight: 600;
+}
+
+.qc-detail-list dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
 /* ---------- Icon ---------- */
 .qc-icon {
   flex-shrink: 0;
