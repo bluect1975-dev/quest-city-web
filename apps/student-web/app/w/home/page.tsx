@@ -1,19 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button, Card, EmptyState, StatusBadge, StatusMessage } from "@quest-city-web/ui";
-import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
+import { Button, Card, EmptyState, StatsCard, StatusMessage } from "@quest-city-web/ui";
+import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../lib/student-auth-context";
-import { getMyAssignments, type MyAssignment } from "../../../lib/student-api-client";
-import { StudentApiError } from "../../../lib/student-api-error";
-
-const ASSIGNMENT_STATUS_TONE = {
-  NOT_STARTED: "neutral",
-  IN_PROGRESS: "info",
-  COMPLETED: "success",
-} as const;
+import { getMyAssignments, getMyClass } from "../../../lib/student-api-client";
+import { useAuthedResource } from "../../../lib/use-authed-resource";
+import { AssignmentList } from "../../../components/AssignmentList";
 
 /**
  * `/w/home` (Pilot UX/UI Redesign, UI-R2 — Student Home). Replaces the
@@ -41,41 +34,8 @@ const ASSIGNMENT_STATUS_TONE = {
  */
 export default function StudentHomePage() {
   const { status, context } = useStudentAuth();
-  const router = useRouter();
-  const [myAssignments, setMyAssignments] = useState<MyAssignment[] | null>(null);
-  const [myAssignmentsError, setMyAssignmentsError] = useState<string | null>(null);
-  const [loadingMyAssignments, setLoadingMyAssignments] = useState(true);
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/w/login");
-    }
-  }, [status, router]);
-
-  useEffect(() => {
-    if (status !== "authenticated" && status !== "authenticated-read-only") {
-      return;
-    }
-    let cancelled = false;
-    getMyAssignments()
-      .then((result) => {
-        if (!cancelled) setMyAssignments(result);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        setMyAssignmentsError(
-          caught instanceof StudentApiError
-            ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
-            : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingMyAssignments(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status]);
+  const { data: myAssignments, error: myAssignmentsError, loading: loadingMyAssignments } = useAuthedResource(getMyAssignments);
+  const { data: myClass } = useAuthedResource(getMyClass);
 
   if (status === "loading" || status === "unauthenticated") {
     return (
@@ -90,6 +50,17 @@ export default function StudentHomePage() {
       <h1>{t(STUDENT_WEB_CATALOG_IT_IT, "home.welcomeTitle", { params: { alias: context?.displayAlias ?? "" } })}</h1>
       {status === "authenticated-read-only" && (
         <StatusMessage kind="unauthorized">{t(STUDENT_WEB_CATALOG_IT_IT, "home.readOnlySessionWarning")}</StatusMessage>
+      )}
+
+      {myClass && (
+        <div className="qc-stats-grid">
+          <StatsCard label={t(STUDENT_WEB_CATALOG_IT_IT, "class.schoolLabel")} value={myClass.schoolName} />
+          <StatsCard
+            label={t(STUDENT_WEB_CATALOG_IT_IT, "class.classLabel")}
+            value={myClass.className}
+            action={<Link href="/w/class">{t(STUDENT_WEB_CATALOG_IT_IT, "shell.navClass")}</Link>}
+          />
+        </div>
       )}
 
       <Card className="qc-hero-card">
@@ -115,42 +86,7 @@ export default function StudentHomePage() {
           />
         )}
         {!loadingMyAssignments && !myAssignmentsError && myAssignments && myAssignments.length > 0 && (
-          <ul className="qc-assignment-list">
-            {myAssignments.map((assignment) => (
-              <li key={assignment.assignmentId} className="qc-assignment-list-item">
-                <div>
-                  <p className="qc-assignment-list-title">{assignment.title}</p>
-                  <StatusBadge tone={ASSIGNMENT_STATUS_TONE[assignment.completionStatus]}>
-                    {t(
-                      STUDENT_WEB_CATALOG_IT_IT,
-                      assignment.completionStatus === "COMPLETED"
-                        ? "home.assignmentStatusCompleted"
-                        : assignment.completionStatus === "IN_PROGRESS"
-                          ? "home.assignmentStatusInProgress"
-                          : "home.assignmentStatusNotStarted",
-                    )}
-                  </StatusBadge>
-                  {assignment.dueAt && (
-                    <p className="qc-assignment-list-due">
-                      {t(STUDENT_WEB_CATALOG_IT_IT, "home.assignmentDueAt", { params: { dueAt: new Date(assignment.dueAt).toLocaleDateString() } })}
-                    </p>
-                  )}
-                </div>
-                <Link href={`/w/activity/${encodeURIComponent(assignment.assignmentId)}`}>
-                  <Button type="button" variant="secondary">
-                    {t(
-                      STUDENT_WEB_CATALOG_IT_IT,
-                      assignment.completionStatus === "COMPLETED"
-                        ? "home.reviewAssignmentButton"
-                        : assignment.completionStatus === "IN_PROGRESS"
-                          ? "home.resumeAssignmentButton"
-                          : "home.startAssignmentButton",
-                    )}
-                  </Button>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <AssignmentList assignments={myAssignments} />
         )}
       </Card>
     </main>

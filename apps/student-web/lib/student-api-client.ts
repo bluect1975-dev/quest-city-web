@@ -103,6 +103,35 @@ export async function getStudentContext(): Promise<StudentContext> {
   return envelope.data;
 }
 
+/** `GET /me/class` (Pilot Product Experience Remediation G2) — backs the "La mia classe" and "Profilo" surfaces. */
+export interface MyClass {
+  classPublicId: string;
+  className: string;
+  schoolName: string;
+  enrollmentStatus: "ACTIVE" | "SUSPENDED";
+  assignedTeacherCount: number;
+}
+
+export async function getMyClass(): Promise<MyClass> {
+  const envelope = await request<Envelope<MyClass>>("/me/class");
+  return envelope.data;
+}
+
+/** `GET /progress/summary` (02_26 v1.6 §18.4) — backs the "Progressi" surface. Aggregate-only: per-attempt state/completion counts, no per-unit score (the repository does not track one, see mission Feature Inventory row "Progressi studente"). */
+export interface ProgressSummary {
+  studentPublicId: string;
+  aggregate: {
+    totalAttempts: number;
+    byAttemptState: Record<string, number>;
+    byCompletionStatus: Record<string, number>;
+  };
+}
+
+export async function getProgressSummary(): Promise<ProgressSummary> {
+  const envelope = await request<Envelope<ProgressSummary>>("/progress/summary");
+  return envelope.data;
+}
+
 export interface WebM4Activity {
   assignmentId: string;
   activityId: string;

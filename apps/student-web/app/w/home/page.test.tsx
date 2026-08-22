@@ -18,9 +18,11 @@ vi.mock("../../../lib/student-auth-context", () => ({
 }));
 
 const getMyAssignments = vi.fn();
+const getMyClass = vi.fn();
 
 vi.mock("../../../lib/student-api-client", () => ({
   getMyAssignments: (...args: unknown[]) => getMyAssignments(...args),
+  getMyClass: (...args: unknown[]) => getMyClass(...args),
 }));
 
 describe("StudentHomePage", () => {
@@ -29,6 +31,14 @@ describe("StudentHomePage", () => {
     routerReplace.mockClear();
     getMyAssignments.mockReset();
     getMyAssignments.mockResolvedValue([]);
+    getMyClass.mockReset();
+    getMyClass.mockResolvedValue({
+      classPublicId: "cls_1",
+      className: "Classe 1A",
+      schoolName: "Scuola Test",
+      enrollmentStatus: "ACTIVE",
+      assignedTeacherCount: 2,
+    });
   });
 
   it("redirects to /w/login when unauthenticated", () => {
@@ -59,6 +69,12 @@ describe("StudentHomePage", () => {
     getMyAssignments.mockRejectedValue(new StudentApiError("UNKNOWN_ERROR", "server text", 500));
     render(<StudentHomePage />);
     expect(await screen.findByText("Non è stato possibile caricare le assegnazioni.")).toBeInTheDocument();
+  });
+
+  it("shows the student's real class and school name (Pilot Product Experience Remediation G3)", async () => {
+    render(<StudentHomePage />);
+    expect(await screen.findByText("Scuola Test")).toBeInTheDocument();
+    expect(screen.getByText("Classe 1A")).toBeInTheDocument();
   });
 
   it("renders a real assignment with its status and a working entry-point link", async () => {

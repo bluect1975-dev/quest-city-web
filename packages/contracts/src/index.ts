@@ -88,6 +88,20 @@
  * degraded) surface only — Level 1 direct Telegram fallback and the
  * GitHub Actions workflow that would call this endpoint are out of scope
  * for the Web implementation consuming this contract version.
+ *
+ * DISCLOSED GAP — `GET /me/class` (Pilot Product Experience Remediation
+ * Tranche G2, added alongside this note): every vendored file above was
+ * synced from `quest-city-roblox` (the cross-repo source of truth per
+ * ADR-0005) with a verified sha256 checksum against that source. This
+ * change set has no access to that repository, so `GET /me/class` is
+ * shipped WITHOUT a new vendored OpenAPI version — fabricating a
+ * `sourceCommit`/checksum for a sync that never happened would falsify the
+ * provenance record ADR-0005 exists to protect. The endpoint is still
+ * covered by real integration tests (`tests/integration/`) that pin its
+ * request/response shape. `PRE_EXISTING_OPENAPI_ME_CLASS_LINEAGE_DEBT`:
+ * resolve by vendoring a proper `v1_20` (or successor) contract version
+ * once a `quest-city-roblox` sync is actually performed — same disclosed-
+ * debt pattern as v1_16's `PRE_EXISTING_OPENAPI_LAUNCH_CONTEXT_LINEAGE_DEBT`.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";

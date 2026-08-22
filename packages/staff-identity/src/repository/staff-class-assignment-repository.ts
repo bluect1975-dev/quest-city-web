@@ -45,6 +45,15 @@ export class StaffClassAssignmentRepository {
     return result.rows.map(mapRow);
   }
 
+  /** Inverse of `findByMembership` — every staff member assigned to one class (`GET /me/class`, Pilot Product Experience Remediation G2: a student's "la mia classe" surface needs the count of teachers assigned, not just a teacher's own class list). */
+  async findByClass(classId: string, tenantId: string): Promise<StaffClassAssignment[]> {
+    const result = await this.db.query<StaffClassAssignmentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM staff_class_assignment WHERE class_id = $1 AND tenant_id = $2 ORDER BY created_at ASC`,
+      [classId, tenantId],
+    );
+    return result.rows.map(mapRow);
+  }
+
   /** Used to authorize a TEACHER's access to one specific class (02_35 §3.2, CLASS_ACCESS_DENIED on empty result). */
   async findByMembershipAndClass(
     staffTenantMembershipId: string,

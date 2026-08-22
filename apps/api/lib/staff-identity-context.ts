@@ -11,6 +11,7 @@ import {
   GeneralAssignmentService,
   type StaffSessionSecurityConfig,
   StaffAccountRepository,
+  StaffClassAssignmentRepository,
 } from "@quest-city-web/staff-identity";
 import { AuditRepository, SchoolClassRepository, SchoolEnrollmentRepository, StudentProfileRepository } from "@quest-city-web/identity";
 import {
@@ -105,6 +106,11 @@ export function getStaffAccountRepository(): StaffAccountRepository {
 /** Read-only class/roster composition (02_35 §5) reuses WEB-M1's own repositories — never a copy of school_class/student_profile/school_enrollment. */
 export function getSchoolClassRepository(): SchoolClassRepository {
   return new SchoolClassRepository(getStaffIdentityPool());
+}
+
+/** `GET /me/class` (Pilot Product Experience Remediation G2) needs the count of teachers assigned to the caller's own class — the only repository that answers "which staff serve class X" (`findByClass`, added alongside this getter). */
+export function getStaffClassAssignmentRepository(): StaffClassAssignmentRepository {
+  return new StaffClassAssignmentRepository(getStaffIdentityPool());
 }
 
 export function getSchoolEnrollmentRepository(): SchoolEnrollmentRepository {

@@ -4,6 +4,7 @@ import {
   SessionService,
   TenantRepository,
   SchoolEnrollmentRepository,
+  SchoolClassRepository,
   type SessionSecurityConfig,
 } from "@quest-city-web/identity";
 import { loadEnv } from "./env";
@@ -78,4 +79,14 @@ export function getTenantRepository(): TenantRepository {
  */
 export function getSchoolEnrollmentRepository(): SchoolEnrollmentRepository {
   return new SchoolEnrollmentRepository(getIdentityPool());
+}
+
+/**
+ * `GET /me/class` (Pilot Product Experience Remediation G2) — a student's
+ * "la mia classe" surface needs the class name, which `resolveInternalIdentity`
+ * (only `classId`) does not provide. No new repository: `SchoolClassRepository`
+ * already existed for WEB-M1.
+ */
+export function getSchoolClassRepository(): SchoolClassRepository {
+  return new SchoolClassRepository(getIdentityPool());
 }

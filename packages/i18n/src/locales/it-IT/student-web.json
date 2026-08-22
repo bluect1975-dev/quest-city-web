@@ -6,6 +6,11 @@
   "shell": {
     "brand": "Quest City",
     "navHome": "Home",
+    "navClass": "La mia classe",
+    "navPath": "Il mio percorso",
+    "navAssignments": "Assegnazioni",
+    "navProgress": "Progressi",
+    "navProfile": "Profilo",
     "roleLabel": "Studente",
     "logout": "Esci"
   },
@@ -31,6 +36,52 @@
     "resumeAssignmentButton": "Riprendi",
     "reviewAssignmentButton": "Rivedi",
     "assignmentDueAt": "Scadenza: {dueAt}"
+  },
+  "class": {
+    "title": "La mia classe",
+    "loading": "Caricamento dei dati della classe in corso...",
+    "error": "Non è stato possibile caricare i dati della tua classe.",
+    "schoolLabel": "Scuola",
+    "classLabel": "Classe",
+    "statusLabel": "Iscrizione",
+    "statusActive": "Attiva",
+    "statusSuspended": "Sospesa",
+    "teachersLabel": "Docenti",
+    "teachersCountZero": "Nessun docente ancora assegnato a questa classe.",
+    "teachersCountOne": "1 docente assegnato a questa classe.",
+    "teachersCountMany": "{count} docenti assegnati a questa classe."
+  },
+  "path": {
+    "title": "Il mio percorso",
+    "description": "Le attività del tuo percorso didattico, in ordine.",
+    "loading": "Caricamento del percorso in corso...",
+    "error": "Non è stato possibile caricare il tuo percorso.",
+    "emptyTitle": "Il tuo percorso non è ancora disponibile",
+    "emptyDescription": "Il tuo insegnante non ti ha ancora assegnato attività. Nel frattempo puoi continuare il percorso completo dalla Home."
+  },
+  "assignmentsPage": {
+    "title": "Assegnazioni",
+    "description": "Tutte le attività assegnate dal tuo insegnante alla tua classe."
+  },
+  "progress": {
+    "title": "Progressi",
+    "loading": "Caricamento dei progressi in corso...",
+    "error": "Non è stato possibile caricare i tuoi progressi.",
+    "totalAttemptsLabel": "Attività svolte in totale",
+    "byStatusTitle": "Per stato",
+    "emptyTitle": "Nessun progresso ancora registrato",
+    "emptyDescription": "Non hai ancora svolto nessuna attività. Inizia dal percorso completo o da un'assegnazione in Home."
+  },
+  "profile": {
+    "title": "Profilo",
+    "loading": "Caricamento del profilo in corso...",
+    "error": "Non è stato possibile caricare il tuo profilo.",
+    "aliasLabel": "Il tuo nome (alias)",
+    "schoolLabel": "Scuola",
+    "classLabel": "Classe",
+    "statusLabel": "Stato iscrizione",
+    "statusActive": "Attiva",
+    "statusSuspended": "Sospesa"
   },
   "engines": {
     "index": {
