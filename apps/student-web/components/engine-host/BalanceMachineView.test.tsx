@@ -56,3 +56,49 @@ describe("BalanceMachineView", () => {
     }
   });
 });
+
+/**
+ * Balance Machine visual illustration (Pilot Product Experience
+ * Remediation Tranche G6, `UX-BALANCE-VISUAL-01`) — real SVG scale that
+ * reacts to which side is heavier, purely decorative (never the sole
+ * carrier of state — see the button/text assertions above, unchanged).
+ */
+describe("BalanceMachineView illustration", () => {
+  it("renders a decorative SVG scale that does not add to the accessible button count", () => {
+    render(<BalanceMachineView config={CONFIG} state={{ placements: {}, confirmed: false }} onPlace={vi.fn()} />);
+    const svg = document.querySelector(".qc-balance-svg");
+    expect(svg).not.toBeNull();
+    expect(svg).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getAllByRole("button")).toHaveLength(4);
+  });
+
+  it("tilts right (positive rotation) when the right side is heavier", () => {
+    render(
+      <BalanceMachineView
+        config={CONFIG}
+        state={{ placements: { a: "right" }, confirmed: false }}
+        onPlace={vi.fn()}
+      />,
+    );
+    const beamGroup = document.querySelector(".qc-balance-beam-group") as HTMLElement;
+    expect(beamGroup.style.transform).toBe("rotate(18deg)");
+  });
+
+  it("tilts left (negative rotation) when the left side is heavier", () => {
+    render(
+      <BalanceMachineView
+        config={CONFIG}
+        state={{ placements: { b: "left" }, confirmed: false }}
+        onPlace={vi.fn()}
+      />,
+    );
+    const beamGroup = document.querySelector(".qc-balance-beam-group") as HTMLElement;
+    expect(beamGroup.style.transform).toBe("rotate(-18deg)");
+  });
+
+  it("stays level (0deg) when both sides are empty or equal", () => {
+    render(<BalanceMachineView config={CONFIG} state={{ placements: {}, confirmed: false }} onPlace={vi.fn()} />);
+    const beamGroup = document.querySelector(".qc-balance-beam-group") as HTMLElement;
+    expect(beamGroup.style.transform).toBe("rotate(0deg)");
+  });
+});

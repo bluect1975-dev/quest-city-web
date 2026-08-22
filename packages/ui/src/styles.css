@@ -984,6 +984,57 @@ form {
   gap: var(--qc-space-4);
 }
 
+/* ---------- Balance Machine illustration (Pilot Product Experience
+ * Remediation, Tranche G6, UX-BALANCE-VISUAL-01) ---------- */
+.qc-balance-svg {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin: 0 auto;
+  display: block;
+}
+
+.qc-balance-base {
+  fill: var(--qc-color-border-strong);
+}
+
+.qc-balance-beam-group {
+  transition: transform 300ms ease;
+}
+
+.qc-balance-beam {
+  stroke: var(--qc-color-text);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.qc-balance-string {
+  stroke: var(--qc-color-text-faint);
+  stroke-width: 1.5;
+}
+
+.qc-balance-pan {
+  fill: var(--qc-color-surface-muted);
+  stroke: var(--qc-color-border-strong);
+  stroke-width: 1.5;
+}
+
+.qc-balance-pan-value {
+  fill: var(--qc-color-text);
+  font-size: 13px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.qc-balance-pivot {
+  fill: var(--qc-color-primary);
+  transition: fill 300ms ease;
+}
+
+.qc-balance-pivot-balanced {
+  fill: var(--qc-color-success-text);
+}
+
 .qc-engine-balance-sides {
   display: flex;
   gap: var(--qc-space-4);
