@@ -106,6 +106,31 @@ export class AssignmentRepository {
    * `status = PUBLISHED` only. Ordering is deterministic (`due_at` first —
    * nulls last — then `created_at`) per the canonical contract.
    */
+  /**
+   * `GET /classes/{classId}/assignments` (Pilot Product Experience
+   * Remediation Tranche G8, `UX-CLASS-ASSIGNMENT-LIST-01`) — the staff
+   * view of a class's assignments. Deliberately NOT the student-discovery
+   * filter below (mission §31 "NON copiare alla cieca la policy studente"):
+   * a teacher reviewing what they've assigned needs to see every status
+   * (DRAFT/PUBLISHED/ARCHIVED) and every origin (STAFF_GENERAL/ADMIN_SEED/
+   * RECOVERY_FROM_REVIEW), not only the narrow `STAFF_GENERAL`+`PUBLISHED`
+   * slice a student is allowed to discover. Ordered newest-first
+   * (`created_at DESC`) — a review list, not a due-date queue.
+   */
+  async findByClassIdForStaff(classId: string, tenantId: string): Promise<Assignment[]> {
+    const result = await this.db.query<AssignmentRow>(
+      `SELECT ${SELECT_COLUMNS} FROM assignment
+       WHERE tenant_id = $1 AND class_id = $2
+       ORDER BY created_at DESC`,
+      [tenantId, classId],
+    );
+    const assignments: Assignment[] = [];
+    for (const row of result.rows) {
+      assignments.push(mapRow(row, await this.runtimeChannelsFor(row.id)));
+    }
+    return assignments;
+  }
+
   async findByClassIdForStudentDiscovery(classId: string, tenantId: string): Promise<Assignment[]> {
     const result = await this.db.query<AssignmentRow>(
       `SELECT ${SELECT_COLUMNS} FROM assignment

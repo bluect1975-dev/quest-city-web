@@ -180,6 +180,22 @@
       "addStudentPinResult": "PIN generato (mostralo solo ora, non sarà più recuperabile):",
       "removeStudentAction": "Rimuovi dal roster",
       "removeStudentConfirm": "Rimuovere questo studente dalla classe? Storico e progressi restano intatti.",
+      "assignmentsListTitle": "Assegnazioni della classe",
+      "assignmentsListEmpty": "Nessuna assegnazione creata per questa classe.",
+      "assignmentsColumnTitle": "Titolo",
+      "assignmentsColumnStatus": "Stato",
+      "assignmentsColumnOrigin": "Origine",
+      "assignmentsColumnDate": "Creata il",
+      "assignmentStatusLabel": {
+        "DRAFT": "Bozza",
+        "PUBLISHED": "Pubblicata",
+        "ARCHIVED": "Archiviata"
+      },
+      "assignmentOriginLabel": {
+        "STAFF_GENERAL": "Assegnata da te",
+        "ADMIN_SEED": "Dati di sistema",
+        "RECOVERY_FROM_REVIEW": "Assegnazione di recupero"
+      },
       "assignContentTitle": "Assegna contenuto pubblicato alla classe",
       "assignContentPickerLabel": "Contenuto da assegnare",
       "assignContentPickerPlaceholder": "Scegli un contenuto pubblicato...",
