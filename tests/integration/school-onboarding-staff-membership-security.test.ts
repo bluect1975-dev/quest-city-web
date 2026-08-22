@@ -51,7 +51,9 @@ interface Fixture {
   otherClassId: string;
   otherTenantClassId: string;
   contentBundleId: string;
+  contentBundlePublicId: string;
   draftContentBundleId: string;
+  draftContentBundlePublicId: string;
 }
 
 async function truncateAll(): Promise<void> {
@@ -93,25 +95,37 @@ async function buildFixture(): Promise<Fixture> {
     )
   ).rows[0]!.id;
 
+  const contentBundlePublicId = `bnd_${rnd()}`;
   const contentBundleId = (
     await pool.query<{ id: string }>(
       `INSERT INTO content_bundle (public_id, subject_id, bundle_version, bundle_type, status, manifest_hash, storage_ref)
        VALUES ($1, 'MAT', '1.0.0', 'RUNTIME_FIXTURE_BUNDLE', 'PUBLISHED', 'sha256:abc', 's3://x') RETURNING id`,
-      [`bnd_${rnd()}`],
+      [contentBundlePublicId],
     )
   ).rows[0]!.id;
   await pool.query(`INSERT INTO content_bundle_runtime_channel (content_bundle_id, runtime_channel) VALUES ($1, 'WEB')`, [
     contentBundleId,
   ]);
+  const draftContentBundlePublicId = `bnd_${rnd()}`;
   const draftContentBundleId = (
     await pool.query<{ id: string }>(
       `INSERT INTO content_bundle (public_id, subject_id, bundle_version, bundle_type, status, manifest_hash, storage_ref)
        VALUES ($1, 'MAT', '1.0.0', 'RUNTIME_FIXTURE_BUNDLE', 'DRAFT', 'sha256:def', 's3://y') RETURNING id`,
-      [`bnd_${rnd()}`],
+      [draftContentBundlePublicId],
     )
   ).rows[0]!.id;
 
-  return { tenantId, otherTenantId, classId, otherClassId, otherTenantClassId, contentBundleId, draftContentBundleId };
+  return {
+    tenantId,
+    otherTenantId,
+    classId,
+    otherClassId,
+    otherTenantClassId,
+    contentBundleId,
+    contentBundlePublicId,
+    draftContentBundleId,
+    draftContentBundlePublicId,
+  };
 }
 
 async function createStaffAccount(
@@ -311,7 +325,7 @@ describe("Capability enforcement (9 capabilities, 02_35 v1.2 §11bis.10)", () =>
       service.create({
         identity: teacher,
         classId: fixture.otherClassId,
-        contentBundleId: fixture.contentBundleId,
+        contentBundleId: fixture.contentBundlePublicId,
         title: "Out of scope assignment",
         allowedRuntimeChannels: ["WEB"],
         opensAt: null,
@@ -340,7 +354,7 @@ describe("Capability enforcement (9 capabilities, 02_35 v1.2 §11bis.10)", () =>
     const assignmentResult = await assignments.create({
       identity: teacher,
       classId: fixture.classId,
-      contentBundleId: fixture.contentBundleId,
+      contentBundleId: fixture.contentBundlePublicId,
       title: "In-scope assignment",
       allowedRuntimeChannels: ["WEB"],
       opensAt: null,
@@ -603,7 +617,7 @@ describe("Content and enrollment integrity guards (02_35 v1.2 §11bis.7-9)", () 
       service.create({
         identity: admin,
         classId: fixture.classId,
-        contentBundleId: fixture.draftContentBundleId,
+        contentBundleId: fixture.draftContentBundlePublicId,
         title: "Unpublished assignment attempt",
         allowedRuntimeChannels: ["WEB"],
         opensAt: null,

@@ -75,6 +75,17 @@ export class ContentBundleRepository {
     return mapRow(row, await this.runtimeChannelsFor(row.id));
   }
 
+  /** Public-format identifier lookup (`bnd_...`) — for any caller (e.g. a staff-facing form) that only knows the content bundle's public id, never its internal uuid. */
+  async findByPublicId(publicId: string): Promise<ContentBundle | null> {
+    const result = await this.db.query<ContentBundleRow>(
+      `SELECT ${SELECT_COLUMNS} FROM content_bundle WHERE public_id = $1`,
+      [publicId],
+    );
+    const [row] = result.rows;
+    if (!row) return null;
+    return mapRow(row, await this.runtimeChannelsFor(row.id));
+  }
+
   /** Administrative/seed provisioning only — no public write endpoint exists. */
   async create(input: {
     publicId: string;
