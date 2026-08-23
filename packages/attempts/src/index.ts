@@ -80,3 +80,10 @@ export {
   type ErrorDomain,
   type ErrorEnvelope,
 } from "./errors";
+
+export {
+  derivePathState,
+  type PathCompletionStatus,
+  type PathEffectiveAvailability,
+  type PathState,
+} from "./derive-path-state";

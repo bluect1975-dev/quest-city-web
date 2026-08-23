@@ -6,7 +6,10 @@
  * controller code"): the composite state a student sees combines two
  * independent axes (attempt completion, real GLPC availability) and that
  * combination rule deserves its own test coverage, not just a route
- * handler's inline conditionals.
+ * handler's inline conditionals. Lives in `@quest-city-web/attempts`
+ * rather than `apps/api/lib` so `tests/integration` (whose `rootDir`
+ * excludes `apps/api`) can exercise it directly alongside the real
+ * repositories/resolver it composes with.
  *
  * Precedence: an already-COMPLETED item stays COMPLETED even if a policy
  * later disables it (a real past achievement is never hidden

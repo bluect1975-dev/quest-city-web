@@ -1,8 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
-import { AssignmentRepository, ContentBundleRepository, LearningAttemptRepository } from "@quest-city-web/attempts";
+import { AssignmentRepository, ContentBundleRepository, LearningAttemptRepository, derivePathState } from "@quest-city-web/attempts";
 import { resolveEffectiveForLaunch } from "@quest-city-web/learning-path-control";
-import { derivePathState } from "../../apps/api/lib/derive-path-state";
 
 /**
  * Pilot Product Experience Residual Closure, Tranche H3 — closes

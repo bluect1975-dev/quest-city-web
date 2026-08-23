@@ -4,7 +4,7 @@ import { getAssignmentRepository, getContentBundleRepository, getLearningAttempt
 import { attemptErrorResponse } from "../../../lib/attempt-error-response";
 import { readSessionToken } from "../../../lib/session-cookie";
 import { loadEnv } from "../../../lib/env";
-import { derivePathState, type PathCompletionStatus } from "../../../lib/derive-path-state";
+import { derivePathState, type PathCompletionStatus } from "@quest-city-web/attempts";
 
 /**
  * `GET /me/path` (Pilot Product Experience Residual Closure, Tranche H3) —
