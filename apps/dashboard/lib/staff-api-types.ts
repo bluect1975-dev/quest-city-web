@@ -79,14 +79,17 @@ export interface ReviewQueueItem {
 
 export interface AttemptReviewDetail {
   attemptId: string;
+  attemptState: AttemptState;
+  startedAt: string;
+  completedAt: string | null;
   item?: Record<string, unknown>;
   canonicalAnswer?: Record<string, unknown>;
   studentAnswer: Record<string, unknown>;
-  semanticActions?: Array<Record<string, unknown>>;
-  hints?: Array<Record<string, unknown>>;
+  semanticActions?: Array<{ actionId: string; actionType: string; targetRole: string | null; payload: Record<string, unknown>; clientSequence: number; occurredAt: string }>;
+  hints?: Array<{ actionId: string; payload: Record<string, unknown>; occurredAt: string }>;
   validatorOutcome?: Record<string, unknown> | null;
   proposedAiFeedback: Record<string, unknown> | null;
-  previousAttempts?: Array<Record<string, unknown>>;
+  previousAttempts?: Array<{ attemptId: string; attemptState: AttemptState; completionStatus: CompletionStatus | null }>;
   relatedCompetencies?: Array<Record<string, unknown>>;
   runtimeChannel: AttemptRuntimeChannel;
   reconciliationStatus: CompletionStatus | null;

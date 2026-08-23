@@ -1,16 +1,20 @@
 import type { SequenceRuntimeState } from "@quest-city-web/content-runtime";
 
 /**
- * Client for `/sequence-runtime-state/{sequenceId}` (R3C.3), proxied
- * through Nginx's existing `location /api/` (`infrastructure/reverse-proxy/
- * nginx.conf`). `NEXT_PUBLIC_API_BASE_URL` is already declared for
- * `student-web` in `docker-compose.yml` but was unused by any client code
- * before this — this is its first consumer. `credentials: "include"` sends
- * the httpOnly session cookie; the CSRF token itself is never httpOnly
- * (returned once, in the session-start JSON body) and must be supplied by
- * the caller — this module never reads it from storage itself, keeping it
- * a pure, directly-testable fetch wrapper (see `session-client.ts` for
- * where the caller gets it from).
+ * Client for `/attempts/{attemptId}/sequence-runtime-state` (R3C.3;
+ * re-scoped from `/sequence-runtime-state/{sequenceId}` by migration 0019
+ * — UAT Failure Remediation, `UAT-RC4-NEW-ASSIGNMENT-LAUNCH-STATE-01`: two
+ * independent attempts against the same sequence must never share
+ * progress/completion state), proxied through Nginx's existing
+ * `location /api/` (`infrastructure/reverse-proxy/nginx.conf`).
+ * `NEXT_PUBLIC_API_BASE_URL` is already declared for `student-web` in
+ * `docker-compose.yml` but was unused by any client code before this —
+ * this is its first consumer. `credentials: "include"` sends the httpOnly
+ * session cookie; the CSRF token itself is never httpOnly (returned once,
+ * in the session-start JSON body) and must be supplied by the caller —
+ * this module never reads it from storage itself, keeping it a pure,
+ * directly-testable fetch wrapper (see `session-client.ts` for where the
+ * caller gets it from).
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
@@ -38,8 +42,8 @@ async function errorFromResponse(response: Response): Promise<SequenceRuntimeSta
   );
 }
 
-export async function loadSequenceRuntimeState(sequenceId: string): Promise<SequenceRuntimeStateLoadResult> {
-  const response = await fetch(`${API_BASE}/sequence-runtime-state/${encodeURIComponent(sequenceId)}`, {
+export async function loadSequenceRuntimeState(attemptId: string): Promise<SequenceRuntimeStateLoadResult> {
+  const response = await fetch(`${API_BASE}/attempts/${encodeURIComponent(attemptId)}/sequence-runtime-state`, {
     method: "GET",
     credentials: "include",
   });
@@ -54,11 +58,11 @@ export async function loadSequenceRuntimeState(sequenceId: string): Promise<Sequ
 }
 
 export async function createSequenceRuntimeState(
-  sequenceId: string,
+  attemptId: string,
   state: SequenceRuntimeState,
   csrfToken: string,
 ): Promise<{ state: SequenceRuntimeState; version: number }> {
-  const response = await fetch(`${API_BASE}/sequence-runtime-state/${encodeURIComponent(sequenceId)}`, {
+  const response = await fetch(`${API_BASE}/attempts/${encodeURIComponent(attemptId)}/sequence-runtime-state`, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json", "x-csrf-token": csrfToken },
@@ -72,12 +76,12 @@ export async function createSequenceRuntimeState(
 
 /** Throws `SequenceRuntimeStateClientError` with `code === "SEQUENCE_RUNTIME_STATE_VERSION_CONFLICT"` (HTTP 409) on a stale `expectedVersion` — the caller must reload and reconcile, never blindly retry the same write. */
 export async function saveSequenceRuntimeState(
-  sequenceId: string,
+  attemptId: string,
   state: SequenceRuntimeState,
   expectedVersion: number,
   csrfToken: string,
 ): Promise<{ state: SequenceRuntimeState; version: number }> {
-  const response = await fetch(`${API_BASE}/sequence-runtime-state/${encodeURIComponent(sequenceId)}`, {
+  const response = await fetch(`${API_BASE}/attempts/${encodeURIComponent(attemptId)}/sequence-runtime-state`, {
     method: "PUT",
     credentials: "include",
     headers: { "content-type": "application/json", "x-csrf-token": csrfToken },

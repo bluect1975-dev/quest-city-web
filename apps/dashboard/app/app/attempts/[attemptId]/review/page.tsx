@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button, EmptyState, FormField, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../../../../lib/RequireStaffAuth";
@@ -16,15 +17,20 @@ import {
 } from "../../../../../lib/staff-api-client";
 import { staffErrorText } from "../../../../../lib/staff-error-text";
 import type { AttemptReviewDetail, RecoveryAssignment, TeacherFeedback } from "../../../../../lib/staff-api-types";
+import { attemptStateLabel, completionStatusLabel, deliveryStatusLabel } from "../../../../../lib/staff-enum-labels";
 
 /**
- * `/app/attempts/{attemptId}/review` (02_35 §8-§11). Read-only detail
- * plus, in the same visit: create a DRAFT feedback, publish/revoke it,
- * and — once published — create a recovery assignment from it. There is
- * no `GET` list-by-attempt endpoint for `teacher_feedback` in OpenAPI
- * v1.6 (minimized API surface, 02_35 §12), so a feedback created earlier
- * in a different visit is not re-displayed here — only what this page
- * itself created and holds in local state.
+ * `/app/attempts/{attemptId}/review` (02_35 §8-§11). UAT Failure
+ * Remediation humanized this page (`UAT-RC4-TEACHER-REVIEW-RAW-JSON-01`,
+ * `-CREATED-EMPTY-ATTEMPT-01`): a real pedagogical review screen for a
+ * docente, not a technical debug page. `studentAnswer`/`semanticActions`/
+ * `hints`/`validatorOutcome`/`previousAttempts` render as human Italian
+ * text and lists — raw JSON is still available (never destroyed, §4.22
+ * rule 10 auditing already covers this access) but only inside a
+ * collapsed "Dettagli tecnici" disclosure at the bottom, never as the
+ * primary presentation. An empty `CREATED` attempt — never actually
+ * played by the student — is called out explicitly and cannot be used to
+ * create feedback, since it carries no real evidence to evaluate.
  */
 export default function StaffAttemptReviewPage() {
   const params = useParams<{ attemptId: string }>();
@@ -38,6 +44,57 @@ export default function StaffAttemptReviewPage() {
   );
 }
 
+/** camelCase/snake_case -> spaced, capitalized — generic, engine-agnostic humanization for whatever shape a given Learning Engine's response/payload happens to carry. */
+function humanizeKey(key: string): string {
+  const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+}
+
+function HumanValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "") return <>—</>;
+  if (typeof value === "boolean") return <>{value ? "Sì" : "No"}</>;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <>—</>;
+    if (value.every((item) => typeof item !== "object" || item === null)) {
+      return <>{value.map((item) => String(item)).join(", ")}</>;
+    }
+    return (
+      <ul className="qc-detail-list">
+        {value.map((item, index) => (
+          // eslint-disable-next-line react/no-array-index-key -- items carry no stable id of their own here
+          <li key={index}>
+            <HumanValue value={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof value === "object") return <KeyValueList data={value as Record<string, unknown>} />;
+  return <>{String(value)}</>;
+}
+
+function KeyValueList({ data }: { data: Record<string, unknown> }) {
+  const entries = Object.entries(data);
+  if (entries.length === 0) return null;
+  return (
+    <dl className="qc-detail-list">
+      {entries.map(([key, value]) => (
+        <div key={key}>
+          <dt>{humanizeKey(key)}</dt>
+          <dd>
+            <HumanValue value={value} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ActionTypeLabel({ actionType }: { actionType: string }) {
+  const key = `app.attemptReview.actionTypeLabel.${actionType}` as `app.attemptReview.actionTypeLabel.${string}`;
+  return <>{t(DASHBOARD_CATALOG_IT_IT, key, { onMissingKey: "returnKey" })}</>;
+}
+
 function AttemptReviewView({
   attemptId,
   originReviewQueueItemId,
@@ -48,7 +105,6 @@ function AttemptReviewView({
   const { csrfToken } = useStaffAuth();
   const result = useAsync<AttemptReviewDetail>(() => getAttemptReviewDetail(attemptId), [attemptId]);
 
-  const [structuredFeedbackText, setStructuredFeedbackText] = useState("{}");
   const [freeText, setFreeText] = useState("");
   const [feedback, setFeedback] = useState<TeacherFeedback | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -66,20 +122,18 @@ function AttemptReviewView({
     setFeedbackError(null);
     setFeedbackBusy(true);
     try {
-      const parsed: unknown = JSON.parse(structuredFeedbackText);
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        throw new Error("structuredFeedback must be a JSON object");
-      }
       const created = await createTeacherFeedback({
         attemptId,
-        structuredFeedback: parsed as Record<string, unknown>,
+        // No raw-JSON authoring surface for the docente (UAT-RC4-TEACHER-REVIEW-RAW-JSON-01) —
+        // freeText is the one real feedback channel; structuredFeedback stays an empty, valid object.
+        structuredFeedback: {},
         freeText: freeText.trim() ? freeText.trim() : null,
         originReviewQueueItemId,
         csrfToken,
       });
       setFeedback(created);
     } catch (caught) {
-      setFeedbackError(caught instanceof SyntaxError ? "JSON non valido." : staffErrorText(caught));
+      setFeedbackError(staffErrorText(caught));
     } finally {
       setFeedbackBusy(false);
     }
@@ -135,6 +189,8 @@ function AttemptReviewView({
     }
   }
 
+  const isEmptyAttempt = result.status === "success" && result.data.attemptState === "CREATED";
+
   return (
     <main>
       <h1>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.title")}</h1>
@@ -144,94 +200,157 @@ function AttemptReviewView({
       {result.status === "success" ? (
         <>
           <section className="qc-card">
-            <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.studentAnswerTitle")}</h2>
-            <pre>{JSON.stringify(result.data.studentAnswer, null, 2)}</pre>
+            <dl className="qc-detail-list">
+              <div>
+                <dt>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.attemptStateLabel")}</dt>
+                <dd>
+                  <StatusBadge tone={result.data.attemptState === "COMPLETED" ? "success" : isEmptyAttempt ? "neutral" : "info"}>
+                    {attemptStateLabel(result.data.attemptState)}
+                  </StatusBadge>
+                </dd>
+              </div>
+              <div>
+                <dt>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.startedAtLabel")}</dt>
+                <dd>{new Date(result.data.startedAt).toLocaleString("it-IT")}</dd>
+              </div>
+              {result.data.completedAt ? (
+                <div>
+                  <dt>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.completedAtLabel")}</dt>
+                  <dd>{new Date(result.data.completedAt).toLocaleString("it-IT")}</dd>
+                </div>
+              ) : null}
+            </dl>
           </section>
 
-          <section className="qc-card">
-            <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.semanticActionsTitle")}</h2>
-            <pre>{JSON.stringify(result.data.semanticActions ?? [], null, 2)}</pre>
-          </section>
-
-          <section className="qc-card">
-            <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.hintsTitle")}</h2>
-            {(result.data.hints ?? []).length === 0 ? (
-              <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.noHints")} />
-            ) : (
-              <pre>{JSON.stringify(result.data.hints, null, 2)}</pre>
-            )}
-          </section>
-
-          {result.data.validatorOutcome ? (
-            <section className="qc-card">
-              <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.validatorOutcomeTitle")}</h2>
-              <pre>{JSON.stringify(result.data.validatorOutcome, null, 2)}</pre>
+          {isEmptyAttempt ? (
+            <section className="qc-card qc-card-muted">
+              <StatusBadge tone="neutral">{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.emptyAttemptBadge")}</StatusBadge>
+              <p>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.emptyAttemptNotice")}</p>
             </section>
-          ) : null}
+          ) : (
+            <>
+              <section className="qc-card">
+                <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.studentAnswerTitle")}</h2>
+                {Object.keys(result.data.studentAnswer).length === 0 ? (
+                  <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.emptyAttemptBadge")} />
+                ) : (
+                  <KeyValueList data={result.data.studentAnswer} />
+                )}
+              </section>
+
+              <section className="qc-card">
+                <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.semanticActionsTitle")}</h2>
+                {(result.data.semanticActions ?? []).length === 0 ? (
+                  <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.noSemanticActions")} />
+                ) : (
+                  <ul className="qc-detail-list">
+                    {(result.data.semanticActions ?? []).map((action) => (
+                      <li key={action.actionId}>
+                        <b>
+                          <ActionTypeLabel actionType={action.actionType} />
+                        </b>{" "}
+                        — {new Date(action.occurredAt).toLocaleString("it-IT")}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section className="qc-card">
+                <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.hintsTitle")}</h2>
+                {(result.data.hints ?? []).length === 0 ? (
+                  <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.noHints")} />
+                ) : (
+                  <ul className="qc-detail-list">
+                    {(result.data.hints ?? []).map((hint) => (
+                      <li key={hint.actionId}>{new Date(hint.occurredAt).toLocaleString("it-IT")}</li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              {result.data.validatorOutcome ? (
+                <section className="qc-card">
+                  <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.validatorOutcomeTitle")}</h2>
+                  <p>
+                    {(() => {
+                      const correctness = (result.data.validatorOutcome as { correctness?: string }).correctness;
+                      const key = correctness
+                        ? (`app.attemptReview.correctnessLabel.${correctness}` as `app.attemptReview.correctnessLabel.${string}`)
+                        : null;
+                      return key ? t(DASHBOARD_CATALOG_IT_IT, key, { onMissingKey: "returnKey" }) : "—";
+                    })()}
+                  </p>
+                </section>
+              ) : null}
+            </>
+          )}
 
           <section className="qc-card">
             <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.previousAttemptsTitle")}</h2>
             {(result.data.previousAttempts ?? []).length === 0 ? (
               <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.noPreviousAttempts")} />
             ) : (
-              <pre>{JSON.stringify(result.data.previousAttempts, null, 2)}</pre>
+              <ul className="qc-detail-list">
+                {(result.data.previousAttempts ?? []).map((prev) => (
+                  <li key={prev.attemptId}>
+                    <Link href={`/app/attempts/${encodeURIComponent(prev.attemptId)}/review`}>
+                      {prev.attemptState === "CREATED"
+                        ? t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.emptyAttemptBadge")
+                        : `${attemptStateLabel(prev.attemptState)} — ${completionStatusLabel(prev.completionStatus)}`}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
+
+          <details className="qc-card">
+            <summary>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.technicalDetailsTitle")}</summary>
+            <pre>{JSON.stringify(result.data, null, 2)}</pre>
+          </details>
         </>
       ) : null}
 
-      <section className="qc-card">
-        <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.feedbackFormTitle")}</h2>
-        {!feedback ? (
-          <>
-            <FormField
-              label={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.structuredFeedbackLabel")}
-              hint={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.structuredFeedbackHint")}
-            >
-              {(fieldProps) => (
-                <textarea
-                  {...fieldProps}
-                  rows={4}
-                  value={structuredFeedbackText}
-                  onChange={(event) => setStructuredFeedbackText(event.target.value)}
-                />
-              )}
-            </FormField>
-            <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.freeTextLabel")}>
-              {(fieldProps) => (
-                <textarea {...fieldProps} rows={3} value={freeText} onChange={(event) => setFreeText(event.target.value)} />
-              )}
-            </FormField>
-            {feedbackError ? <StatusMessage kind="error">{feedbackError}</StatusMessage> : null}
-            <Button disabled={feedbackBusy || !csrfToken} onClick={() => void handleCreateFeedback()}>
-              {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.createFeedbackButton")}
-            </Button>
-          </>
-        ) : (
-          <>
-            <p>
-              {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.publicationStatusLabel")}:{" "}
-              <StatusBadge tone={feedback.publicationStatus === "PUBLISHED" ? "success" : feedback.publicationStatus === "REVOKED" ? "danger" : "neutral"}>
-                {t(DASHBOARD_CATALOG_IT_IT, `app.status.${feedback.publicationStatus.toLowerCase()}` as `app.status.${string}`)}
-              </StatusBadge>
-            </p>
-            <p>
-              {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.deliveryStatusLabel")}: {feedback.deliveryStatus}
-            </p>
-            {feedbackError ? <StatusMessage kind="error">{feedbackError}</StatusMessage> : null}
-            {feedback.publicationStatus === "DRAFT" ? (
-              <Button disabled={feedbackBusy || !csrfToken} onClick={() => void handlePublish()}>
-                {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.publishButton")}
+      {!isEmptyAttempt && (
+        <section className="qc-card">
+          <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.feedbackFormTitle")}</h2>
+          {!feedback ? (
+            <>
+              <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.freeTextLabel")} hint={t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.freeTextHint")}>
+                {(fieldProps) => <textarea {...fieldProps} rows={4} value={freeText} onChange={(event) => setFreeText(event.target.value)} />}
+              </FormField>
+              {feedbackError ? <StatusMessage kind="error">{feedbackError}</StatusMessage> : null}
+              <Button disabled={feedbackBusy || !csrfToken} onClick={() => void handleCreateFeedback()}>
+                {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.createFeedbackButton")}
               </Button>
-            ) : null}
-            {feedback.publicationStatus === "PUBLISHED" ? (
-              <Button variant="secondary" disabled={feedbackBusy || !csrfToken} onClick={() => void handleRevoke()}>
-                {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.revokeButton")}
-              </Button>
-            ) : null}
-          </>
-        )}
-      </section>
+            </>
+          ) : (
+            <>
+              <p>
+                {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.publicationStatusLabel")}:{" "}
+                <StatusBadge tone={feedback.publicationStatus === "PUBLISHED" ? "success" : feedback.publicationStatus === "REVOKED" ? "danger" : "neutral"}>
+                  {t(DASHBOARD_CATALOG_IT_IT, `app.status.${feedback.publicationStatus.toLowerCase()}` as `app.status.${string}`)}
+                </StatusBadge>
+              </p>
+              <p>
+                {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.deliveryStatusLabel")}: {deliveryStatusLabel(feedback.deliveryStatus)}
+              </p>
+              {feedbackError ? <StatusMessage kind="error">{feedbackError}</StatusMessage> : null}
+              {feedback.publicationStatus === "DRAFT" ? (
+                <Button disabled={feedbackBusy || !csrfToken} onClick={() => void handlePublish()}>
+                  {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.publishButton")}
+                </Button>
+              ) : null}
+              {feedback.publicationStatus === "PUBLISHED" ? (
+                <Button variant="secondary" disabled={feedbackBusy || !csrfToken} onClick={() => void handleRevoke()}>
+                  {t(DASHBOARD_CATALOG_IT_IT, "app.attemptReview.revokeButton")}
+                </Button>
+              ) : null}
+            </>
+          )}
+        </section>
+      )}
 
       {feedback?.publicationStatus === "PUBLISHED" ? (
         <section className="qc-card">

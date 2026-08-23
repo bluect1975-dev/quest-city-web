@@ -9,6 +9,7 @@ import { useAsync } from "../../../lib/useAsync";
 import { staffErrorText } from "../../../lib/staff-error-text";
 import { listFacilitationProposalReviewQueue, reviewFacilitationProposal } from "../../../lib/staff-api-client";
 import type { FacilitationProposal, FacilitationProposalStatus } from "../../../lib/staff-api-types";
+import { facilitationProposalStatusLabel } from "../../../lib/staff-enum-labels";
 
 /**
  * `/app/facilitation-review` (`contracts/quest-city-platform-openapi-v1_14.yaml`,
@@ -64,9 +65,9 @@ function FacilitationReviewView() {
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.facilitationReview.statusFilterLabel")}>
           {(fieldProps) => (
             <select {...fieldProps} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as FacilitationProposalStatus)}>
-              <option value="SUBMITTED">SUBMITTED</option>
-              <option value="ACCEPTED">{t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.proposalStatusAccepted")}</option>
-              <option value="REJECTED">{t(DASHBOARD_CATALOG_IT_IT, "app.supportStudentDetail.proposalStatusRejected")}</option>
+              <option value="SUBMITTED">{facilitationProposalStatusLabel("SUBMITTED")}</option>
+              <option value="ACCEPTED">{facilitationProposalStatusLabel("ACCEPTED")}</option>
+              <option value="REJECTED">{facilitationProposalStatusLabel("REJECTED")}</option>
             </select>
           )}
         </FormField>
@@ -120,7 +121,7 @@ function FacilitationReviewView() {
                       </Button>
                     </div>
                   ) : (
-                    row.status
+                    facilitationProposalStatusLabel(row.status)
                   ),
               },
             ]}

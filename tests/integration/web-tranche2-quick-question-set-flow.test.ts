@@ -280,12 +280,33 @@ describe("Tranche 2 durable restart/resume — orchestrator stage state (07_26 v
     const fx = await buildFixture();
     const definition = WEB_TRANCHE2_QUICK_QUESTION_SET_SEQUENCE_DEFINITION;
 
+    // migration 0019 (per-attempt ownership): sequence_runtime_state now
+    // requires a real learning_attempt row, so seed the same real
+    // content_bundle -> assignment -> attempt chain the lifecycle test above uses.
+    await seedTranche2ContentBundle();
+    const assignmentId = await seedTranche2Assignment(fx.tenantId, fx.classId);
+    const attempts = new LearningAttemptRepository(pool);
+    const attempt = await attempts.create({
+      tenantId: fx.tenantId,
+      eventId: randomUUID(),
+      assignmentId,
+      studentProfileId: fx.studentProfileId,
+      enrollmentId: fx.enrollmentId,
+      contentBundleId: WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID,
+      contentId: WEB_TRANCHE2_MAT_M06_CONTENT_BUNDLE_ID,
+      contentVersion: WEB_TRANCHE2_QUICK_QUESTION_SET_BUNDLE_MANIFEST.bundleVersion,
+      runtimeChannel: "WEB",
+      creationIdempotencyKey: "web-tranche2-durability-key-000001",
+    });
+    const attemptId = attempt.id;
+
     const repoBeforeRestart = new SequenceRuntimeStateRepository(pool);
     let state = initializeSequence(definition, randomUUID());
     const created = await repoBeforeRestart.create({
       tenantId: fx.tenantId,
       studentProfileId: fx.studentProfileId,
       enrollmentId: fx.enrollmentId,
+      learningAttemptId: attemptId,
       state,
     });
     expect(created.state.currentStageId).toBe(WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID);
@@ -294,7 +315,7 @@ describe("Tranche 2 durable restart/resume — orchestrator stage state (07_26 v
     const restartPool = new Pool({ connectionString: DATABASE_URL });
     try {
       const repoAfterRestart = new SequenceRuntimeStateRepository(restartPool);
-      const resumed = await repoAfterRestart.findByStudentAndSequence(fx.tenantId, fx.studentProfileId, definition.sequenceId);
+      const resumed = await repoAfterRestart.findByAttempt(fx.tenantId, attemptId);
       expect(resumed).not.toBeNull();
       expect(resumed?.state.currentStageId).toBe(WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID);
       expect(resumed?.state.sequenceCompletionState).toBe("IN_PROGRESS");
@@ -311,7 +332,7 @@ describe("Tranche 2 durable restart/resume — orchestrator stage state (07_26 v
       expect(outcome.outcome).toBe("ADVANCED");
       const completed = advanceStage(definition, outcome.state);
       expect(isSequenceComplete(completed)).toBe(true);
-      await repoAfterRestart.save(fx.tenantId, fx.studentProfileId, definition.sequenceId, resumed!.version, completed);
+      await repoAfterRestart.save(fx.tenantId, attemptId, resumed!.version, completed);
     } finally {
       await restartPool.end();
     }
@@ -320,7 +341,7 @@ describe("Tranche 2 durable restart/resume — orchestrator stage state (07_26 v
     const secondRestartPool = new Pool({ connectionString: DATABASE_URL });
     try {
       const repoAfterSecondRestart = new SequenceRuntimeStateRepository(secondRestartPool);
-      const finalState = await repoAfterSecondRestart.findByStudentAndSequence(fx.tenantId, fx.studentProfileId, definition.sequenceId);
+      const finalState = await repoAfterSecondRestart.findByAttempt(fx.tenantId, attemptId);
       expect(finalState).not.toBeNull();
       expect(finalState?.state.sequenceCompletionState).toBe("COMPLETED");
       expect(finalState?.state.stageStates.find((s) => s.stageId === WEB_TRANCHE2_QUICK_QUESTION_SET_STAGE_ID)?.status).toBe("COMPLETED");

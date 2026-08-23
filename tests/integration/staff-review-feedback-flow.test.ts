@@ -4,8 +4,10 @@ import {
   ReviewService,
   FeedbackService,
   RecoveryAssignmentService,
+  TeacherFeedbackRepository,
   type StaffInternalIdentity,
 } from "@quest-city-web/staff-identity";
+import { AssignmentRepository, LearningAttemptRepository } from "@quest-city-web/attempts";
 
 /**
  * WEB-M3B integration tests against a real, dockerized PostgreSQL instance
@@ -560,5 +562,133 @@ describe("RecoveryAssignmentService (02_35 §11)", () => {
       [fixture.tenantId],
     );
     expect(adminSeedCount.rows[0]!.n).toBe("1"); // the original assignment from buildFixture()
+  });
+});
+
+/**
+ * UAT Failure Remediation (`UAT-RC4-STUDENT-FEEDBACK-VISIBILITY-01`):
+ * exercises the exact repository composition `GET /me/feedback`
+ * (`apps/api/app/me/feedback/route.ts`) performs — `TeacherFeedbackRepository
+ * .findByStudent` filtered to `PUBLISHED`, each row annotated with the
+ * real attempt's assignment title. Real Postgres, no mocking.
+ */
+describe("Student-facing feedback visibility (GET /me/feedback composition)", () => {
+  beforeEach(truncateAll);
+
+  it("returns only PUBLISHED feedback, never DRAFT or REVOKED, with the real assignment title attached", async () => {
+    const fixture = await buildFixture();
+    const identity = identityFor(fixture, "SCHOOL_ADMIN");
+    const feedbackService = new FeedbackService(pool);
+
+    const draft = await feedbackService.create({
+      identity,
+      attemptId: fixture.attemptId,
+      structuredFeedback: { verdict: "draft, never seen by the student" },
+      freeText: "Bozza non pubblicata",
+      originReviewQueueItemId: null,
+      idempotencyKey: `key-${rnd()}`,
+    });
+
+    const otherAttemptId = await insertAttempt(
+      fixture.tenantId,
+      fixture.assignmentId,
+      fixture.studentProfileId,
+      fixture.enrollmentId,
+      fixture.contentBundleId,
+    );
+    const toRevoke = await feedbackService.create({
+      identity,
+      attemptId: otherAttemptId,
+      structuredFeedback: {},
+      freeText: "Sarà revocato",
+      originReviewQueueItemId: null,
+      idempotencyKey: `key-${rnd()}`,
+    });
+    const publishedThenRevoked = await feedbackService.publish({
+      identity,
+      feedbackId: toRevoke.id,
+      ifMatchVersion: toRevoke.version,
+      idempotencyKey: `key-${rnd()}`,
+    });
+    await feedbackService.revoke({
+      identity,
+      feedbackId: publishedThenRevoked.id,
+      ifMatchVersion: publishedThenRevoked.version,
+      idempotencyKey: `key-${rnd()}`,
+    });
+
+    const thirdAttemptId = await insertAttempt(
+      fixture.tenantId,
+      fixture.assignmentId,
+      fixture.studentProfileId,
+      fixture.enrollmentId,
+      fixture.contentBundleId,
+    );
+    const toStayPublished = await feedbackService.create({
+      identity,
+      attemptId: thirdAttemptId,
+      structuredFeedback: { internal: "never sent to the student" },
+      freeText: "Ottimo lavoro sull'equilibrio!",
+      originReviewQueueItemId: null,
+      idempotencyKey: `key-${rnd()}`,
+    });
+    await feedbackService.publish({
+      identity,
+      feedbackId: toStayPublished.id,
+      ifMatchVersion: toStayPublished.version,
+      idempotencyKey: `key-${rnd()}`,
+    });
+
+    // The exact composition GET /me/feedback performs.
+    const feedbackRepo = new TeacherFeedbackRepository(pool);
+    const attempts = new LearningAttemptRepository(pool);
+    const assignments = new AssignmentRepository(pool);
+
+    const all = await feedbackRepo.findByStudent(fixture.studentProfileId, fixture.tenantId);
+    const published = all.filter((f) => f.publicationStatus === "PUBLISHED");
+
+    expect(published).toHaveLength(1);
+    expect(published[0]!.id).toBe(toStayPublished.id);
+    expect(published[0]!.freeText).toBe("Ottimo lavoro sull'equilibrio!");
+    // structuredFeedback exists on the repository row, but the route never serializes it into the response.
+    expect(published[0]!.structuredFeedback).toEqual({ internal: "never sent to the student" });
+
+    const attempt = await attempts.findByIdAndTenant(published[0]!.learningAttemptId, fixture.tenantId);
+    const assignment = await assignments.findByIdAndTenant(attempt!.assignmentId, fixture.tenantId);
+    expect(assignment!.title).toBe("Test assignment");
+
+    // The draft and the revoked-after-publish feedback must never surface here.
+    expect(all.map((f) => f.id)).toContain(draft.id);
+    expect(all.map((f) => f.id)).toContain(publishedThenRevoked.id);
+    expect(published.map((f) => f.id)).not.toContain(draft.id);
+    expect(published.map((f) => f.id)).not.toContain(publishedThenRevoked.id);
+  });
+
+  it("never returns another student's feedback, even within the same tenant/class", async () => {
+    const fixtureA = await buildFixture();
+    const otherStudent = await pool.query<{ id: string }>(
+      `INSERT INTO student_profile (tenant_id, student_public_id, status) VALUES ($1, $2, 'ACTIVE') RETURNING id`,
+      [fixtureA.tenantId, `std_${rnd()}`],
+    );
+    const identity = identityFor(fixtureA, "SCHOOL_ADMIN");
+    const feedbackService = new FeedbackService(pool);
+    const published = await feedbackService.create({
+      identity,
+      attemptId: fixtureA.attemptId,
+      structuredFeedback: {},
+      freeText: "Per lo studente A",
+      originReviewQueueItemId: null,
+      idempotencyKey: `key-${rnd()}`,
+    });
+    await feedbackService.publish({
+      identity,
+      feedbackId: published.id,
+      ifMatchVersion: published.version,
+      idempotencyKey: `key-${rnd()}`,
+    });
+
+    const feedbackRepo = new TeacherFeedbackRepository(pool);
+    const forOtherStudent = await feedbackRepo.findByStudent(otherStudent.rows[0]!.id, fixtureA.tenantId);
+    expect(forOtherStudent).toHaveLength(0);
   });
 });

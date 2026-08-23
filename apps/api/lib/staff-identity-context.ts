@@ -12,6 +12,7 @@ import {
   type StaffSessionSecurityConfig,
   StaffAccountRepository,
   StaffClassAssignmentRepository,
+  TeacherFeedbackRepository,
 } from "@quest-city-web/staff-identity";
 import { AuditRepository, SchoolClassRepository, SchoolEnrollmentRepository, StudentProfileRepository } from "@quest-city-web/identity";
 import {
@@ -72,6 +73,19 @@ export function getReviewService(): ReviewService {
 
 export function getFeedbackService(): FeedbackService {
   return new FeedbackService(getStaffIdentityPool());
+}
+
+/**
+ * UAT Failure Remediation (`UAT-RC4-STUDENT-FEEDBACK-VISIBILITY-01`):
+ * `FeedbackService` requires a `StaffInternalIdentity` for every operation
+ * (create/publish/revoke are all docente-authored actions), so it cannot
+ * back a student-facing READ of the docente's own published feedback.
+ * Exposes the repository directly for that one read path
+ * (`GET /me/feedback`) — student ownership is still verified there via a
+ * real `learning_attempt` lookup, never by trusting a client-supplied id.
+ */
+export function getTeacherFeedbackRepository(): TeacherFeedbackRepository {
+  return new TeacherFeedbackRepository(getStaffIdentityPool());
 }
 
 export function getRecoveryAssignmentService(): RecoveryAssignmentService {

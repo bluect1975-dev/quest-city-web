@@ -6,6 +6,7 @@ export interface PersistedSequenceRuntimeState {
   tenantId: string;
   studentProfileId: string;
   enrollmentId: string;
+  learningAttemptId: string;
   sequenceId: string;
   sequenceVersion: string;
   version: number;
@@ -19,6 +20,7 @@ interface SequenceRuntimeStateRow {
   tenant_id: string;
   student_profile_id: string;
   enrollment_id: string;
+  learning_attempt_id: string;
   sequence_id: string;
   sequence_version: string;
   state_json: unknown;
@@ -27,8 +29,8 @@ interface SequenceRuntimeStateRow {
   updated_at: Date;
 }
 
-const SELECT_COLUMNS = `id, tenant_id, student_profile_id, enrollment_id, sequence_id, sequence_version,
-       state_json, version, created_at, updated_at`;
+const SELECT_COLUMNS = `id, tenant_id, student_profile_id, enrollment_id, learning_attempt_id, sequence_id,
+       sequence_version, state_json, version, created_at, updated_at`;
 
 function mapRow(row: SequenceRuntimeStateRow): PersistedSequenceRuntimeState {
   const parsed = parseSequenceRuntimeState(row.state_json);
@@ -42,6 +44,7 @@ function mapRow(row: SequenceRuntimeStateRow): PersistedSequenceRuntimeState {
     tenantId: row.tenant_id,
     studentProfileId: row.student_profile_id,
     enrollmentId: row.enrollment_id,
+    learningAttemptId: row.learning_attempt_id,
     sequenceId: row.sequence_id,
     sequenceVersion: row.sequence_version,
     version: row.version,
@@ -51,19 +54,23 @@ function mapRow(row: SequenceRuntimeStateRow): PersistedSequenceRuntimeState {
   };
 }
 
-/** Thrown by `create()` when a row for this (tenant, student, sequence) already exists — see UNIQUE (tenant_id, student_profile_id, sequence_id) — the caller should re-fetch rather than retry the insert. */
+/** Thrown by `create()` when a row for this (tenant, attempt) already exists — see UNIQUE (tenant_id, learning_attempt_id) — the caller should re-fetch rather than retry the insert. */
 export class SequenceRuntimeStateAlreadyExistsError extends Error {
   constructor() {
-    super("sequence_runtime_state: a row already exists for this (tenant, student, sequence)");
+    super("sequence_runtime_state: a row already exists for this (tenant, attempt)");
     this.name = "SequenceRuntimeStateAlreadyExistsError";
   }
 }
 
 /**
- * `sequence_runtime_state` (R3C.3 migration 0005). Owned/looked-up
- * exclusively by `(tenantId, studentProfileId, sequenceId)` — never by the
- * opaque `runtimeStateId` alone, so a caller cannot read or write another
- * student's progress by guessing or forging an id (02_36 §20-bis
+ * `sequence_runtime_state` (R3C.3 migration 0005; re-scoped to per-attempt
+ * ownership by migration 0019 — UAT Failure Remediation,
+ * `UAT-RC4-NEW-ASSIGNMENT-LAUNCH-STATE-01`). Owned/looked-up exclusively
+ * by `(tenantId, learningAttemptId)` — never by `sequenceId` alone (two
+ * independent attempts, e.g. from two separate assignments, against the
+ * SAME sequence must never share progress/completion state) and never by
+ * the opaque `runtimeStateId` alone, so a caller cannot read or write
+ * another student's progress by guessing or forging an id (02_36 §20-bis
  * ownership rule). Mirrors `LearningAttemptRepository`'s constructor-
  * injected `Queryable` pattern and `ReviewQueueItemRepository`'s
  * optimistic-concurrency `version` column — no shared base-repository
@@ -72,15 +79,11 @@ export class SequenceRuntimeStateAlreadyExistsError extends Error {
 export class SequenceRuntimeStateRepository {
   constructor(private readonly db: Queryable) {}
 
-  async findByStudentAndSequence(
-    tenantId: string,
-    studentProfileId: string,
-    sequenceId: string,
-  ): Promise<PersistedSequenceRuntimeState | null> {
+  async findByAttempt(tenantId: string, learningAttemptId: string): Promise<PersistedSequenceRuntimeState | null> {
     const result = await this.db.query<SequenceRuntimeStateRow>(
       `SELECT ${SELECT_COLUMNS} FROM sequence_runtime_state
-       WHERE tenant_id = $1 AND student_profile_id = $2 AND sequence_id = $3`,
-      [tenantId, studentProfileId, sequenceId],
+       WHERE tenant_id = $1 AND learning_attempt_id = $2`,
+      [tenantId, learningAttemptId],
     );
     const [row] = result.rows;
     return row ? mapRow(row) : null;
@@ -89,13 +92,14 @@ export class SequenceRuntimeStateRepository {
   /**
    * Throws `SequenceRuntimeStateAlreadyExistsError` (Postgres unique
    * violation, code 23505) if a concurrent request already created a row
-   * for this (tenant, student, sequence) — the caller re-fetches via
-   * `findByStudentAndSequence` rather than blindly retrying the insert.
+   * for this (tenant, attempt) — the caller re-fetches via `findByAttempt`
+   * rather than blindly retrying the insert.
    */
   async create(input: {
     tenantId: string;
     studentProfileId: string;
     enrollmentId: string;
+    learningAttemptId: string;
     state: SequenceRuntimeState;
   }): Promise<PersistedSequenceRuntimeState> {
     const parsed = parseSequenceRuntimeState(input.state);
@@ -105,14 +109,15 @@ export class SequenceRuntimeStateRepository {
     try {
       const result = await this.db.query<SequenceRuntimeStateRow>(
         `INSERT INTO sequence_runtime_state
-           (tenant_id, student_profile_id, enrollment_id, sequence_id, sequence_version,
+           (tenant_id, student_profile_id, enrollment_id, learning_attempt_id, sequence_id, sequence_version,
             runtime_state_id, current_stage_id, sequence_completion_state, state_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING ${SELECT_COLUMNS}`,
         [
           input.tenantId,
           input.studentProfileId,
           input.enrollmentId,
+          input.learningAttemptId,
           input.state.sequenceId,
           input.state.sequenceVersion,
           input.state.runtimeStateId,
@@ -141,8 +146,7 @@ export class SequenceRuntimeStateRepository {
    */
   async save(
     tenantId: string,
-    studentProfileId: string,
-    sequenceId: string,
+    learningAttemptId: string,
     expectedVersion: number,
     state: SequenceRuntimeState,
   ): Promise<PersistedSequenceRuntimeState | null> {
@@ -152,14 +156,14 @@ export class SequenceRuntimeStateRepository {
     }
     const result = await this.db.query<SequenceRuntimeStateRow>(
       `UPDATE sequence_runtime_state
-       SET current_stage_id = $5,
-           sequence_completion_state = $6,
-           state_json = $7,
+       SET current_stage_id = $4,
+           sequence_completion_state = $5,
+           state_json = $6,
            version = version + 1,
            updated_at = now()
-       WHERE tenant_id = $1 AND student_profile_id = $2 AND sequence_id = $3 AND version = $4
+       WHERE tenant_id = $1 AND learning_attempt_id = $2 AND version = $3
        RETURNING ${SELECT_COLUMNS}`,
-      [tenantId, studentProfileId, sequenceId, expectedVersion, state.currentStageId, state.sequenceCompletionState, JSON.stringify(state)],
+      [tenantId, learningAttemptId, expectedVersion, state.currentStageId, state.sequenceCompletionState, JSON.stringify(state)],
     );
     const [row] = result.rows;
     return row ? mapRow(row) : null;
