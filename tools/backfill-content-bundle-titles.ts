@@ -39,8 +39,10 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Pool } from "pg";
+import pg from "pg";
 import { ContentBundleRepository } from "@quest-city-web/attempts";
+
+const { Pool } = pg;
 import {
   WEB_M4_MAT_M06_CONTENT_BUNDLE_PUBLIC_ID,
   WEB_TRANCHE1_CONTENT_BUNDLE_PUBLIC_ID,
