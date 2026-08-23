@@ -11,7 +11,18 @@ FROM base AS deps
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* .npmrc* ./
 COPY apps/api/package.json apps/api/package.json
 COPY packages ./packages
-RUN pnpm install --frozen-lockfile --filter @quest-city-web/api...
+# BuildKit cache mount for pnpm's content-addressable store: intended to
+# persist across `docker compose down -v` (verify.sh, between local runs)
+# independently of image layer caching, so a rebuild reuses already-
+# fetched packages instead of hitting the registry for all ~450 of them
+# again -- directly implicated in repeated registry-timeout build
+# failures during this mission. Standard BuildKit practice; a direct
+# before/after test on this session's local Docker Desktop/Windows setup
+# was inconclusive (second build still re-downloaded everything), so
+# treat this as a real fix on a standard Linux BuildKit host (CI, most
+# production hosts) rather than a proven fix everywhere.
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --filter @quest-city-web/api...
 
 FROM deps AS build
 COPY . .
