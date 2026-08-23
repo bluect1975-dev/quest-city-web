@@ -76,10 +76,26 @@
     "title": "Progressi",
     "loading": "Caricamento dei progressi in corso...",
     "error": "Non è stato possibile caricare i tuoi progressi.",
-    "totalAttemptsLabel": "Attività svolte in totale",
-    "byStatusTitle": "Per stato",
+    "completedActivitiesLabel": "Attività completate",
+    "inProgressActivitiesLabel": "In corso",
+    "totalAttemptsLabel": "Tentativi totali (tutti gli stati)",
+    "byStatusTitle": "Ripartizione per stato",
+    "byVerificationStatusTitle": "Dettaglio verifica delle attività completate",
     "emptyTitle": "Nessun progresso ancora registrato",
-    "emptyDescription": "Non hai ancora svolto nessuna attività. Inizia dal percorso completo o da un'assegnazione in Home."
+    "emptyDescription": "Non hai ancora svolto nessuna attività. Inizia dal percorso completo o da un'assegnazione in Home.",
+    "attemptStateLabel": {
+      "CREATED": "Non avviati",
+      "IN_PROGRESS": "In corso",
+      "COMPLETION_SUBMITTED": "In fase di verifica",
+      "COMPLETED": "Completate",
+      "ABANDONED": "Abbandonati",
+      "EXPIRED": "Scaduti"
+    },
+    "completionStatusLabel": {
+      "CONSOLIDATED": "Verificata",
+      "ACCEPTED_NOT_CONSOLIDATED": "In attesa di verifica",
+      "RECONCILIATION_REQUIRED": "Richiede verifica manuale"
+    }
   },
   "profile": {
     "title": "Profilo",
