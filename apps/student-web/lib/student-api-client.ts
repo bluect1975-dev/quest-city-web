@@ -379,3 +379,24 @@ export async function getAttemptActions(attemptId: string): Promise<AttemptActio
   const envelope = await request<Envelope<{ actions: AttemptActionRecord[] }>>(`/attempts/${encodeURIComponent(attemptId)}/actions`);
   return envelope.data.actions;
 }
+
+/**
+ * `GET /me/feedback` (UAT Failure Remediation,
+ * `UAT-RC4-STUDENT-FEEDBACK-VISIBILITY-01`) — only PUBLISHED docente
+ * feedback for the authenticated student, never a `DRAFT`/`REVOKED` row,
+ * and never the raw `structuredFeedback` JSON. Used both on "Progressi"
+ * (the full recent list) and on `/w/result/{attemptId}` (filtered
+ * client-side to the one attempt that page is about).
+ */
+export interface MyFeedbackItem {
+  feedbackId: string;
+  learningAttemptId: string;
+  assignmentTitle: string | null;
+  freeText: string | null;
+  publishedAt: string | null;
+}
+
+export async function getMyFeedback(): Promise<MyFeedbackItem[]> {
+  const envelope = await request<Envelope<MyFeedbackItem[]>>("/me/feedback");
+  return envelope.data;
+}

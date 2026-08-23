@@ -234,7 +234,9 @@
     "pendingConsolidation": "Il risultato è in fase di verifica.",
     "startedAtLabel": "Iniziato il {date}",
     "completedAtLabel": "Completato il {date}",
-    "homeButton": "Torna alla home"
+    "homeButton": "Torna alla home",
+    "feedbackTitle": "Feedback del tuo insegnante",
+    "feedbackPublishedAtLabel": "Pubblicato il {date}"
   },
   "sequence": {
     "title": "Sequenza didattica",
