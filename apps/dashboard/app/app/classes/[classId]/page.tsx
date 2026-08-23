@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Button, EmptyState, FormField, StatusBadge, StatusMessage, Table } from "@quest-city-web/ui";
+import { Button, EmptyState, FormField, StatsCard, StatusBadge, StatusMessage, Table } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../../lib/staff-auth-context";
@@ -303,12 +303,12 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
             </section>
           ) : null}
 
-          <section className="qc-card">
-            <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.progressTitle")}</h2>
-            <p>
-              {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.totalAttemptsLabel")}: {result.data.progress.totalAttempts}
-            </p>
-          </section>
+          <h2>{t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.progressTitle")}</h2>
+          <div className="qc-stats-grid">
+            <StatsCard label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.rosterTitle")} value={result.data.roster.length} />
+            <StatsCard label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignmentsListTitle")} value={result.data.classAssignments.length} />
+            <StatsCard label={t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.totalAttemptsLabel")} value={result.data.progress.totalAttempts} />
+          </div>
 
           {canManageTeachers ? (
             <section className="qc-card">

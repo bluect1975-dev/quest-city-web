@@ -39,18 +39,25 @@ describe("MyPathPage", () => {
   it("renders each item's real GLPC-derived state — completed, locked, current, available — never fabricated", async () => {
     getMyPath.mockResolvedValue({
       items: [
-        { assignmentId: "asn-1", contentBundleId: "bnd-1", title: "Tappa 1", subjectId: "MAT", pathState: "COMPLETED", dueAt: null },
-        { assignmentId: "asn-2", contentBundleId: "bnd-2", title: "Tappa 2", subjectId: "MAT", pathState: "CURRENT", dueAt: null },
-        { assignmentId: "asn-3", contentBundleId: "bnd-3", title: "Tappa 3", subjectId: "MAT", pathState: "LOCKED", dueAt: null },
-        { assignmentId: "asn-4", contentBundleId: "bnd-4", title: "Tappa 4", subjectId: "MAT", pathState: "AVAILABLE", dueAt: null },
+        { assignmentId: "asn-1", contentBundleId: "bnd-1", title: "Balance Machine Challenge", subjectId: "MAT", pathState: "COMPLETED", dueAt: null },
+        { assignmentId: "asn-2", contentBundleId: "bnd-2", title: "Riattiva la Balance Machine", subjectId: "MAT", pathState: "CURRENT", dueAt: null },
+        { assignmentId: "asn-3", contentBundleId: "bnd-3", title: "Sfida finale", subjectId: "MAT", pathState: "LOCKED", dueAt: null },
+        { assignmentId: "asn-4", contentBundleId: "bnd-4", title: "Verifica", subjectId: "MAT", pathState: "AVAILABLE", dueAt: null },
       ],
       progress: { completedCount: 1, totalCount: 4 },
     });
     render(<MyPathPage />);
-    expect(await screen.findByText("Tappa 1 — Completata")).toBeInTheDocument();
-    expect(screen.getByText("Tappa 2 — In corso")).toBeInTheDocument();
-    expect(screen.getByText("Tappa 3 — Bloccata")).toBeInTheDocument();
-    expect(screen.getByText("Tappa 4 — Disponibile")).toBeInTheDocument();
+    // Real titles render as-is, and each stop's real state is a distinct, visible badge — never fabricated or color-only.
+    expect(await screen.findByText("Balance Machine Challenge")).toBeInTheDocument();
+    expect(screen.getByText("Riattiva la Balance Machine").closest("li")).toHaveAttribute("aria-current", "step");
+    expect(screen.getByText("Sfida finale")).toBeInTheDocument();
+    expect(screen.getByText("Verifica")).toBeInTheDocument();
+    expect(screen.getAllByText("Completata").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("In corso").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bloccata").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Disponibile").length).toBeGreaterThan(0);
+    // Real, derived-from-order stage numbering, distinguishing the current stop by text (never color alone).
+    expect(screen.getByText("Tappa 2 · sei qui")).toBeInTheDocument();
   });
 
   it("groups items by real subject and shows a real overall progress count", async () => {

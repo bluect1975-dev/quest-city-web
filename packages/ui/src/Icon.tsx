@@ -24,6 +24,9 @@ const PATHS = {
   logout: "M9 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H9 M15 16l4-4-4-4 M19 12H9",
   scale: "M12 3v3 M12 6l-6 12h12z M12 6l6 12h-12 M4.5 15h3 M16.5 15h3 M6 21h12",
   target: "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M12 3v2.5 M12 18.5V21 M3 12h2.5 M18.5 12H21",
+  /* Mission-path "you are here" marker (UAT Failure Remediation visual identity). */
+  flag: "M5 21V4 M5 5h13l-3 4 3 4H5",
+  route: "M6 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 16v-3a4 4 0 0 1 4-4h4",
 } as const;
 
 export type IconName = keyof typeof PATHS;

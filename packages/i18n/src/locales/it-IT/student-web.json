@@ -21,7 +21,8 @@
     "continueButton": "Continua (a breve)",
     "welcomeTitle": "Ciao, {alias}",
     "readOnlySessionWarning": "La tua sessione è di sola lettura. Accedi di nuovo per continuare un'attività.",
-    "fullSequenceSectionTitle": "Percorso completo",
+    "fullSequenceEyebrow": "Percorso completo",
+    "fullSequenceSectionTitle": "Le equazioni di primo grado",
     "fullSequenceDescription": "Svolgi l'intera unità sulle equazioni di primo grado in un unico percorso, dall'introduzione alla verifica finale.",
     "startFullSequenceButton": "Inizia il percorso completo",
     "myAssignmentsSectionTitle": "Assegnazioni della tua classe",
@@ -66,7 +67,10 @@
       "CURRENT": "In corso",
       "AVAILABLE": "Disponibile",
       "LOCKED": "Bloccata"
-    }
+    },
+    "stopEyebrow": "Tappa {index}",
+    "stopEyebrowCurrent": "Tappa {index} · sei qui",
+    "stopEyebrowLocked": "Tappa {index} · richiede la tappa precedente"
   },
   "assignmentsPage": {
     "title": "Assegnazioni",
@@ -165,7 +169,9 @@
     "readOnlySessionBlocked": "Per svolgere questa attività devi accedere di nuovo.",
     "sequenceTitle": "Balance Machine",
     "sequenceDescription": "Metti in equilibrio la bilancia per completare l'attività.",
-    "unknownContentBundle": "Contenuto non riconosciuto per questa assegnazione."
+    "unknownContentBundle": "Contenuto non riconosciuto per questa assegnazione.",
+    "balancePromptTitle": "Verifica l'equazione 3x − 4 = 11",
+    "balancePromptBody": "Isolando 3x, l'equazione diventa 3x = 11 + 4. Il peso 15 rappresenta 3x: posizionalo sul piatto sinistro. I pesi 11 e 4 sono le due costanti: posizionali entrambi sul piatto destro. Quando la bilancia è in equilibrio, l'equazione è verificata."
   },
   "guidedPractice": {
     "sequenceTitle": "Pratica guidata: equazioni di primo grado",
