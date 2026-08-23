@@ -7,7 +7,7 @@ RUN corepack enable
 WORKDIR /workspace
 
 FROM base AS deps
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* .npmrc* ./
 COPY apps/student-web/package.json apps/student-web/package.json
 COPY packages ./packages
 RUN pnpm install --frozen-lockfile --filter @quest-city-web/student-web...
