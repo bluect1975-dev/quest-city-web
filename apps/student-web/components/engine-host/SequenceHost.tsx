@@ -160,12 +160,18 @@ export function SequenceHost({
 
     async function bootstrap() {
       const csrfToken = getStoredCsrfToken();
-      if (!csrfToken) {
+      // Durable persistence requires a real attempt to scope ownership by
+      // (UAT Failure Remediation, migration 0019: two independent attempts
+      // against the same sequence must never share progress/completion
+      // state — see `sequence_runtime_state`'s own doc comment) — with no
+      // `attemptId` (e.g. the unauthenticated `/w/sequence` demo) this
+      // falls back to the exact prior pure-`useState` behaviour.
+      if (!csrfToken || !attemptId) {
         if (!cancelled) setState(initializeSequence(definition, runtimeStateId));
         return;
       }
       try {
-        const loaded = await loadSequenceRuntimeState(definition.sequenceId);
+        const loaded = await loadSequenceRuntimeState(attemptId);
         if (cancelled) return;
         if (loaded.found) {
           durableRef.current = true;
@@ -174,7 +180,7 @@ export function SequenceHost({
           return;
         }
         const fresh = initializeSequence(definition, crypto.randomUUID());
-        const created = await createSequenceRuntimeState(definition.sequenceId, fresh, csrfToken);
+        const created = await createSequenceRuntimeState(attemptId, fresh, csrfToken);
         if (cancelled) return;
         durableRef.current = true;
         versionRef.current = created.version;
@@ -190,23 +196,23 @@ export function SequenceHost({
     return () => {
       cancelled = true;
     };
-    // Intentionally mount-only: `definition`/`runtimeStateId` are stable for the lifetime of this component instance.
+    // Intentionally mount-only: `definition`/`runtimeStateId`/`attemptId` are stable for the lifetime of this component instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function persist(nextState: SequenceRuntimeState) {
-    if (!durableRef.current || versionRef.current === undefined) return;
+    if (!durableRef.current || versionRef.current === undefined || !attemptId) return;
     const csrfToken = getStoredCsrfToken();
     if (!csrfToken) return;
     try {
-      const saved = await saveSequenceRuntimeState(definition.sequenceId, nextState, versionRef.current, csrfToken);
+      const saved = await saveSequenceRuntimeState(attemptId, nextState, versionRef.current, csrfToken);
       versionRef.current = saved.version;
     } catch (error) {
       if (error instanceof SequenceRuntimeStateClientError && error.code === "SEQUENCE_RUNTIME_STATE_VERSION_CONFLICT") {
         // Another write landed first (§11 idempotency/concurrency) — adopt
         // the authoritative server state rather than retrying this write blindly.
         try {
-          const reloaded = await loadSequenceRuntimeState(definition.sequenceId);
+          const reloaded = await loadSequenceRuntimeState(attemptId);
           if (reloaded.found) {
             versionRef.current = reloaded.version;
             setState(reloaded.state);

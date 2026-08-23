@@ -2,27 +2,43 @@ import { NextResponse } from "next/server";
 import { IdentityError } from "@quest-city-web/identity";
 import { parseSequenceRuntimeState } from "@quest-city-web/content-runtime";
 import { SequenceRuntimeStateAlreadyExistsError, type ErrorEnvelope } from "@quest-city-web/attempts";
-import { getSessionService } from "../../../lib/identity-context";
-import { getSequenceRuntimeStateRepository } from "../../../lib/attempts-context";
-import { attemptErrorResponse } from "../../../lib/attempt-error-response";
-import { readSessionToken } from "../../../lib/session-cookie";
-import { getCsrfTokenHeader, isTrustedOrigin } from "../../../lib/csrf-guard";
-import { loadEnv } from "../../../lib/env";
+import { getSessionService } from "../../../../lib/identity-context";
+import { getSequenceRuntimeStateRepository, getLearningAttemptRepository } from "../../../../lib/attempts-context";
+import { attemptErrorResponse } from "../../../../lib/attempt-error-response";
+import { readSessionToken } from "../../../../lib/session-cookie";
+import { getCsrfTokenHeader, isTrustedOrigin } from "../../../../lib/csrf-guard";
+import { loadEnv } from "../../../../lib/env";
 
 /**
- * `GET/POST/PUT /sequence-runtime-state/{sequenceId}` (R3C.3). Load,
- * create and version-guarded save of a student's durable
- * `SequenceRuntimeState` — the minimal boundary the phase instruction
- * allows (§13): no authoring/admin surface, no endpoint beyond load and
- * save/apply. Ownership is always the server-resolved
- * `resolveInternalIdentity` triple, never a client-supplied id (§5/§14) —
- * `sequenceId` in the URL only selects *which* sequence within that
- * identity's own scope, it never widens it.
+ * `GET/POST/PUT /attempts/{attemptId}/sequence-runtime-state` (R3C.3;
+ * re-scoped from `/sequence-runtime-state/{sequenceId}` by migration 0019
+ * — UAT Failure Remediation, `UAT-RC4-NEW-ASSIGNMENT-LAUNCH-STATE-01`).
+ * Load, create and version-guarded save of a student's durable
+ * `SequenceRuntimeState`. Ownership is always the server-resolved
+ * `resolveInternalIdentity` triple PLUS a real `learning_attempt` row this
+ * identity owns — `attemptId` in the URL selects which attempt's runtime
+ * state, and every request re-verifies that attempt actually belongs to
+ * the caller (same 404-on-mismatch pattern as
+ * `POST /attempts/{attemptId}/complete`) before touching any state, so a
+ * student can never read or write another student's — or another
+ * attempt's — progress by guessing an id.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ sequenceId: string }> }): Promise<NextResponse> {
+async function resolveOwnedAttempt(
+  attemptId: string,
+  tenantId: string,
+  studentProfileId: string,
+): Promise<{ id: string } | null> {
+  const attempt = await getLearningAttemptRepository().findByIdAndTenant(attemptId, tenantId);
+  if (!attempt || attempt.studentProfileId !== studentProfileId) {
+    return null;
+  }
+  return { id: attempt.id };
+}
+
+export async function GET(request: Request, { params }: { params: Promise<{ attemptId: string }> }): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
   try {
-    const { sequenceId } = await params;
+    const { attemptId } = await params;
     const env = loadEnv();
     const sessionToken = readSessionToken(request, env);
     if (!sessionToken) {
@@ -30,13 +46,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ sequ
     }
 
     const identity = await getSessionService().resolveInternalIdentity(sessionToken);
-    const persisted = await getSequenceRuntimeStateRepository().findByStudentAndSequence(
-      identity.tenantId,
-      identity.studentProfileId,
-      sequenceId,
-    );
+    const attempt = await resolveOwnedAttempt(attemptId, identity.tenantId, identity.studentProfileId);
+    if (!attempt) {
+      return contentRuntimeError(correlationId, "RESOURCE_NOT_FOUND", 404, "Attempt not found.", false);
+    }
+
+    const persisted = await getSequenceRuntimeStateRepository().findByAttempt(identity.tenantId, attempt.id);
     if (!persisted) {
-      return contentRuntimeError(correlationId, "SEQUENCE_RUNTIME_STATE_NOT_FOUND", 404, "No runtime state yet for this student/sequence.", false);
+      return contentRuntimeError(correlationId, "SEQUENCE_RUNTIME_STATE_NOT_FOUND", 404, "No runtime state yet for this attempt.", false);
     }
 
     return NextResponse.json(
@@ -48,10 +65,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ sequ
   }
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ sequenceId: string }> }): Promise<NextResponse> {
+export async function POST(request: Request, { params }: { params: Promise<{ attemptId: string }> }): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
   try {
-    const { sequenceId } = await params;
+    const { attemptId } = await params;
     const env = loadEnv();
     const sessionToken = readSessionToken(request, env);
     const csrfToken = getCsrfTokenHeader(request);
@@ -68,22 +85,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ seq
     if (!parsed.valid) {
       return contentRuntimeError(correlationId, "SEQUENCE_RUNTIME_STATE_INVALID", 422, parsed.errors.join("; "), false);
     }
-    if (parsed.data.sequenceId !== sequenceId) {
-      return contentRuntimeError(
-        correlationId,
-        "SEQUENCE_RUNTIME_STATE_INVALID",
-        422,
-        `body.state.sequenceId "${parsed.data.sequenceId}" does not match URL sequenceId "${sequenceId}".`,
-        false,
-      );
-    }
 
     const identity = await getSessionService().resolveInternalIdentity(sessionToken);
+    const attempt = await resolveOwnedAttempt(attemptId, identity.tenantId, identity.studentProfileId);
+    if (!attempt) {
+      return contentRuntimeError(correlationId, "RESOURCE_NOT_FOUND", 404, "Attempt not found.", false);
+    }
+
     try {
       const created = await getSequenceRuntimeStateRepository().create({
         tenantId: identity.tenantId,
         studentProfileId: identity.studentProfileId,
         enrollmentId: identity.enrollmentId,
+        learningAttemptId: attempt.id,
         state: parsed.data,
       });
       return NextResponse.json(
@@ -96,7 +110,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ seq
           correlationId,
           "SEQUENCE_RUNTIME_STATE_ALREADY_EXISTS",
           409,
-          "A runtime state already exists for this student/sequence — GET it and PUT to update instead.",
+          "A runtime state already exists for this attempt — GET it and PUT to update instead.",
           false,
         );
       }
@@ -107,10 +121,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ seq
   }
 }
 
-export async function PUT(request: Request, { params }: { params: Promise<{ sequenceId: string }> }): Promise<NextResponse> {
+export async function PUT(request: Request, { params }: { params: Promise<{ attemptId: string }> }): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
   try {
-    const { sequenceId } = await params;
+    const { attemptId } = await params;
     const env = loadEnv();
     const sessionToken = readSessionToken(request, env);
     const csrfToken = getCsrfTokenHeader(request);
@@ -128,27 +142,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ sequ
     if (!parsed.valid) {
       return contentRuntimeError(correlationId, "SEQUENCE_RUNTIME_STATE_INVALID", 422, parsed.errors.join("; "), false);
     }
-    if (parsed.data.sequenceId !== sequenceId) {
-      return contentRuntimeError(
-        correlationId,
-        "SEQUENCE_RUNTIME_STATE_INVALID",
-        422,
-        `body.state.sequenceId "${parsed.data.sequenceId}" does not match URL sequenceId "${sequenceId}".`,
-        false,
-      );
-    }
     if (typeof expectedVersion !== "number" || !Number.isInteger(expectedVersion) || expectedVersion < 1) {
       return contentRuntimeError(correlationId, "SEQUENCE_RUNTIME_STATE_INVALID", 422, "body.expectedVersion must be a positive integer.", false);
     }
 
     const identity = await getSessionService().resolveInternalIdentity(sessionToken);
-    const saved = await getSequenceRuntimeStateRepository().save(
-      identity.tenantId,
-      identity.studentProfileId,
-      sequenceId,
-      expectedVersion,
-      parsed.data,
-    );
+    const attempt = await resolveOwnedAttempt(attemptId, identity.tenantId, identity.studentProfileId);
+    if (!attempt) {
+      return contentRuntimeError(correlationId, "RESOURCE_NOT_FOUND", 404, "Attempt not found.", false);
+    }
+
+    const saved = await getSequenceRuntimeStateRepository().save(identity.tenantId, attempt.id, expectedVersion, parsed.data);
     if (!saved) {
       return contentRuntimeError(
         correlationId,

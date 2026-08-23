@@ -326,6 +326,26 @@ describe("Tranche 3 mandatory durable resume scenario B (07_26 v1.0 §13-B): mid
     const fx = await buildFixture();
     const definition = WEB_TRANCHE3_PREREQUISITE_CHECK_MICRO_LESSON_SEQUENCE_DEFINITION;
 
+    // migration 0019 (per-attempt ownership): sequence_runtime_state now
+    // requires a real learning_attempt row, so seed the same real
+    // content_bundle -> assignment -> attempt chain the lifecycle test above uses.
+    await seedTranche3ContentBundle();
+    const assignmentId = await seedTranche3Assignment(fx.tenantId, fx.classId);
+    const attempts = new LearningAttemptRepository(pool);
+    const attempt = await attempts.create({
+      tenantId: fx.tenantId,
+      eventId: randomUUID(),
+      assignmentId,
+      studentProfileId: fx.studentProfileId,
+      enrollmentId: fx.enrollmentId,
+      contentBundleId: WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID,
+      contentId: WEB_TRANCHE3_MAT_M06_CONTENT_BUNDLE_ID,
+      contentVersion: WEB_TRANCHE3_PREREQUISITE_CHECK_BUNDLE_MANIFEST.bundleVersion,
+      runtimeChannel: "WEB",
+      creationIdempotencyKey: "web-tranche3-durability-key-000001",
+    });
+    const attemptId = attempt.id;
+
     const repoBeforeRestart = new SequenceRuntimeStateRepository(pool);
     let state = initializeSequence(definition, randomUUID());
     expect(state.currentStageId).toBe(WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID);
@@ -347,6 +367,7 @@ describe("Tranche 3 mandatory durable resume scenario B (07_26 v1.0 §13-B): mid
       tenantId: fx.tenantId,
       studentProfileId: fx.studentProfileId,
       enrollmentId: fx.enrollmentId,
+      learningAttemptId: attemptId,
       state,
     });
     expect(created.state.currentStageId).toBe("micro-lesson-example-step-2");
@@ -355,7 +376,7 @@ describe("Tranche 3 mandatory durable resume scenario B (07_26 v1.0 §13-B): mid
     const restartPool = new Pool({ connectionString: DATABASE_URL });
     try {
       const repoAfterRestart = new SequenceRuntimeStateRepository(restartPool);
-      const resumed = await repoAfterRestart.findByStudentAndSequence(fx.tenantId, fx.studentProfileId, definition.sequenceId);
+      const resumed = await repoAfterRestart.findByAttempt(fx.tenantId, attemptId);
       expect(resumed).not.toBeNull();
       // Resumed exactly at step 2, not step 1 (no silent reset) and not step 3+ (no item skipped).
       expect(resumed?.state.currentStageId).toBe("micro-lesson-example-step-2");
@@ -375,7 +396,7 @@ describe("Tranche 3 mandatory durable resume scenario B (07_26 v1.0 §13-B): mid
         finalState = advanceStage(definition, finalState);
       }
       expect(isSequenceComplete(finalState)).toBe(true);
-      const saved = await repoAfterRestart.save(fx.tenantId, fx.studentProfileId, definition.sequenceId, version, finalState);
+      const saved = await repoAfterRestart.save(fx.tenantId, attemptId, version, finalState);
       expect(saved).not.toBeNull();
       expect(saved!.state.sequenceCompletionState).toBe("COMPLETED");
     } finally {
@@ -386,7 +407,7 @@ describe("Tranche 3 mandatory durable resume scenario B (07_26 v1.0 §13-B): mid
     const secondRestartPool = new Pool({ connectionString: DATABASE_URL });
     try {
       const repoAfterSecondRestart = new SequenceRuntimeStateRepository(secondRestartPool);
-      const finalCheck = await repoAfterSecondRestart.findByStudentAndSequence(fx.tenantId, fx.studentProfileId, definition.sequenceId);
+      const finalCheck = await repoAfterSecondRestart.findByAttempt(fx.tenantId, attemptId);
       expect(finalCheck).not.toBeNull();
       expect(finalCheck?.state.sequenceCompletionState).toBe("COMPLETED");
       for (const step of WEB_TRANCHE3_MICRO_LESSON_STEPS) {

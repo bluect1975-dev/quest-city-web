@@ -285,16 +285,42 @@ describe("Tranche 6 full 14-entry sequence traversal — one real attempt per gr
     const runtimeStateRepo = new SequenceRuntimeStateRepository(pool);
 
     let state = initializeSequence(definition, randomUUID());
+
+    // migration 0019 (per-attempt ownership): sequence_runtime_state now
+    // requires a real learning_attempt row. The outer, multi-group Tranche 6
+    // state has no attempt of its own (07_26 v1.1 §17.4), so it is anchored
+    // to the first group's (INTRO_HOOK) real attempt, created here and
+    // recorded via addAttemptReference before the row is even persisted —
+    // ensureGroupAttempt() below finds this same reference already present
+    // on `state` and reuses it rather than creating a second attempt.
+    const firstGroup = resolveWebTranche6StageGroup(resolveCurrentStage(definition, state).stageId);
+    const firstAssignmentId = await findAssignmentIdByPublicId(fx.tenantId, firstGroup.assignmentPublicId);
+    const firstAttempt = await attempts.create({
+      tenantId: fx.tenantId,
+      eventId: randomUUID(),
+      assignmentId: firstAssignmentId,
+      studentProfileId: fx.studentProfileId,
+      enrollmentId: fx.enrollmentId,
+      contentBundleId: firstGroup.contentBundleId,
+      contentId: firstGroup.contentBundleId,
+      contentVersion: "1.0.0",
+      runtimeChannel: "WEB",
+      creationIdempotencyKey: `tr6-${firstGroup.groupStageId}-${fx.studentProfileId}`,
+    });
+    const outerAttemptId = firstAttempt.id;
+    state = addAttemptReference(state, firstGroup.groupStageId, outerAttemptId);
+
     const created = await runtimeStateRepo.create({
       tenantId: fx.tenantId,
       studentProfileId: fx.studentProfileId,
       enrollmentId: fx.enrollmentId,
+      learningAttemptId: outerAttemptId,
       state,
     });
     let version = created.version;
     state = created.state;
 
-    const groupAttemptIds = new Map<string, string>();
+    const groupAttemptIds = new Map<string, string>([[firstGroup.groupStageId, outerAttemptId]]);
 
     /** Mirrors FullSequenceHost's group-resolution effect: create-or-reuse the current stage's group attempt. */
     async function ensureGroupAttempt(): Promise<string> {
@@ -317,7 +343,7 @@ describe("Tranche 6 full 14-entry sequence traversal — one real attempt per gr
       });
       state = addAttemptReference(state, group.groupStageId, attempt.id);
       groupAttemptIds.set(group.groupStageId, attempt.id);
-      const saved = await runtimeStateRepo.save(fx.tenantId, fx.studentProfileId, definition.sequenceId, version, state);
+      const saved = await runtimeStateRepo.save(fx.tenantId, outerAttemptId, version, state);
       if (!saved) throw new Error("unexpected version conflict");
       version = saved.version;
       state = saved.state;
@@ -378,7 +404,7 @@ describe("Tranche 6 full 14-entry sequence traversal — one real attempt per gr
     /** Advances the outer orchestration and completes the outgoing group's attempt when a group boundary is crossed — mirrors FullSequenceHost.maybeCompleteOutgoingGroup. */
     async function advanceOuter(outgoingAttemptId: string | null, outgoingGroupStageId: string | null): Promise<void> {
       state = advanceStage(definition, state);
-      const saved = await runtimeStateRepo.save(fx.tenantId, fx.studentProfileId, definition.sequenceId, version, state);
+      const saved = await runtimeStateRepo.save(fx.tenantId, outerAttemptId, version, state);
       if (!saved) throw new Error("unexpected version conflict");
       version = saved.version;
       state = saved.state;
@@ -410,7 +436,7 @@ describe("Tranche 6 full 14-entry sequence traversal — one real attempt per gr
     await advanceOuter(attemptId, WEB_TRANCHE5_INTRO_HOOK_STAGE_ID);
 
     // Durable resume scenario A: reload the outer state fresh from the DB after crossing the first group boundary.
-    const reloadedAfterIntro = await runtimeStateRepo.findByStudentAndSequence(fx.tenantId, fx.studentProfileId, definition.sequenceId);
+    const reloadedAfterIntro = await runtimeStateRepo.findByAttempt(fx.tenantId, outerAttemptId);
     expect(reloadedAfterIntro).not.toBeNull();
     expect(reloadedAfterIntro!.state.currentStageId).toBe(WEB_TRANCHE3_PREREQUISITE_CHECK_STAGE_ID);
     state = reloadedAfterIntro!.state;
@@ -615,7 +641,7 @@ describe("Tranche 6 full 14-entry sequence traversal — one real attempt per gr
     }
 
     // Durable resume scenario A (final): the fully-completed outer state reloads correctly from a fresh query.
-    const finalReload = await runtimeStateRepo.findByStudentAndSequence(fx.tenantId, fx.studentProfileId, definition.sequenceId);
+    const finalReload = await runtimeStateRepo.findByAttempt(fx.tenantId, outerAttemptId);
     expect(finalReload).not.toBeNull();
     expect(isSequenceComplete(finalReload!.state)).toBe(true);
   });

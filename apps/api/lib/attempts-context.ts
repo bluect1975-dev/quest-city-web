@@ -110,12 +110,12 @@ export function getAuditRepository(): AuditRepository {
   return new AuditRepository(getAttemptsPool());
 }
 
-/** R3C.3: one instance per request, bound to the caller's server-resolved identity — see the class's own doc comment for why this must never be shared across requests. */
+/** R3C.3: one instance per request, bound to the caller's server-resolved identity and the real attempt row it's driving — see the class's own doc comment for why this must never be shared across requests. */
 export function getDurableSequenceRuntimeStateStore(
   tenantId: string,
   studentProfileId: string,
   enrollmentId: string,
-  sequenceId: string,
+  learningAttemptId: string,
 ): DurableSequenceRuntimeStateStore {
-  return new DurableSequenceRuntimeStateStore(getSequenceRuntimeStateRepository(), tenantId, studentProfileId, enrollmentId, sequenceId);
+  return new DurableSequenceRuntimeStateStore(getSequenceRuntimeStateRepository(), tenantId, studentProfileId, enrollmentId, learningAttemptId);
 }
