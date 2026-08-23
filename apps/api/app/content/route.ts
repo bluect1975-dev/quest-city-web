@@ -13,7 +13,12 @@ import { getContentBundleRepository } from "../../lib/attempts-context";
  * same scope the raw-ID field already implicitly allowed (whoever knew an
  * id could assign it). Optional `subjectId` query filter matches the exact
  * stored code (e.g. `MAT`) — there is no lookup table to validate it
- * against or to translate it to a display name (`NEW-GAP-CONTENT-BUNDLE-NO-TITLE-01`).
+ * against or to translate it to a display name.
+ *
+ * `title` (Tranche H2, closes `NEW-GAP-CONTENT-BUNDLE-NO-TITLE-01`) is
+ * `null`, not a fabricated fallback, for any bundle no canonical title has
+ * been traced for — the caller decides how to render that state, this
+ * route never invents one.
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
@@ -28,6 +33,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     const data = bundles.map((bundle) => ({
       contentBundleId: bundle.publicId,
+      title: bundle.title,
       subjectId: bundle.subjectId,
       bundleType: bundle.bundleType,
       bundleVersion: bundle.bundleVersion,

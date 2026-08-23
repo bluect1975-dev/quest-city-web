@@ -103,13 +103,14 @@ export async function getStudentContext(): Promise<StudentContext> {
   return envelope.data;
 }
 
-/** `GET /me/class` (Pilot Product Experience Remediation G2) — backs the "La mia classe" and "Profilo" surfaces. */
+/** `GET /me/class` (Pilot Product Experience Remediation G2, `teachers[]` added Tranche H1) — backs the "La mia classe" and "Profilo" surfaces. */
 export interface MyClass {
   classPublicId: string;
   className: string;
   schoolName: string;
   enrollmentStatus: "ACTIVE" | "SUSPENDED";
-  assignedTeacherCount: number;
+  /** Real assigned teachers. `displayName` is `null` for a teacher who has never set one (never email/UUID) — the UI renders the documented fallback label. */
+  teachers: Array<{ displayName: string | null }>;
 }
 
 export async function getMyClass(): Promise<MyClass> {

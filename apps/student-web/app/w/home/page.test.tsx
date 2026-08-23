@@ -37,7 +37,7 @@ describe("StudentHomePage", () => {
       className: "Classe 1A",
       schoolName: "Scuola Test",
       enrollmentStatus: "ACTIVE",
-      assignedTeacherCount: 2,
+      teachers: [{ displayName: "Mario Rossi" }, { displayName: null }],
     });
   });
 

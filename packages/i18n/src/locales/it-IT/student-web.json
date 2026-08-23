@@ -48,8 +48,7 @@
     "statusSuspended": "Sospesa",
     "teachersLabel": "Docenti",
     "teachersCountZero": "Nessun docente ancora assegnato a questa classe.",
-    "teachersCountOne": "1 docente assegnato a questa classe.",
-    "teachersCountMany": "{count} docenti assegnati a questa classe."
+    "teacherNameFallback": "Docente"
   },
   "path": {
     "title": "Il mio percorso",

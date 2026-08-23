@@ -21,7 +21,8 @@
       "facilitationReview": "Proposte da revisionare",
       "supportAssignments": "Assegnazioni di supporto",
       "supportCoverage": "Copertura supporto",
-      "learningPathPolicies": "Percorso di apprendimento"
+      "learningPathPolicies": "Percorso di apprendimento",
+      "profile": "Profilo"
     },
     "brandLabel": "Quest City",
     "roleSwitcher": {
@@ -201,7 +202,7 @@
       "assignContentPickerPlaceholder": "Scegli un contenuto pubblicato...",
       "assignContentPickerEmpty": "Nessun contenuto pubblicato disponibile al momento.",
       "assignContentPickerError": "Non è stato possibile caricare il catalogo dei contenuti.",
-      "assignContentPickerOptionLabel": "{subject} — {bundleType} — v{version}",
+      "assignContentPickerOptionLabelNoTitle": "{subject} — {bundleType} — v{version} (titolo non disponibile)",
       "assignContentTitleLabel": "Titolo assegnazione",
       "assignContentSubmit": "Assegna",
       "assignContentSubmitting": "Assegnazione in corso...",
@@ -215,6 +216,17 @@
         "LOCALIZATION_BUNDLE": "Localizzazione",
         "RUNTIME_FIXTURE_BUNDLE": "Fixture di runtime"
       }
+    },
+    "profile": {
+      "title": "Profilo",
+      "description": "Imposta il tuo nome visualizzato: è quello che studenti e colleghi vedranno al posto della tua email.",
+      "loading": "Caricamento del profilo in corso...",
+      "emailLabel": "Email",
+      "displayNameLabel": "Nome visualizzato",
+      "displayNameHint": "Mostrato agli studenti della tua classe, mai la tua email.",
+      "save": "Salva",
+      "saving": "Salvataggio in corso...",
+      "saved": "Nome visualizzato aggiornato."
     },
     "staff": {
       "title": "Personale",

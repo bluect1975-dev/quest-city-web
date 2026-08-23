@@ -135,6 +135,23 @@ export function validateClassName(value: unknown): string {
   return value;
 }
 
+/**
+ * `PATCH /me/staff-profile` (Pilot Product Experience Residual Closure,
+ * Tranche H1). Trims before validating/storing — the DB-level CHECK
+ * constraints (migration 0017) require the stored value to already equal
+ * its own trim, so this is the single place that trims, not a duplicate.
+ */
+export function validateDisplayName(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new StaffIdentityError("VALIDATION_ERROR", "displayName must be a string");
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 120) {
+    throw new StaffIdentityError("VALIDATION_ERROR", "displayName must be 1-120 non-empty characters");
+  }
+  return trimmed;
+}
+
 const MEMBERSHIP_STATUS_ACTIONS = new Set(["SUSPEND", "REACTIVATE", "REVOKE"]);
 
 export function validateMembershipStatusAction(value: unknown): "SUSPEND" | "REACTIVATE" | "REVOKE" {
