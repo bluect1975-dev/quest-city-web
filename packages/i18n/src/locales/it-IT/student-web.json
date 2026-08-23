@@ -52,11 +52,21 @@
   },
   "path": {
     "title": "Il mio percorso",
-    "description": "Le attività del tuo percorso didattico, in ordine.",
+    "description": "Dove sei nel tuo percorso didattico: cosa hai completato, cosa puoi fare ora e cosa è ancora bloccato. Per l'elenco di ciò che ti è stato assegnato, vai su \"Assegnazioni\".",
     "loading": "Caricamento del percorso in corso...",
     "error": "Non è stato possibile caricare il tuo percorso.",
     "emptyTitle": "Il tuo percorso non è ancora disponibile",
-    "emptyDescription": "Il tuo insegnante non ti ha ancora assegnato attività. Nel frattempo puoi continuare il percorso completo dalla Home."
+    "emptyDescription": "Il tuo insegnante non ti ha ancora assegnato attività. Nel frattempo puoi continuare il percorso completo dalla Home.",
+    "progressLabel": "Completate {completed} di {total}",
+    "subjectLabel": {
+      "MAT": "Matematica"
+    },
+    "stateLabel": {
+      "COMPLETED": "Completata",
+      "CURRENT": "In corso",
+      "AVAILABLE": "Disponibile",
+      "LOCKED": "Bloccata"
+    }
   },
   "assignmentsPage": {
     "title": "Assegnazioni",

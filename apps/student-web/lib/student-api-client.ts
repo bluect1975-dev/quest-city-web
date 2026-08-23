@@ -164,6 +164,32 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
   return envelope.data;
 }
 
+/**
+ * `GET /me/path` (Pilot Product Experience Residual Closure, Tranche H3)
+ * — "Il mio percorso", closes `NEW-GAP-STUDENT-PATH-VIEW-01`. Unlike
+ * `MyAssignment` above, `pathState` is a real server-side GLPC resolution
+ * (`resolveEffectiveForLaunchAttempt`), not just an attempt-completion
+ * label — `LOCKED` reflects an actual GLPC policy, never fabricated.
+ */
+export interface MyPathItem {
+  assignmentId: string;
+  contentBundleId: string | null;
+  title: string;
+  subjectId: string | null;
+  pathState: "COMPLETED" | "LOCKED" | "CURRENT" | "AVAILABLE";
+  dueAt: string | null;
+}
+
+export interface MyPath {
+  items: MyPathItem[];
+  progress: { completedCount: number; totalCount: number };
+}
+
+export async function getMyPath(): Promise<MyPath> {
+  const envelope = await request<Envelope<MyPath>>("/me/path");
+  return envelope.data;
+}
+
 /** M06 Web Full Vertical Slice Tranche 1 (`07_26 v1.0` §14) — same shape as `WebM4Activity`, resolved from the second real assignment. */
 export type WebTranche1Activity = WebM4Activity;
 

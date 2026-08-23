@@ -17,17 +17,17 @@ vi.mock("../../../lib/student-auth-context", () => ({
   }),
 }));
 
-const getMyAssignments = vi.fn();
+const getMyPath = vi.fn();
 
 vi.mock("../../../lib/student-api-client", () => ({
-  getMyAssignments: (...args: unknown[]) => getMyAssignments(...args),
+  getMyPath: (...args: unknown[]) => getMyPath(...args),
 }));
 
 describe("MyPathPage", () => {
   beforeEach(() => {
     authStatus = "authenticated";
     routerReplace.mockClear();
-    getMyAssignments.mockReset();
+    getMyPath.mockReset();
   });
 
   it("redirects to /w/login when unauthenticated", () => {
@@ -36,18 +36,35 @@ describe("MyPathPage", () => {
     expect(routerReplace).toHaveBeenCalledWith("/w/login");
   });
 
-  it("renders the real ordered assignment sequence as path steps", async () => {
-    getMyAssignments.mockResolvedValue([
-      { assignmentId: "asn-1", contentBundleId: "bnd-1", title: "Tappa 1", completionStatus: "COMPLETED", latestAttemptId: null, dueAt: null },
-      { assignmentId: "asn-2", contentBundleId: "bnd-2", title: "Tappa 2", completionStatus: "IN_PROGRESS", latestAttemptId: null, dueAt: null },
-    ]);
+  it("renders each item's real GLPC-derived state — completed, locked, current, available — never fabricated", async () => {
+    getMyPath.mockResolvedValue({
+      items: [
+        { assignmentId: "asn-1", contentBundleId: "bnd-1", title: "Tappa 1", subjectId: "MAT", pathState: "COMPLETED", dueAt: null },
+        { assignmentId: "asn-2", contentBundleId: "bnd-2", title: "Tappa 2", subjectId: "MAT", pathState: "CURRENT", dueAt: null },
+        { assignmentId: "asn-3", contentBundleId: "bnd-3", title: "Tappa 3", subjectId: "MAT", pathState: "LOCKED", dueAt: null },
+        { assignmentId: "asn-4", contentBundleId: "bnd-4", title: "Tappa 4", subjectId: "MAT", pathState: "AVAILABLE", dueAt: null },
+      ],
+      progress: { completedCount: 1, totalCount: 4 },
+    });
     render(<MyPathPage />);
-    expect(await screen.findByText("Tappa 1")).toBeInTheDocument();
-    expect(screen.getByText("Tappa 2")).toBeInTheDocument();
+    expect(await screen.findByText("Tappa 1 — Completata")).toBeInTheDocument();
+    expect(screen.getByText("Tappa 2 — In corso")).toBeInTheDocument();
+    expect(screen.getByText("Tappa 3 — Bloccata")).toBeInTheDocument();
+    expect(screen.getByText("Tappa 4 — Disponibile")).toBeInTheDocument();
+  });
+
+  it("groups items by real subject and shows a real overall progress count", async () => {
+    getMyPath.mockResolvedValue({
+      items: [{ assignmentId: "asn-1", contentBundleId: "bnd-1", title: "Tappa 1", subjectId: "MAT", pathState: "AVAILABLE", dueAt: null }],
+      progress: { completedCount: 0, totalCount: 1 },
+    });
+    render(<MyPathPage />);
+    expect(await screen.findByText("Matematica")).toBeInTheDocument();
+    expect(screen.getByText("Completate 0 di 1")).toBeInTheDocument();
   });
 
   it("shows a real empty state when the student has no assignments yet", async () => {
-    getMyAssignments.mockResolvedValue([]);
+    getMyPath.mockResolvedValue({ items: [], progress: { completedCount: 0, totalCount: 0 } });
     render(<MyPathPage />);
     expect(await screen.findByText("Il tuo percorso non è ancora disponibile")).toBeInTheDocument();
   });

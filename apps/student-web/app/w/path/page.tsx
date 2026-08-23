@@ -1,36 +1,39 @@
 "use client";
 
-import { EmptyState, ProgressSteps, StatusMessage } from "@quest-city-web/ui";
+import { EmptyState, ProgressSteps, StatusMessage, type ProgressStepState } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
-import { getMyAssignments } from "../../../lib/student-api-client";
+import { getMyPath, type MyPath, type MyPathItem } from "../../../lib/student-api-client";
 import { useAuthedResource } from "../../../lib/use-authed-resource";
+import { subjectLabel } from "../../../lib/subject-label";
 
-const STEP_STATE = {
+const STEP_STATE: Record<MyPathItem["pathState"], ProgressStepState> = {
   COMPLETED: "completed",
-  IN_PROGRESS: "current",
-  // "next" rather than "locked": GLPC gating is not resolved for this view
-  // (see doc comment below) — these assignments are actually startable in
-  // any order today, so "locked" would misrepresent real availability.
-  NOT_STARTED: "next",
-} as const;
+  CURRENT: "current",
+  AVAILABLE: "next",
+  LOCKED: "locked",
+};
 
 /**
- * `/w/path` — "Il mio percorso" (Pilot Product Experience Remediation G4,
- * §15). Scope decision, documented rather than silently assumed: this
- * mission found no student-callable GLPC/curriculum-tree endpoint (only
- * staff-facing `GET /learning-path/effective` and the class/student
- * preview routes exist — see the Feature Inventory). Building a full
- * locked/available/completed curriculum-tree viewer would require new
- * backend plumbing beyond this tranche's scope. Rather than fabricate
- * that tree client-side, this page renders the student's own
- * `STAFF_GENERAL` assignments (`GET /me/assignments`, already
- * server-ordered by due date then creation) as an explicit ordered
- * sequence — real data, real order, honestly narrower than the full §15
- * mandate. Tracked as `NEW-GAP-STUDENT-PATH-VIEW-01` for a future
- * dedicated tranche once a student-facing GLPC read endpoint exists.
+ * `/w/path` — "Il mio percorso" (Pilot Product Experience Residual
+ * Closure, Tranche H3, closes `NEW-GAP-STUDENT-PATH-VIEW-01`). Backed by
+ * `GET /me/path`: each item's state is a real server-side GLPC resolution
+ * (`resolveEffectiveForLaunchAttempt`, the same resolver `POST
+ * /assignments/{id}/launch-context` already enforces), not merely an
+ * attempt-completion label re-labelled — the prior version of this page
+ * had zero GLPC involvement (disclosed gap this tranche closes).
+ *
+ * No subject/module/unit curriculum tree exists in this schema (no table
+ * was ever migrated for it — 02_25's conceptual model, migration 0013's
+ * own header comment). This page does not fabricate one: it groups by the
+ * one real hierarchy level that exists (`content_bundle.subject_id`) and
+ * otherwise shows the student's real assignments annotated with a real
+ * GLPC-derived state. Deliberately distinct from "Assegnazioni" (`/w/
+ * assignments`, mission §27): that page answers "what was I assigned",
+ * this one answers "where am I in it" — same underlying assignments,
+ * different lens, never presented as two near-identical lists.
  */
 export default function MyPathPage() {
-  const { authStatus, data, error, loading } = useAuthedResource(getMyAssignments);
+  const { authStatus, data, error, loading } = useAuthedResource(getMyPath);
 
   if (authStatus === "loading" || authStatus === "unauthenticated") {
     return (
@@ -46,21 +49,51 @@ export default function MyPathPage() {
       <p>{t(STUDENT_WEB_CATALOG_IT_IT, "path.description")}</p>
       {loading && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "path.loading")}</StatusMessage>}
       {!loading && error && <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "path.error")}</StatusMessage>}
-      {!loading && !error && data && data.length === 0 && (
+      {!loading && !error && data && data.items.length === 0 && (
         <EmptyState
           title={t(STUDENT_WEB_CATALOG_IT_IT, "path.emptyTitle")}
           description={t(STUDENT_WEB_CATALOG_IT_IT, "path.emptyDescription")}
         />
       )}
-      {!loading && !error && data && data.length > 0 && (
-        <ProgressSteps
-          steps={data.map((assignment) => ({
-            id: assignment.assignmentId,
-            label: assignment.title,
-            state: STEP_STATE[assignment.completionStatus],
-          }))}
-        />
-      )}
+      {!loading && !error && data && data.items.length > 0 && <PathView data={data} />}
     </main>
   );
+}
+
+function PathView({ data }: { data: MyPath }) {
+  const groups = groupBySubject(data.items);
+
+  return (
+    <>
+      <p role="status">
+        {t(STUDENT_WEB_CATALOG_IT_IT, "path.progressLabel", {
+          params: { completed: String(data.progress.completedCount), total: String(data.progress.totalCount) },
+        })}
+      </p>
+      {groups.map(([subjectId, items]) => (
+        <section key={subjectId ?? "unknown"} className="qc-card">
+          {subjectId && <h2>{subjectLabel(subjectId)}</h2>}
+          <ProgressSteps
+            steps={items.map((item) => ({
+              id: item.assignmentId,
+              state: STEP_STATE[item.pathState],
+              label: `${item.title} — ${t(STUDENT_WEB_CATALOG_IT_IT, `path.stateLabel.${item.pathState}`)}`,
+            }))}
+          />
+        </section>
+      ))}
+    </>
+  );
+}
+
+/** `Map` iterates in insertion order, so grouping preserves the API's own (due-date-then-creation) ordering — no separate re-sort needed. */
+function groupBySubject(items: MyPathItem[]): Array<[string | null, MyPathItem[]]> {
+  const bySubject = new Map<string | null, MyPathItem[]>();
+  for (const item of items) {
+    if (!bySubject.has(item.subjectId)) {
+      bySubject.set(item.subjectId, []);
+    }
+    bySubject.get(item.subjectId)!.push(item);
+  }
+  return [...bySubject.entries()];
 }
