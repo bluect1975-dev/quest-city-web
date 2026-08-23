@@ -10,7 +10,11 @@ FROM base AS deps
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* .npmrc* ./
 COPY apps/dashboard/package.json apps/dashboard/package.json
 COPY packages ./packages
-RUN pnpm install --frozen-lockfile --filter @quest-city-web/dashboard...
+# BuildKit cache mount for pnpm's content-addressable store: see
+# api.Dockerfile for why this is needed (persists independently of image
+# layer caching / `docker compose down -v` between verify.sh runs).
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --filter @quest-city-web/dashboard...
 
 FROM deps AS build
 COPY . .
