@@ -1,0 +1,16 @@
+{
+  "artifactId": "qc-platform-openapi-product-experience-residual-closure",
+  "artifactVersion": "1.20.0",
+  "schemaVersion": "openapi-3.1.0",
+  "sourceRepository": "quest-city-roblox",
+  "sourceBranch": "main",
+  "sourceCommit": "6b533d4",
+  "sourcePath": "contracts/quest-city-platform-openapi-v1_20.yaml",
+  "sourceDocument": "Pilot Product Experience Residual Closure mission report (no dedicated 02_NN spec -- this is a contracts-first formalization of already-implemented Web endpoints, not a new canonical product spec)",
+  "checksum": "sha256:53cc46b528bf62f403f331034c2afaa7944e36297fcd7cbc39a9bfaf40ec3d86",
+  "syncedAt": "2026-08-23",
+  "compatibleRuntimes": ["WEB"],
+  "syncMethod": "manual-verified-copy",
+  "note": "Closes CONTRACT-LINEAGE-RESIDUAL-01. Formalizes 3 endpoints shipped by the prior Pilot Product Experience Remediation mission without a vendored contract (GET /me/class, GET /content, GET /classes/{classId}/assignments -- each previously disclosed as PRE_EXISTING_OPENAPI_*_LINEAGE_DEBT in this same index.ts) plus 2 new endpoints from this mission (GET/PATCH /me/staff-profile, GET /me/path). Every schema in this file was verified field-by-field against the real, currently-implemented route source at closure time (AGENTS.md v4.71 SS4.36 rule 6), not drafted from the original design intent. Additive over v1.19.0 -- no prior path/schema/security scheme removed or altered.",
+  "resyncProcedure": "Re-read contracts/quest-city-platform-openapi-v1_20.yaml (or its successor version) from quest-city-roblox, recompute sha256 with `sha256sum`, replace this file and vendor/quest-city-platform-openapi-v1_20.yaml together, bump artifactVersion/checksum/syncedAt/sourceCommit, and re-run `openapi-spec-validator` before committing."
+}
