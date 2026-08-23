@@ -1,0 +1,572 @@
+openapi: 3.1.0
+info:
+  title: Quest City Platform API
+  version: 1.20.0
+  description: >-
+    Pilot Product Experience Residual Closure — closes
+    `CONTRACT-LINEAGE-RESIDUAL-01`: the three endpoints shipped by the
+    prior "Pilot Product Experience Remediation" mission (`GET /me/class`,
+    `GET /content`, `GET /classes/{classId}/assignments`) were released
+    without a vendored OpenAPI version, each disclosed at the time as
+    `PRE_EXISTING_OPENAPI_*_LINEAGE_DEBT`. This version formalizes all
+    three exactly as implemented, plus the two genuinely new endpoints
+    this mission adds: `GET`/`PATCH /me/staff-profile` (self-service
+    display name, closes `NEW-GAP-STAFF-DISPLAY-NAME-01`) and
+    `GET /me/path` (real GLPC-derived student path, closes
+    `NEW-GAP-STUDENT-PATH-VIEW-01`). `GET /content`'s response also gains
+    `title` (closes `NEW-GAP-CONTENT-BUNDLE-NO-TITLE-01`).
+
+    Additive over v1.19.0; v1.2.0 through v1.19.0 remain available
+    unchanged as separate immutable artifacts — no prior path, schema, or
+    security scheme is removed or altered. `GET /me/class`'s shape here is
+    a REDECLARATION of the path (never vendored before): `teachers[]`
+    replaces the never-vendored, code-only `assignedTeacherCount` field —
+    there is no earlier vendored version of this path to stay additive
+    over.
+servers:
+- url: https://api.questcity.example/api/v1
+  description: Production placeholder
+- url: https://staging-api.questcity.example/api/v1
+  description: Staging placeholder
+paths:
+  /me/class:
+    get:
+      summary: The authenticated student's own class, school, and the real
+        teachers assigned to it (never email or an internal id).
+      operationId: getMyClass
+      security:
+      - studentSessionCookie: []
+      responses:
+        '200':
+          description: The student's class/school/enrollment context, plus
+            every teacher assigned to the class with their real
+            `displayName` (`null` if that teacher has never set one via
+            `PATCH /me/staff-profile` — the client renders the documented
+            fallback label, never email or a `staff_account_id`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMyClassResponse'
+        '401':
+          $ref: '#/components/responses/StudentSessionExpired'
+  /me/staff-profile:
+    get:
+      summary: The authenticated staff member's own email and display name.
+      operationId: getMyStaffProfile
+      security:
+      - staffSessionCookie: []
+      responses:
+        '200':
+          description: Self-view only — `email` is included here because this
+            is the account's own record, unlike `GET /me/class`'s
+            `teachers[]`, which never includes email for a third party.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffProfileResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+    patch:
+      summary: Set the authenticated staff member's own display name.
+        Self-service only — there is no `staffAccountId` in the request
+        body; the session is the only account this operation ever writes
+        to.
+      operationId: updateMyStaffProfile
+      security:
+      - staffSessionCookie: []
+      - staffCsrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMyStaffProfileRequest'
+      responses:
+        '200':
+          description: The updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffProfileResponse'
+        '400':
+          description: VALIDATION_ERROR — `displayName` is empty after
+            trimming, or longer than 120 characters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — missing/invalid CSRF token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /content:
+    get:
+      summary: The real content catalog a teacher picks from when assigning
+        content — replaces the raw `content_bundle.public_id` text field
+        (`UX-CONTENT-ASSIGNMENT-01`).
+      operationId: listContentCatalog
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - name: subjectId
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Exact match against the stored `content_bundle.subject_id`
+          code (e.g. `MAT`) — there is no `subject_catalogue` lookup table
+          to validate against or translate to a display name.
+      responses:
+        '200':
+          description: Every `PUBLISHED`, WEB-compatible content bundle.
+            `content_bundle` is GLOBAL, not tenant-scoped, so this is
+            visible to any authenticated staff member — the same scope
+            the raw-id field already implicitly allowed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListContentCatalogResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+  /classes/{classId}/assignments:
+    get:
+      summary: The persistent list of every assignment created for this
+        class (`UX-CLASS-ASSIGNMENT-LIST-01`) — a teacher who assigned
+        content previously had no way to see it again short of
+        remembering it themselves.
+      operationId: listClassAssignments
+      security:
+      - staffSessionCookie: []
+      parameters:
+      - $ref: '#/components/parameters/ClassId'
+      responses:
+        '200':
+          description: Every assignment for the class, any status/origin type
+            (deliberately broader than the student-facing discovery
+            filter, which only ever shows `STAFF_GENERAL`+`PUBLISHED`).
+            Never exposes `contentBundleId` or any internal id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListClassAssignmentsResponse'
+        '401':
+          $ref: '#/components/responses/StaffUnauthorized'
+        '403':
+          description: STAFF_FORBIDDEN — `classId` is outside the caller's
+            class scope (`assertClassInScope`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /me/path:
+    get:
+      summary: "\"Il mio percorso\": the student's real assignments annotated\
+        \ with a real, server-resolved GLPC availability state — never a\
+        \ fabricated curriculum tree (`NEW-GAP-STUDENT-PATH-VIEW-01`)."
+      operationId: getMyPath
+      security:
+      - studentSessionCookie: []
+      responses:
+        '200':
+          description: Each item's `pathState` is derived from the SAME GLPC
+            resolver `POST /assignments/{assignmentId}/launch-context`
+            already enforces at attempt start (`resourceType` =
+            "UNIT_ELEMENT", `resourceRef` = the content bundle's real
+            `public_id`) combined with real attempt-completion state — an
+            already-COMPLETED item stays COMPLETED even if a policy later
+            disables it; otherwise GLPC unavailability produces LOCKED.
+            No subject/module/unit curriculum tree exists in this schema
+            (never migrated); items are grouped only by the one real
+            hierarchy level that exists, `content_bundle.subject_id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMyPathResponse'
+        '401':
+          $ref: '#/components/responses/StudentSessionExpired'
+
+components:
+  securitySchemes:
+    staffSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_staff_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_6.yaml. Redeclared here
+        only because each versioned contract file is self-contained for
+        its own $ref resolution (same convention as v1.9.0/v1.10.0).
+    staffCsrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Same synchronizer-token mechanism and header name as every
+        prior staff-session-mutating operation in this lineage.
+    studentSessionCookie:
+      type: apiKey
+      in: cookie
+      name: qc_web_session
+      description: Same cookie, table and credential model already defined by
+        contracts/quest-city-platform-openapi-v1_3.yaml. Redeclared here
+        only for this file's own $ref resolution, same convention as
+        v1.10.0. Both operations in this file are reads, so no CSRF
+        header parameter is required.
+  parameters:
+    ClassId:
+      name: classId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: The class's public-format id (`cls_...`).
+  responses:
+    StaffUnauthorized:
+      description: STAFF_AUTH_REQUIRED — no valid staff session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    StudentSessionExpired:
+      description: SESSION_EXPIRED — no valid student session, or the
+        session's enrollment/class/tenant could no longer be resolved.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Meta:
+      type: object
+      required:
+      - api_version
+      properties:
+        request_id:
+          type: string
+        api_version:
+          type: string
+          const: v1
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - domain
+      - code
+      - httpStatus
+      - message
+      - correlationId
+      - retryable
+      properties:
+        domain:
+          type: string
+          enum:
+          - PLATFORM
+          - CONTENT_RUNTIME
+          - CROSS_RUNTIME
+        code:
+          type: string
+          description: PLATFORM domain uses the pre-existing staff codes
+            (STAFF_AUTH_REQUIRED, STAFF_FORBIDDEN, VALIDATION_ERROR — no
+            new PLATFORM code introduced by this file). CROSS_RUNTIME
+            reuses SESSION_EXPIRED (pre-existing). No new error code is
+            introduced by this contract version.
+        httpStatus:
+          type: integer
+        message:
+          type: string
+        correlationId:
+          type: string
+        retryable:
+          type: boolean
+
+    StaffTeacherDisplayEntry:
+      type: object
+      additionalProperties: false
+      required:
+      - displayName
+      properties:
+        displayName:
+          type:
+          - string
+          - 'null'
+          description: Never email, never a `staff_account_id` or any other
+            internal id. `null` means this teacher has never set one.
+
+    GetMyClassResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+          - classPublicId
+          - className
+          - schoolName
+          - enrollmentStatus
+          - teachers
+          properties:
+            classPublicId:
+              type: string
+            className:
+              type: string
+            schoolName:
+              type: string
+            enrollmentStatus:
+              type: string
+              enum:
+              - ACTIVE
+              - SUSPENDED
+            teachers:
+              type: array
+              items:
+                $ref: '#/components/schemas/StaffTeacherDisplayEntry'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    StaffProfile:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      - displayName
+      properties:
+        email:
+          type: string
+          format: email
+        displayName:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 120
+
+    StaffProfileResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          $ref: '#/components/schemas/StaffProfile'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    UpdateMyStaffProfileRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - displayName
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Trimmed server-side before validation/storage; the
+            stored value always equals its own trim.
+
+    ContentBundleType:
+      type: string
+      enum:
+      - COURSE_CATALOG_BUNDLE
+      - LESSON_BUNDLE
+      - ACTIVITY_BUNDLE
+      - THEME_BUNDLE
+      - ASSET_BUNDLE
+      - LOCALIZATION_BUNDLE
+      - RUNTIME_FIXTURE_BUNDLE
+
+    ContentCatalogEntry:
+      type: object
+      additionalProperties: false
+      required:
+      - contentBundleId
+      - title
+      - subjectId
+      - bundleType
+      - bundleVersion
+      - publishedAt
+      properties:
+        contentBundleId:
+          type: string
+          description: Public-format id (`bnd_...`), never the internal uuid.
+        title:
+          type:
+          - string
+          - 'null'
+          description: Real, source-cited human title. `null` for a bundle no
+            canonical title has been traced for yet — never a fabricated
+            fallback; the caller decides how to render that state.
+        subjectId:
+          type: string
+        bundleType:
+          $ref: '#/components/schemas/ContentBundleType'
+        bundleVersion:
+          type: string
+        publishedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+
+    ListContentCatalogResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentCatalogEntry'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    AssignmentStatus:
+      type: string
+      enum:
+      - DRAFT
+      - PUBLISHED
+      - ARCHIVED
+
+    AssignmentOriginType:
+      type: string
+      enum:
+      - ADMIN_SEED
+      - RECOVERY_FROM_REVIEW
+      - STAFF_GENERAL
+
+    ClassAssignmentSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - assignmentId
+      - title
+      - status
+      - originType
+      - createdAt
+      - dueAt
+      properties:
+        assignmentId:
+          type: string
+          description: Public-format id (`asn_...`), never the internal uuid.
+        title:
+          type: string
+          description: Real, human-chosen title — freely entered by the
+            teacher (or seed operator) at assignment-creation time, not
+            derived from the content bundle.
+        status:
+          $ref: '#/components/schemas/AssignmentStatus'
+        originType:
+          $ref: '#/components/schemas/AssignmentOriginType'
+        createdAt:
+          type: string
+          format: date-time
+        dueAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+
+    ListClassAssignmentsResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassAssignmentSummary'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    PathState:
+      type: string
+      enum:
+      - COMPLETED
+      - LOCKED
+      - CURRENT
+      - AVAILABLE
+      description: >-
+        COMPLETED: the student already completed it (stays COMPLETED even
+        if a GLPC policy later disables it). LOCKED: not completed and
+        currently GLPC-unavailable. CURRENT: available and an attempt is
+        in progress. AVAILABLE: available and not yet started.
+
+    MyPathItem:
+      type: object
+      additionalProperties: false
+      required:
+      - assignmentId
+      - contentBundleId
+      - title
+      - subjectId
+      - pathState
+      - dueAt
+      properties:
+        assignmentId:
+          type: string
+          description: Public-format id (`asn_...`), never the internal uuid.
+        contentBundleId:
+          type:
+          - string
+          - 'null'
+          description: Public-format id (`bnd_...`), never the internal uuid.
+            `null` only on a data-integrity anomaly (its content_bundle
+            row is missing — the FK should prevent this).
+        title:
+          type: string
+          description: The assignment's own real title (same value
+            `GET /classes/{classId}/assignments` and
+            `GET /me/assignments` show) — deliberately not the content
+            bundle's title, so "Il mio percorso" and "Assegnazioni" never
+            diverge on what an item is called.
+        subjectId:
+          type:
+          - string
+          - 'null'
+        pathState:
+          $ref: '#/components/schemas/PathState'
+        dueAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+
+    GetMyPathResponse:
+      type: object
+      required:
+      - data
+      - meta
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+          - items
+          - progress
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/MyPathItem'
+            progress:
+              type: object
+              additionalProperties: false
+              required:
+              - completedCount
+              - totalCount
+              properties:
+                completedCount:
+                  type: integer
+                  minimum: 0
+                totalCount:
+                  type: integer
+                  minimum: 0
+        meta:
+          $ref: '#/components/schemas/Meta'

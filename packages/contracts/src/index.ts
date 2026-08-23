@@ -89,31 +89,23 @@
  * GitHub Actions workflow that would call this endpoint are out of scope
  * for the Web implementation consuming this contract version.
  *
- * DISCLOSED GAP — `GET /me/class` (Pilot Product Experience Remediation
- * Tranche G2, added alongside this note): every vendored file above was
- * synced from `quest-city-roblox` (the cross-repo source of truth per
- * ADR-0005) with a verified sha256 checksum against that source. This
- * change set has no access to that repository, so `GET /me/class` is
- * shipped WITHOUT a new vendored OpenAPI version — fabricating a
- * `sourceCommit`/checksum for a sync that never happened would falsify the
- * provenance record ADR-0005 exists to protect. The endpoint is still
- * covered by real integration tests (`tests/integration/`) that pin its
- * request/response shape. `PRE_EXISTING_OPENAPI_ME_CLASS_LINEAGE_DEBT`:
- * resolve by vendoring a proper `v1_20` (or successor) contract version
- * once a `quest-city-roblox` sync is actually performed — same disclosed-
- * debt pattern as v1_16's `PRE_EXISTING_OPENAPI_LAUNCH_CONTEXT_LINEAGE_DEBT`.
- *
- * DISCLOSED GAP — `GET /content` (Pilot Product Experience Remediation
- * Tranche G7, `UX-CONTENT-ASSIGNMENT-01`): same situation as `GET /me/class`
- * above — no `quest-city-roblox` access in this change set, so no vendored
- * OpenAPI version was added. Covered by `tests/integration/product-
- * experience-g7-content-catalog.test.ts`. `PRE_EXISTING_OPENAPI_CONTENT_CATALOG_LINEAGE_DEBT`.
- *
- * DISCLOSED GAP — `GET /classes/{classId}/assignments` (Pilot Product
- * Experience Remediation Tranche G8, `UX-CLASS-ASSIGNMENT-LIST-01`): same
- * situation as `GET /me/class` and `GET /content` above. Covered by
- * `tests/integration/product-experience-g8-class-assignment-list.test.ts`.
- * `PRE_EXISTING_OPENAPI_CLASS_ASSIGNMENT_LIST_LINEAGE_DEBT`.
+ * `vendor/quest-city-platform-openapi-v1_20.yaml` (provenance in
+ * `vendor/provenance-v1_20.json`) is the Pilot Product Experience Residual
+ * Closure contract, closing `CONTRACT-LINEAGE-RESIDUAL-01` (AGENTS.md
+ * §4.36): the prior mission's three `PRE_EXISTING_OPENAPI_ME_CLASS_LINEAGE_DEBT`
+ * / `PRE_EXISTING_OPENAPI_CONTENT_CATALOG_LINEAGE_DEBT` /
+ * `PRE_EXISTING_OPENAPI_CLASS_ASSIGNMENT_LIST_LINEAGE_DEBT` disclosures
+ * (`GET /me/class`, `GET /content`, `GET /classes/{classId}/assignments`
+ * — each shipped without a vendored version because that mission
+ * incorrectly believed `quest-city-roblox` was inaccessible, see §4.36
+ * rule 5) are formalized here, each verified field-by-field against its
+ * real route source at closure time, not the original design intent —
+ * `GET /me/class`'s shape changed from a code-only `assignedTeacherCount`
+ * to a real `teachers[]` array along the way, so this file documents what
+ * actually shipped, not what v1.19.0-era text implied it would. Two
+ * genuinely new endpoints ship in this same version: `GET`/`PATCH
+ * /me/staff-profile` and `GET /me/path`. Additive over v1.19.0; no prior
+ * path, schema, or security scheme is removed or altered.
  */
 
 export const CONTRACT_ARTIFACT_ID = "qc-platform-openapi";
@@ -133,6 +125,9 @@ export const CONTRACT_ARTIFACT_VERSION_V1_17 = "1.17.0";
 
 export const CONTRACT_ARTIFACT_ID_V1_18 = "qc-platform-openapi-master-admin-heartbeat";
 export const CONTRACT_ARTIFACT_VERSION_V1_18 = "1.18.0";
+
+export const CONTRACT_ARTIFACT_ID_V1_20 = "qc-platform-openapi-product-experience-residual-closure";
+export const CONTRACT_ARTIFACT_VERSION_V1_20 = "1.20.0";
 
 /**
  * Domain error codes defined by 07_05 §12. The API client must not infer
