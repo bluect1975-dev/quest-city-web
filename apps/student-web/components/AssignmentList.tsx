@@ -14,6 +14,15 @@ const ASSIGNMENT_STATUS_TONE = {
  * G4) — extracted from `/w/home` (UI-R2) so `/w/home`'s compact list and
  * the new dedicated `/w/assignments` full list never drift into two
  * slightly different renderings of the same `MyAssignment[]` data.
+ *
+ * UAT Failure Remediation (`UAT-RC4-STUDENT-REVIEW-COMPLETED-ATTEMPT-01`):
+ * a COMPLETED assignment's CTA must open the read-only result/review page
+ * (`/w/result/{attemptId}`), never `/w/activity/{assignmentId}` — that
+ * route re-drives the live launch/sequence-host flow meant for playing an
+ * activity, which has no "review a finished attempt" mode and previously
+ * surfaced a state error instead. `/me/assignments` already resolves a
+ * real `latestAttemptId` for a COMPLETED row (the attempt that actually
+ * finished it), so no new endpoint is needed here.
  */
 export function AssignmentList({ assignments }: { assignments: MyAssignment[] }) {
   return (
@@ -38,7 +47,13 @@ export function AssignmentList({ assignments }: { assignments: MyAssignment[] })
               </p>
             )}
           </div>
-          <Link href={`/w/activity/${encodeURIComponent(assignment.assignmentId)}`}>
+          <Link
+            href={
+              assignment.completionStatus === "COMPLETED" && assignment.latestAttemptId
+                ? `/w/result/${encodeURIComponent(assignment.latestAttemptId)}`
+                : `/w/activity/${encodeURIComponent(assignment.assignmentId)}`
+            }
+          >
             <Button type="button" variant="secondary">
               {t(
                 STUDENT_WEB_CATALOG_IT_IT,

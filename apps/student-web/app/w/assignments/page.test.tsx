@@ -45,7 +45,9 @@ describe("AssignmentsPage", () => {
     expect(await screen.findByText("Compito A")).toBeInTheDocument();
     expect(screen.getByText("Compito B")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Inizia" })).toHaveAttribute("href", "/w/activity/asn-1");
-    expect(screen.getByRole("link", { name: "Rivedi" })).toHaveAttribute("href", "/w/activity/asn-2");
+    // UAT-RC4-STUDENT-REVIEW-COMPLETED-ATTEMPT-01: a completed assignment opens the
+    // read-only result/review page for its real finishing attempt, never the live launch flow.
+    expect(screen.getByRole("link", { name: "Rivedi" })).toHaveAttribute("href", "/w/result/att-1");
   });
 
   it("shows a real empty state, not an error, when there are no assignments", async () => {

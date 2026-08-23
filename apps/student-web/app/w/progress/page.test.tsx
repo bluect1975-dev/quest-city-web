@@ -45,19 +45,47 @@ describe("ProgressPage", () => {
     expect(await screen.findByText("Nessun progresso ancora registrato")).toBeInTheDocument();
   });
 
-  it("shows the real aggregate total and per-status breakdown", async () => {
+  it("headline counts real completed activities only, never raw attempts (UAT-RC4-STUDENT-PROGRESS-ACTIVITY-COUNT-01)", async () => {
     getProgressSummary.mockResolvedValue({
       studentPublicId: "std_1",
       aggregate: {
-        totalAttempts: 5,
-        byAttemptState: { COMPLETED: 3, IN_PROGRESS: 2 },
-        byCompletionStatus: { COMPLETED: 3, IN_PROGRESS: 1, NOT_STARTED: 0 },
+        totalAttempts: 4,
+        // Mirrors the real UAT dataset: 1 real COMPLETED activity, 3 empty
+        // CREATED attempts that were never played — those must never be
+        // counted as "attività svolte".
+        byAttemptState: { COMPLETED: 1, CREATED: 3 },
+        byCompletionStatus: { CONSOLIDATED: 1 },
       },
     });
     render(<ProgressPage />);
-    expect(await screen.findByText("5")).toBeInTheDocument();
-    expect(screen.getByText("Completata")).toBeInTheDocument();
-    expect(screen.getByText("In corso")).toBeInTheDocument();
-    expect(screen.queryByText("Da iniziare")).not.toBeInTheDocument();
+    // Headline "Attività completate" is 1, not the raw total of 4.
+    expect(await screen.findByText("Attività completate")).toBeInTheDocument();
+    const completedCard = (await screen.findByText("Attività completate")).closest(".qc-stats-card");
+    expect(completedCard).toHaveTextContent("1");
+    // The breakdown reconciles exactly to totalAttempts, with no raw enum leaking.
+    expect(screen.getByText("Completate")).toBeInTheDocument();
+    expect(screen.getByText("Non avviati")).toBeInTheDocument();
+    expect(screen.queryByText("CREATED")).not.toBeInTheDocument();
+    expect(screen.queryByText("CONSOLIDATED")).not.toBeInTheDocument();
+    // The raw "all states" total is still disclosed, but as an explicit secondary figure.
+    expect(screen.getByText(/Tentativi totali \(tutti gli stati\): 4/)).toBeInTheDocument();
+  });
+
+  it("shows the in-progress count separately from completed, and an empty verification section when nothing is completed yet", async () => {
+    getProgressSummary.mockResolvedValue({
+      studentPublicId: "std_1",
+      aggregate: {
+        totalAttempts: 2,
+        byAttemptState: { IN_PROGRESS: 1, COMPLETION_SUBMITTED: 1 },
+        byCompletionStatus: {},
+      },
+    });
+    render(<ProgressPage />);
+    // "In corso" appears twice by design: the headline stats-card (IN_PROGRESS +
+    // COMPLETION_SUBMITTED combined) and the reconciled per-state breakdown's own IN_PROGRESS row.
+    const inProgressMatches = await screen.findAllByText("In corso");
+    const inProgressCard = inProgressMatches.map((el) => el.closest(".qc-stats-card")).find(Boolean);
+    expect(inProgressCard).toHaveTextContent("2");
+    expect(screen.queryByText("Dettaglio verifica delle attività completate")).not.toBeInTheDocument();
   });
 });
