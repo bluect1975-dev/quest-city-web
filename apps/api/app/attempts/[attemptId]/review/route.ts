@@ -62,6 +62,9 @@ export async function GET(
       {
         data: {
           attemptId: attempt.id,
+          attemptState: attempt.attemptState,
+          startedAt: attempt.startedAt.toISOString(),
+          completedAt: attempt.completedAt ? attempt.completedAt.toISOString() : null,
           studentAnswer: latestResponse?.responseJson ?? {},
           semanticActions: semanticActions.map((a) => ({
             actionId: a.actionId,
