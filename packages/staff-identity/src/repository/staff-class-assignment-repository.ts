@@ -78,6 +78,33 @@ export class StaffClassAssignmentRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  /**
+   * Student-facing only (`GET /me/class`, Tranche H1 — closes
+   * `NEW-GAP-STAFF-DISPLAY-NAME-01`): the real display names of every
+   * teacher assigned to one class, tenant-scoped at every join hop
+   * (`staff_class_assignment` -> `staff_tenant_membership` ->
+   * `staff_account`, all three filtered by the same `tenant_id`) so a
+   * cross-tenant row can never leak through a shared `staff_account_id`.
+   * Returns `displayName: null` for a teacher who has never set one — the
+   * caller decides the student-facing fallback label, never this
+   * repository (no email is selected here at all, so it cannot leak even
+   * by accident).
+   */
+  async findDisplayNamesByClass(classId: string, tenantId: string): Promise<Array<{ displayName: string | null }>> {
+    const result = await this.db.query<{ display_name: string | null }>(
+      `SELECT sa.display_name
+       FROM staff_class_assignment sca
+       JOIN staff_tenant_membership stm
+         ON stm.id = sca.staff_tenant_membership_id AND stm.tenant_id = sca.tenant_id
+       JOIN staff_account sa
+         ON sa.id = stm.staff_account_id
+       WHERE sca.class_id = $1 AND sca.tenant_id = $2
+       ORDER BY sca.created_at ASC`,
+      [classId, tenantId],
+    );
+    return result.rows.map((row) => ({ displayName: row.display_name }));
+  }
+
   /** Administrative provisioning only (02_35 §4.2). Fails via DB trigger if the membership is not role = TEACHER. */
   async create(input: { staffTenantMembershipId: string; tenantId: string; classId: string }): Promise<StaffClassAssignment> {
     const result = await this.db.query<StaffClassAssignmentRow>(

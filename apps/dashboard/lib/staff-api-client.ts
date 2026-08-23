@@ -40,6 +40,7 @@ import type {
   StaffContext,
   StaffMember,
   StaffMembershipStatusResult,
+  StaffProfile,
   StaffRole,
   StudentProgressSummary,
   StudentRosterEntry,
@@ -145,6 +146,21 @@ export async function staffLogout(csrfToken: string | null): Promise<void> {
 
 export async function getStaffContext(): Promise<StaffContext> {
   const envelope = await request<Envelope<StaffContext>>("/me/staff-context");
+  return envelope.data;
+}
+
+/** `GET/PATCH /me/staff-profile` (Pilot Product Experience Residual Closure, Tranche H1) — self-service display name, closes `NEW-GAP-STAFF-DISPLAY-NAME-01`. */
+export async function getMyStaffProfile(): Promise<StaffProfile> {
+  const envelope = await request<Envelope<StaffProfile>>("/me/staff-profile");
+  return envelope.data;
+}
+
+export async function updateMyStaffProfile(input: { displayName: string; csrfToken: string }): Promise<StaffProfile> {
+  const envelope = await request<Envelope<StaffProfile>>("/me/staff-profile", {
+    method: "PATCH",
+    body: { displayName: input.displayName },
+    csrfToken: input.csrfToken,
+  });
   return envelope.data;
 }
 

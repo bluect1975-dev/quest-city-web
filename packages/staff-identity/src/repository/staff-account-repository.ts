@@ -27,6 +27,8 @@ export interface StaffAccount {
   lastLoginAt: Date | null;
   /** School Onboarding + Staff Membership (02_35 v1.2 §11bis.3, migration 0008): true only for a brand-new identity created directly by createStaffInvitation with a placeholder credential — flipped to false the moment acceptStaffInvitation sets a real password. */
   requiresPasswordSetup: boolean;
+  /** Pilot Product Experience Residual Closure (Tranche H1, migration 0017): self-chosen human-presentable name, set only via `PATCH /me/staff-profile`. NULL for every account that has never set one — never backfilled or defaulted from `email`. */
+  displayName: string | null;
 }
 
 interface StaffAccountRow {
@@ -43,10 +45,12 @@ interface StaffAccountRow {
   updated_at: Date;
   last_login_at: Date | null;
   requires_password_setup: boolean;
+  display_name: string | null;
 }
 
 const SELECT_COLUMNS = `id, email, password_hash, password_algorithm, status, failed_login_count, locked_until,
-       created_by_actor_type, created_by_actor_id, created_at, updated_at, last_login_at, requires_password_setup`;
+       created_by_actor_type, created_by_actor_id, created_at, updated_at, last_login_at, requires_password_setup,
+       display_name`;
 
 function mapRow(row: StaffAccountRow): StaffAccount {
   return {
@@ -63,6 +67,7 @@ function mapRow(row: StaffAccountRow): StaffAccount {
     updatedAt: row.updated_at,
     lastLoginAt: row.last_login_at,
     requiresPasswordSetup: row.requires_password_setup,
+    displayName: row.display_name,
   };
 }
 
@@ -159,5 +164,17 @@ export class StaffAccountRepository {
     const [row] = result.rows;
     if (!row) throw new Error("UPDATE ... RETURNING produced no row");
     return { failedLoginCount: row.failed_login_count, lockedUntil: row.locked_until };
+  }
+
+  /** Self-service only (`PATCH /me/staff-profile`, Tranche H1) — a staff member sets their own display name. `displayName` must already be trimmed/length-validated by the caller; the DB-level CHECK constraints (migration 0017) are a backstop, not the primary validation. */
+  async updateDisplayName(id: string, displayName: string): Promise<StaffAccount | null> {
+    const result = await this.db.query<StaffAccountRow>(
+      `UPDATE staff_account SET display_name = $2, updated_at = now()
+       WHERE id = $1
+       RETURNING ${SELECT_COLUMNS}`,
+      [id, displayName],
+    );
+    const [row] = result.rows;
+    return row ? mapRow(row) : null;
   }
 }
