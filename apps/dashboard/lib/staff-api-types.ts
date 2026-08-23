@@ -199,6 +199,8 @@ export interface RemoveRosterMemberResult {
  */
 export interface ContentCatalogEntry {
   contentBundleId: string;
+  /** Real, source-cited human title (Tranche H2). `null` for a bundle no canonical title has been traced for yet — never a fabricated value; the UI falls back to the composed subject/type/version label with an explicit "no title" indication. */
+  title: string | null;
   subjectId: string;
   bundleType: "COURSE_CATALOG_BUNDLE" | "LESSON_BUNDLE" | "ACTIVITY_BUNDLE" | "THEME_BUNDLE" | "ASSET_BUNDLE" | "LOCALIZATION_BUNDLE" | "RUNTIME_FIXTURE_BUNDLE";
   bundleVersion: string;

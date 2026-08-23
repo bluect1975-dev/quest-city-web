@@ -680,6 +680,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1115.0
         version: 3.1115.0
+      '@quest-city-web/attempts':
+        specifier: workspace:*
+        version: link:../packages/attempts
       '@quest-city-web/content-runtime':
         specifier: workspace:*
         version: link:../packages/content-runtime

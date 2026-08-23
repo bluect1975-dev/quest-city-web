@@ -513,20 +513,32 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
                       {...fieldProps}
                       required
                       value={contentBundleId}
-                      onChange={(e) => setContentBundleId(e.target.value)}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        setContentBundleId(selectedId);
+                        const selected = result.data.contentCatalog.find((entry) => entry.contentBundleId === selectedId);
+                        // Precompiles the (still freely editable) assignment
+                        // title from the bundle's real title as a default,
+                        // only when the teacher hasn't already typed one --
+                        // never overwrites in-progress input (§16, Tranche H2).
+                        if (selected?.title && assignmentTitle.trim().length === 0) {
+                          setAssignmentTitle(selected.title);
+                        }
+                      }}
                     >
                       <option value="" disabled>
                         {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentPickerPlaceholder")}
                       </option>
                       {result.data.contentCatalog.map((entry) => (
                         <option key={entry.contentBundleId} value={entry.contentBundleId}>
-                          {t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentPickerOptionLabel", {
-                            params: {
-                              subject: entry.subjectId,
-                              bundleType: t(DASHBOARD_CATALOG_IT_IT, `app.classDetail.bundleTypeLabel.${entry.bundleType}`),
-                              version: entry.bundleVersion,
-                            },
-                          })}
+                          {entry.title ??
+                            t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.assignContentPickerOptionLabelNoTitle", {
+                              params: {
+                                subject: entry.subjectId,
+                                bundleType: t(DASHBOARD_CATALOG_IT_IT, `app.classDetail.bundleTypeLabel.${entry.bundleType}`),
+                                version: entry.bundleVersion,
+                              },
+                            })}
                         </option>
                       ))}
                     </select>

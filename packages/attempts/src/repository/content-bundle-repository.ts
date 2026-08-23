@@ -22,6 +22,8 @@ export interface ContentBundle {
   publishedAt: Date | null;
   createdAt: Date;
   compatibleRuntimes: Array<"WEB" | "ROBLOX">;
+  /** Pilot Product Experience Residual Closure (Tranche H2, migration 0018): real, source-cited human title. `null` for a bundle no canonical title has been traced for yet — never a fabricated value. */
+  title: string | null;
 }
 
 interface ContentBundleRow {
@@ -35,9 +37,10 @@ interface ContentBundleRow {
   storage_ref: string;
   published_at: Date | null;
   created_at: Date;
+  title: string | null;
 }
 
-const SELECT_COLUMNS = `id, public_id, subject_id, bundle_version, bundle_type, status, manifest_hash, storage_ref, published_at, created_at`;
+const SELECT_COLUMNS = `id, public_id, subject_id, bundle_version, bundle_type, status, manifest_hash, storage_ref, published_at, created_at, title`;
 
 function mapRow(row: ContentBundleRow, runtimeChannels: Array<"WEB" | "ROBLOX">): ContentBundle {
   return {
@@ -52,6 +55,7 @@ function mapRow(row: ContentBundleRow, runtimeChannels: Array<"WEB" | "ROBLOX">)
     publishedAt: row.published_at,
     createdAt: row.created_at,
     compatibleRuntimes: runtimeChannels,
+    title: row.title,
   };
 }
 
@@ -85,8 +89,10 @@ export class ContentBundleRepository {
    * already implicitly allowed (any staff member who knew an ID could
    * assign it). `subjectId` filters on the exact stored code (e.g. `MAT`)
    * — there is no `subject_catalogue` lookup table in this schema yet, so
-   * no human-readable subject name exists to filter or display by; see
-   * `NEW-GAP-CONTENT-BUNDLE-NO-TITLE-01`.
+   * the raw code (not a human-readable subject name) is still what a
+   * filter/display groups by; `title` (Tranche H2, closes
+   * `NEW-GAP-CONTENT-BUNDLE-NO-TITLE-01`) is a real, source-cited human
+   * title, `null` when no canonical title has been traced for a bundle.
    */
   async findPublishedForWebRuntime(filters: { subjectId?: string } = {}): Promise<ContentBundle[]> {
     const conditions = [`cb.status = 'PUBLISHED'`, `crc.runtime_channel = 'WEB'`];
@@ -153,5 +159,22 @@ export class ContentBundleRepository {
       );
     }
     return mapRow(row, input.compatibleRuntimes);
+  }
+
+  /**
+   * Administrative/backfill provisioning only (`tools/backfill-content-
+   * bundle-titles.ts`, Tranche H2) — no public write endpoint exists,
+   * same convention as `create`. The sanctioned surface for setting a
+   * bundle's title, so operators never write `content_bundle.title`
+   * directly via raw SQL.
+   */
+  async updateTitle(publicId: string, title: string): Promise<ContentBundle | null> {
+    const result = await this.db.query<ContentBundleRow>(
+      `UPDATE content_bundle SET title = $2 WHERE public_id = $1 RETURNING ${SELECT_COLUMNS}`,
+      [publicId, title],
+    );
+    const [row] = result.rows;
+    if (!row) return null;
+    return mapRow(row, await this.runtimeChannelsFor(row.id));
   }
 }
