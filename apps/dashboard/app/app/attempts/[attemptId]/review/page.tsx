@@ -61,7 +61,7 @@ function HumanValue({ value }: { value: unknown }) {
     return (
       <ul className="qc-detail-list">
         {value.map((item, index) => (
-          // eslint-disable-next-line react/no-array-index-key -- items carry no stable id of their own here
+          // items carry no stable id of their own here
           <li key={index}>
             <HumanValue value={item} />
           </li>
