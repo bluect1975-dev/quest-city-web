@@ -9,13 +9,12 @@ import { useAuthedResource } from "../../../lib/use-authed-resource";
  * `/w/class` — "La mia classe" (Pilot Product Experience Remediation G4,
  * closing the Student Home rebuild mandate §12 and Feature Inventory gap
  * "La mia classe: API_MISSING + UI_MISSING"). Backed by `GET /me/class`
- * (G2) — real class name, real school name, real count of assigned
- * teachers. Deliberately does NOT show teacher names/emails: `staff_account`
- * has no display-name field (see `NEW-GAP-STAFF-DISPLAY-NAME-01`) and
- * showing the login email would violate the mission's own rule against
- * leaking staff/internal identity to students. Anno/indirizzo are
- * deliberately absent too — `school_class` has no such column (schema
- * gap, documented in the Feature Inventory, not invented here).
+ * (G2, `teachers[]` added Tranche H1, closes `NEW-GAP-STAFF-DISPLAY-NAME-01`)
+ * — real class name, real school name, real teacher names. A teacher who
+ * has never set a display name (`PATCH /me/staff-profile`) renders the
+ * documented fallback label here — never email or any internal id. Anno/
+ * indirizzo are deliberately absent — `school_class` has no such column
+ * (schema gap, documented in the Feature Inventory, not invented here).
  */
 export default function MyClassPage() {
   const { authStatus, data, error, loading } = useAuthedResource(getMyClass);
@@ -56,14 +55,16 @@ export default function MyClassPage() {
             <div>
               <dt>{t(STUDENT_WEB_CATALOG_IT_IT, "class.teachersLabel")}</dt>
               <dd>
-                {data.assignedTeacherCount === 0 &&
-                  t(STUDENT_WEB_CATALOG_IT_IT, "class.teachersCountZero")}
-                {data.assignedTeacherCount === 1 &&
-                  t(STUDENT_WEB_CATALOG_IT_IT, "class.teachersCountOne")}
-                {data.assignedTeacherCount > 1 &&
-                  t(STUDENT_WEB_CATALOG_IT_IT, "class.teachersCountMany", {
-                    params: { count: String(data.assignedTeacherCount) },
-                  })}
+                {data.teachers.length === 0 && t(STUDENT_WEB_CATALOG_IT_IT, "class.teachersCountZero")}
+                {data.teachers.length > 0 && (
+                  <ul className="qc-teacher-list">
+                    {data.teachers.map((teacher, index) => (
+                      <li key={index}>
+                        {teacher.displayName ?? t(STUDENT_WEB_CATALOG_IT_IT, "class.teacherNameFallback")}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </dd>
             </div>
           </dl>

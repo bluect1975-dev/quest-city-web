@@ -64,6 +64,10 @@ export function AppShell({ context, children }: { context: StaffContext; childre
     // reach the Class/Student-scoped views contextually from the class and
     // student detail pages instead, same pattern as support-events.
     ...(context.role === "SCHOOL_ADMIN" ? [{ href: "/app/learning-path-policies", labelKey: "app.nav.learningPathPolicies" }] : []),
+    // Pilot Product Experience Residual Closure (Tranche H1) -- every role
+    // may set its own display name, so this is the one nav item with no
+    // role condition at all.
+    { href: "/app/profile", labelKey: "app.nav.profile" },
   ];
 
   return (

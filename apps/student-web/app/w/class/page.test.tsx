@@ -36,19 +36,32 @@ describe("MyClassPage", () => {
     expect(routerReplace).toHaveBeenCalledWith("/w/login");
   });
 
-  it("shows real class, school and teacher-count data, never a raw UUID", async () => {
+  it("shows real class, school and real teacher names, never a raw UUID or email", async () => {
     getMyClass.mockResolvedValue({
       classPublicId: "cls_abc123",
       className: "Classe 2B",
       schoolName: "Istituto Test",
       enrollmentStatus: "ACTIVE",
-      assignedTeacherCount: 2,
+      teachers: [{ displayName: "Mario Rossi" }, { displayName: "Anna Bianchi" }],
     });
     render(<MyClassPage />);
     expect(await screen.findByText("Classe 2B")).toBeInTheDocument();
     expect(screen.getByText("Istituto Test")).toBeInTheDocument();
-    expect(screen.getByText("2 docenti assegnati a questa classe.")).toBeInTheDocument();
+    expect(screen.getByText("Mario Rossi")).toBeInTheDocument();
+    expect(screen.getByText("Anna Bianchi")).toBeInTheDocument();
     expect(screen.queryByText("cls_abc123")).not.toBeInTheDocument();
+  });
+
+  it("shows the documented fallback label for a teacher with no display name set, never their email", async () => {
+    getMyClass.mockResolvedValue({
+      classPublicId: "cls_y",
+      className: "Classe 4D",
+      schoolName: "Istituto Test",
+      enrollmentStatus: "ACTIVE",
+      teachers: [{ displayName: null }],
+    });
+    render(<MyClassPage />);
+    expect(await screen.findByText("Docente")).toBeInTheDocument();
   });
 
   it("shows a real, honest message when no teacher is assigned yet (not a fabricated name)", async () => {
@@ -57,7 +70,7 @@ describe("MyClassPage", () => {
       className: "Classe 3C",
       schoolName: "Istituto Test",
       enrollmentStatus: "ACTIVE",
-      assignedTeacherCount: 0,
+      teachers: [],
     });
     render(<MyClassPage />);
     expect(await screen.findByText("Nessun docente ancora assegnato a questa classe.")).toBeInTheDocument();

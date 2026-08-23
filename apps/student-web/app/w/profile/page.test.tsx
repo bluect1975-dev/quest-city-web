@@ -33,7 +33,7 @@ describe("ProfilePage", () => {
       className: "Classe 1A",
       schoolName: "Scuola Test",
       enrollmentStatus: "ACTIVE",
-      assignedTeacherCount: 1,
+      teachers: [{ displayName: "Mario Rossi" }],
     });
   });
 

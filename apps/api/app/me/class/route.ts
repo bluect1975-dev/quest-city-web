@@ -16,15 +16,15 @@ import { loadEnv } from "../../../lib/env";
  * same anti-enumeration discipline as `GET /me/assignments` — no
  * `classId`/`tenantId` accepted from the client.
  *
- * Deliberately returns only `assignedTeacherCount`, never teacher names or
- * emails: `staff_account` has no display-name field (only `email`, a
- * credential, not a presentable identity) — see
- * `NEW-GAP-STAFF-DISPLAY-NAME-01` in the mission report. Showing the email
- * would violate the mission's own "no technical/internal identity leaked
- * to students" rule (§13); showing nothing at all would silently regress
- * from "does the student have a class with a teacher" to no information.
- * The count is real, non-fabricated data that satisfies neither more nor
- * less than what the schema actually supports today.
+ * `teachers` returns each assigned teacher's real `displayName` (Pilot
+ * Product Experience Residual Closure, Tranche H1, closes
+ * `NEW-GAP-STAFF-DISPLAY-NAME-01`) — never email or any internal id.
+ * `displayName` is `null` for a teacher who has never set one via
+ * `PATCH /me/staff-profile` (self-service, no fabricated/default name);
+ * the client renders the documented fallback label, never this route.
+ * `StaffClassAssignmentRepository.findDisplayNamesByClass` scopes every
+ * join hop by `tenant_id`, so a cross-tenant row can never leak through a
+ * shared `staff_account_id`.
  */
 export async function GET(request: Request): Promise<NextResponse> {
   const correlationId = request.headers.get("x-correlation-id");
@@ -37,11 +37,11 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     const identity = await getSessionService().resolveInternalIdentity(sessionToken);
 
-    const [enrollment, schoolClass, tenant, teacherAssignments] = await Promise.all([
+    const [enrollment, schoolClass, tenant, teachers] = await Promise.all([
       getSchoolEnrollmentRepository().findById(identity.enrollmentId, identity.tenantId),
       getSchoolClassRepository().findById(identity.classId, identity.tenantId),
       getTenantRepository().findById(identity.tenantId),
-      getStaffClassAssignmentRepository().findByClass(identity.classId, identity.tenantId),
+      getStaffClassAssignmentRepository().findDisplayNamesByClass(identity.classId, identity.tenantId),
     ]);
     if (!enrollment || !schoolClass || !tenant) {
       throw new IdentityError("SESSION_EXPIRED");
@@ -52,7 +52,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       className: schoolClass.name,
       schoolName: tenant.name,
       enrollmentStatus: enrollment.status === "ACTIVE" ? ("ACTIVE" as const) : ("SUSPENDED" as const),
-      assignedTeacherCount: teacherAssignments.length,
+      teachers: teachers.map((teacher) => ({ displayName: teacher.displayName })),
     };
 
     return NextResponse.json(

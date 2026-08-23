@@ -9,6 +9,12 @@ export interface StaffContext {
   classScope: string[] | null;
 }
 
+/** `GET/PATCH /me/staff-profile` (Pilot Product Experience Residual Closure, Tranche H1). `displayName` is `null` until the staff member sets one. */
+export interface StaffProfile {
+  email: string;
+  displayName: string | null;
+}
+
 export interface ClassSummary {
   classId: string;
   name: string;
