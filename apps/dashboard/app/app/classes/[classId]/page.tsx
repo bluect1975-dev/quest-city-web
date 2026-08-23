@@ -9,6 +9,7 @@ import { RequireStaffAuth } from "../../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../../lib/staff-auth-context";
 import { useAsync } from "../../../../lib/useAsync";
 import { staffErrorText } from "../../../../lib/staff-error-text";
+import { enrollmentStatusLabel } from "../../../../lib/staff-enum-labels";
 import {
   addStudentToRoster,
   archiveClass,
@@ -387,7 +388,7 @@ function ClassDetailView({ classId, role }: { classId: string; role: StaffRole }
                   {
                     key: "status",
                     header: t(DASHBOARD_CATALOG_IT_IT, "app.classDetail.columnEnrollmentStatus"),
-                    render: (row) => row.enrollmentStatus,
+                    render: (row) => enrollmentStatusLabel(row.enrollmentStatus),
                   },
                   {
                     key: "open",

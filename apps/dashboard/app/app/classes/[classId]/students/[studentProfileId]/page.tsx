@@ -8,6 +8,7 @@ import { RequireStaffAuth } from "../../../../../../lib/RequireStaffAuth";
 import { useAsync } from "../../../../../../lib/useAsync";
 import { getClassStudent, getStudentAttempts, getStudentProgress } from "../../../../../../lib/staff-api-client";
 import type { AttemptHistoryEntry, StudentProgressSummary, StudentRosterEntry } from "../../../../../../lib/staff-api-types";
+import { attemptStateLabel, completionStatusLabel, runtimeChannelLabel } from "../../../../../../lib/staff-enum-labels";
 
 interface StudentDetailData {
   student: StudentRosterEntry;
@@ -69,17 +70,17 @@ function StudentDetailView({ classId, studentProfileId }: { classId: string; stu
                   {
                     key: "state",
                     header: t(DASHBOARD_CATALOG_IT_IT, "app.studentDetail.columnAttemptState"),
-                    render: (row) => row.attemptState,
+                    render: (row) => attemptStateLabel(row.attemptState),
                   },
                   {
                     key: "completion",
                     header: t(DASHBOARD_CATALOG_IT_IT, "app.studentDetail.columnCompletionStatus"),
-                    render: (row) => row.completionStatus ?? "—",
+                    render: (row) => completionStatusLabel(row.completionStatus),
                   },
                   {
                     key: "channel",
                     header: t(DASHBOARD_CATALOG_IT_IT, "app.studentDetail.columnRuntimeChannel"),
-                    render: (row) => row.runtimeChannel,
+                    render: (row) => runtimeChannelLabel(row.runtimeChannel),
                   },
                   {
                     key: "started",
