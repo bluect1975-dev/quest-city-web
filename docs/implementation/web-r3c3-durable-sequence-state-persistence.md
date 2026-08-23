@@ -29,12 +29,16 @@ the lookup key from outside this table (see Ownership).
 
 ## Ownership
 
-A runtime state is looked up **exclusively** by `(tenantId, studentProfileId, sequenceId)`, resolved server-side
-from the session (`SessionService.resolveInternalIdentity`) — never by the opaque `runtimeStateId` alone, and
-never from a client-supplied tenant/student value. `SequenceRuntimeStateRepository.findByStudentAndSequence` is
-the only read path; there is no `findById`. This makes it structurally impossible for one student to read or
-write another student's progress by guessing or forging an id, including within the same tenant (integration
-test: `sequence-runtime-state.test.ts` → "ownership: another student's row is never returned, even within the
+A runtime state is looked up **exclusively** by `(tenantId, learningAttemptId)` (re-scoped by migration 0019 —
+UAT Failure Remediation, `UAT-RC4-NEW-ASSIGNMENT-LAUNCH-STATE-01` — from the original `(tenantId,
+studentProfileId, sequenceId)`: that scoping let two independent attempts against the same sequence silently
+share one progress row, so a brand-new attempt could load another attempt's already-COMPLETED state), resolved
+server-side from the session (`SessionService.resolveInternalIdentity`) plus a real `learning_attempt` row that
+identity owns — never by the opaque `runtimeStateId` alone, and never from a client-supplied tenant/student/
+attempt value. `SequenceRuntimeStateRepository.findByAttempt` is the only read path; there is no `findById`. This
+makes it structurally impossible for one student to read or write another student's — or another attempt's —
+progress by guessing or forging an id, including within the same tenant (integration test:
+`sequence-runtime-state.test.ts` → "ownership: another student's attempt row is never returned, even within the
 same tenant").
 
 ## Repository
@@ -55,7 +59,8 @@ students.
 
 ## API / server boundary
 
-`apps/api/app/sequence-runtime-state/[sequenceId]/route.ts` — `GET` (load), `POST` (create), `PUT` (version-guarded
+`apps/api/app/attempts/[attemptId]/sequence-runtime-state/route.ts` (moved from
+`/sequence-runtime-state/[sequenceId]` by migration 0019) — `GET` (load), `POST` (create), `PUT` (version-guarded
 save). Same session+CSRF pattern as every other mutating WEB-M2/M3 route
 (`readSessionToken`/`isTrustedOrigin`/`getCsrfTokenHeader`), same `ErrorEnvelope` shape, `CONTENT_RUNTIME` domain
 (matching the existing ad-hoc codes used by `/attempts/{id}/actions`). No admin/authoring surface — exactly load
@@ -71,7 +76,7 @@ session in the phase's own durability smoke test), not a stub.
 
 ## Resume flow
 
-On mount, `SequenceHost` calls `loadSequenceRuntimeState(sequenceId)`. Found → the persisted `SequenceRuntimeState`
+On mount, `SequenceHost` calls `loadSequenceRuntimeState(attemptId)`. Found → the persisted `SequenceRuntimeState`
 becomes the component's initial state and the student resumes exactly where they left off (`currentStageId`,
 `hintLevel`/`hintCount`, `attemptsForStage`, `checkpointReached`, `remediationTriggered`, `attemptReferences`,
 `sequenceCompletionState` — every field the R3C.3 authorization required). Not found → a fresh

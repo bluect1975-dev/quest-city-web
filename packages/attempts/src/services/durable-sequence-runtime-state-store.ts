@@ -11,12 +11,17 @@ export class SequenceRuntimeStateVersionConflictError extends Error {
 
 /**
  * `SequenceRuntimeStateStore` (`@quest-city-web/content-runtime`) backed
- * by `sequence_runtime_state` (R3C.3 migration 0005). One instance is
- * constructed per request, bound to the (tenantId, studentProfileId,
- * enrollmentId, sequenceId) already resolved server-side from the
- * session — never from a client-supplied value — so ownership is
- * structurally enforced regardless of what `runtimeStateId` a caller
- * passes to `get`/carries in `state`.
+ * by `sequence_runtime_state` (R3C.3 migration 0005; re-scoped to
+ * per-attempt ownership by migration 0019 — UAT Failure Remediation,
+ * `UAT-RC4-NEW-ASSIGNMENT-LAUNCH-STATE-01`: two independent attempts
+ * against the same `sequenceId` — e.g. two separate assignments over the
+ * same content bundle — must never share progress/completion state). One
+ * instance is constructed per request, bound to the (tenantId,
+ * studentProfileId, enrollmentId, learningAttemptId) already resolved
+ * server-side from the session and the real attempt row — never from a
+ * client-supplied value — so ownership is structurally enforced
+ * regardless of what `runtimeStateId` a caller passes to `get`/carries in
+ * `state`.
  *
  * The generic interface's `get(runtimeStateId)`/`save(state)` signatures
  * carry no version parameter; this adapter tracks the version returned by
@@ -34,19 +39,19 @@ export class DurableSequenceRuntimeStateStore implements SequenceRuntimeStateSto
     private readonly tenantId: string,
     private readonly studentProfileId: string,
     private readonly enrollmentId: string,
-    private readonly sequenceId: string,
+    private readonly learningAttemptId: string,
   ) {}
 
   async get(runtimeStateId: string): Promise<SequenceRuntimeState | undefined> {
-    const persisted = await this.repository.findByStudentAndSequence(this.tenantId, this.studentProfileId, this.sequenceId);
+    const persisted = await this.repository.findByAttempt(this.tenantId, this.learningAttemptId);
     if (!persisted) {
       return undefined;
     }
     if (persisted.state.runtimeStateId !== runtimeStateId) {
       throw new Error(
         `DurableSequenceRuntimeStateStore.get: stored runtimeStateId "${persisted.state.runtimeStateId}" does not match ` +
-          `requested "${runtimeStateId}" for this student/sequence — ownership is resolved by (tenant, student, sequence), ` +
-          "never by runtimeStateId alone.",
+          `requested "${runtimeStateId}" for this attempt — ownership is resolved by (tenant, attempt), never by ` +
+          "runtimeStateId alone.",
       );
     }
     this.lastKnownVersion = persisted.version;
@@ -59,12 +64,13 @@ export class DurableSequenceRuntimeStateStore implements SequenceRuntimeStateSto
         tenantId: this.tenantId,
         studentProfileId: this.studentProfileId,
         enrollmentId: this.enrollmentId,
+        learningAttemptId: this.learningAttemptId,
         state,
       });
       this.lastKnownVersion = created.version;
       return;
     }
-    const saved = await this.repository.save(this.tenantId, this.studentProfileId, this.sequenceId, this.lastKnownVersion, state);
+    const saved = await this.repository.save(this.tenantId, this.learningAttemptId, this.lastKnownVersion, state);
     if (!saved) {
       throw new SequenceRuntimeStateVersionConflictError();
     }
