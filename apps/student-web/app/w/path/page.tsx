@@ -1,16 +1,23 @@
 "use client";
 
-import { EmptyState, ProgressSteps, StatusMessage, type ProgressStepState } from "@quest-city-web/ui";
+import { EmptyState, MissionPath, StatusMessage, type MissionPathNodeState } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { getMyPath, type MyPath, type MyPathItem } from "../../../lib/student-api-client";
 import { useAuthedResource } from "../../../lib/use-authed-resource";
 import { subjectLabel } from "../../../lib/subject-label";
 
-const STEP_STATE: Record<MyPathItem["pathState"], ProgressStepState> = {
+const STOP_STATE: Record<MyPathItem["pathState"], MissionPathNodeState> = {
   COMPLETED: "completed",
   CURRENT: "current",
-  AVAILABLE: "next",
+  AVAILABLE: "available",
   LOCKED: "locked",
+};
+
+const STOP_EYEBROW_KEY: Record<MyPathItem["pathState"], string> = {
+  COMPLETED: "path.stopEyebrow",
+  CURRENT: "path.stopEyebrowCurrent",
+  AVAILABLE: "path.stopEyebrow",
+  LOCKED: "path.stopEyebrowLocked",
 };
 
 /**
@@ -71,16 +78,23 @@ function PathView({ data }: { data: MyPath }) {
         })}
       </p>
       {groups.map(([subjectId, items]) => (
-        <section key={subjectId ?? "unknown"} className="qc-card">
-          {subjectId && <h2>{subjectLabel(subjectId)}</h2>}
-          <ProgressSteps
-            steps={items.map((item) => ({
+        <div key={subjectId ?? "unknown"} className="qc-mission-subject-block">
+          {subjectId && <p className="qc-mission-subject-tag">{subjectLabel(subjectId)}</p>}
+          <MissionPath
+            stops={items.map((item, index) => ({
               id: item.assignmentId,
-              state: STEP_STATE[item.pathState],
-              label: `${item.title} — ${t(STUDENT_WEB_CATALOG_IT_IT, `path.stateLabel.${item.pathState}`)}`,
+              title: item.title,
+              state: STOP_STATE[item.pathState],
+              eyebrow: t(STUDENT_WEB_CATALOG_IT_IT, STOP_EYEBROW_KEY[item.pathState], { params: { index: String(index + 1) } }),
+              action:
+                item.pathState !== "LOCKED" && item.pathState !== "COMPLETED" ? (
+                  <span className="qc-status-badge qc-status-badge-info">{t(STUDENT_WEB_CATALOG_IT_IT, `path.stateLabel.${item.pathState}`)}</span>
+                ) : (
+                  <span className="qc-status-badge qc-status-badge-neutral">{t(STUDENT_WEB_CATALOG_IT_IT, `path.stateLabel.${item.pathState}`)}</span>
+                ),
             }))}
           />
-        </section>
+        </div>
       ))}
     </>
   );

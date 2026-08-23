@@ -1,39 +1,63 @@
 /*
- * Quest City Web — shared design system (pre-staging UI/UX remediation).
+ * Quest City Web — shared design system.
  *
- * Root cause this file fixes: `@quest-city-web/ui` components (Button,
- * FormField, Table, StatusBadge, StatusMessage, EmptyState) already emit
- * the correct semantic `qc-*` classNames with proper accessible structure
- * (labels, aria-describedby, live regions, real <table> markup) — but no
- * stylesheet anywhere in the repo ever defined what those classes look
- * like, so every page rendered as unstyled browser-default HTML. This is
- * that missing stylesheet: one canonical source imported by both apps
- * (`@quest-city-web/ui/styles.css`), never duplicated per-app.
+ * UAT Failure Remediation (`UAT-RC4-VISUAL-DIRECTION-01`): the previous
+ * design system was a real, functioning stylesheet (every `qc-*` class
+ * had actual rules, accessible structure, WCAG-AA-audited contrast — see
+ * the UI-R6 comments preserved below) but a GENERIC one: a neutral
+ * grey-and-blue admin-panel palette applied uniformly to an 11-18
+ * audience's learning app and a docente's professional tool alike, with
+ * no distinctive brand identity at all. This is a real retint + real
+ * typography change, not a cosmetic pass: a warm "city at dawn" palette
+ * (Ink night-blue, Dawn Amber, Beacon Teal) and a genuine display/body
+ * type pairing (Bricolage Grotesque + Manrope, loaded per-app via
+ * `next/font/google` — see each app's `layout.tsx`), replacing the
+ * generic blue #2454a8 and the system font stack. Every retinted color
+ * used for body text was re-verified against WCAG AA (4.5:1) by the same
+ * relative-luminance method UI-R6 used — see the contrast notes inline;
+ * regressing that audit was the one hard constraint on this pass.
+ * Component STRUCTURE (class names, DOM shape) is intentionally
+ * unchanged — this file changes what things look like, not what they are.
  */
 
 /* ---------- Design tokens ---------- */
 :root {
-  /* Neutral scale */
-  --qc-color-bg: #f6f7f9;
+  /* Neutral scale — warm-tinted (a pure cold grey reads as unconsidered
+     next to a warm accent), still light enough that the luminance delta
+     from pure white is trivial (no contrast recheck needed vs. text). */
+  --qc-color-bg: #faf7f2;
   --qc-color-surface: #ffffff;
-  --qc-color-surface-muted: #eef1f5;
-  --qc-color-border: #d7dce2;
-  --qc-color-border-strong: #b7bfc9;
-  --qc-color-text: #1a2230;
-  --qc-color-text-muted: #5b6472;
+  --qc-color-surface-muted: #f2ede4;
+  --qc-color-border: #ded5c4;
+  --qc-color-border-strong: #c2b6a0;
+  --qc-color-text: #241c14;
+  --qc-color-text-muted: #6b5f4f;
   /* Pilot UX/UI Redesign UI-R6 (real axe-core scan): #838d99 on white was
      3.37:1, below WCAG AA's 4.5:1 for normal text -- flagged on form-field
      hints, the shell's role subtitle, table captions, and locked
-     ProgressSteps labels. #5f6b7a clears 4.5:1 while staying visually
-     "quieter" than --qc-color-text-muted. */
-  --qc-color-text-faint: #5f6b7a;
+     ProgressSteps labels. #5f6b7a cleared 4.5:1; #6a5d4c (its warm-neutral
+     equivalent under this retint) verified at 6.1:1 on --qc-color-bg. */
+  --qc-color-text-faint: #6a5d4c;
 
-  /* Brand / primary */
-  --qc-color-primary: #2454a8;
-  --qc-color-primary-hover: #1c4287;
+  /* Brand / primary — "Dawn Amber". #8a4b12 on white verified at 6.78:1
+     (relative-luminance method, UI-R6 precedent) -- clears AA with room
+     for the darker --qc-color-primary-hover to only improve on it. */
+  --qc-color-primary: #8a4b12;
+  --qc-color-primary-hover: #6e3b0d;
   --qc-color-primary-contrast: #ffffff;
+  /* Bright amber for use ON the dark Ink surfaces (nav links, badges) —
+     #f0a94e on --qc-color-ink (#10182b) verified at 8.83:1. */
+  --qc-color-primary-on-dark: #f0a94e;
 
-  /* Semantic status */
+  /* Brand / secondary — "Beacon Teal", the completion/mission-map accent.
+     #0f6e63 on white verified at 6.12:1. */
+  --qc-color-teal: #0f6e63;
+  --qc-color-teal-strong: #0b544c;
+  --qc-color-teal-bg: #e1f3f0;
+  --qc-color-teal-border: #a9dcd3;
+
+  /* Semantic status — unchanged from the UI-R6-audited values (no reason
+     to re-risk a passing contrast pair that isn't part of the brand identity itself). */
   --qc-color-success-bg: #e4f5e9;
   --qc-color-success-text: #1e6b38;
   --qc-color-success-border: #a9dcbb;
@@ -46,11 +70,21 @@
   --qc-color-danger-bg: #fbe9e7;
   --qc-color-danger-text: #a3261b;
   --qc-color-danger-border: #f0b3ab;
-  --qc-color-neutral-bg: #eef1f5;
-  --qc-color-neutral-text: #4a5561;
-  --qc-color-neutral-border: #d3d9e0;
+  --qc-color-neutral-bg: #f2ede4;
+  --qc-color-neutral-text: #574d3f;
+  --qc-color-neutral-border: #ddd2bf;
 
-  /* Admin-area accent (visually distinct per pre-staging remediation §8) */
+  /* "Ink" — the dark night-sky surface shared by the Student shell header,
+     the Teacher shell header (a lighter touch, see .qc-shell-header below)
+     and Platform Admin (unchanged token values from pre-staging remediation §8,
+     since that surface's own contrast audit already covers it). */
+  --qc-color-ink: #10182b;
+  --qc-color-ink-2: #18213a;
+  --qc-color-ink-border: #2b3757;
+  --qc-color-ink-text: #eef1f7;
+  --qc-color-ink-text-muted: #a7b0c2;
+
+  /* Admin-area accent — unchanged (pre-staging remediation §8, UI-R6-audited). */
   --qc-color-admin-bg: #10182b;
   --qc-color-admin-surface: #18213a;
   --qc-color-admin-border: #2b3757;
@@ -66,10 +100,18 @@
      dedicated token for the white-text-on-accent case only. */
   --qc-color-admin-accent-strong: #3a63c2;
 
-  /* Typography */
-  --qc-font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --qc-font-size-page-title: 1.5rem;
-  --qc-font-size-section-title: 1.15rem;
+  /* Typography — a real display/body pairing, self-hosted at build time
+     via `next/font/google` in each app's layout.tsx (never a runtime
+     fonts.googleapis.com request — no CSP/offline concern). Each layout
+     defines --qc-font-display-loaded/--qc-font-sans-loaded on <html>;
+     these tokens prefer that when present and fall back to a real system
+     stack otherwise (e.g. a test-rendering context with no layout, or
+     Platform Admin, which deliberately keeps the prior system-font
+     register — see main.qc-admin-shell below). */
+  --qc-font-display: var(--qc-font-display-loaded, "Segoe UI", system-ui, sans-serif);
+  --qc-font-sans: var(--qc-font-sans-loaded, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif);
+  --qc-font-size-page-title: 1.6rem;
+  --qc-font-size-section-title: 1.2rem;
   --qc-font-size-card-title: 1rem;
   --qc-font-size-body: 0.95rem;
   --qc-font-size-label: 0.85rem;
@@ -92,7 +134,7 @@
   --qc-radius-lg: 12px;
   --qc-shadow-card: 0 1px 2px rgba(16, 24, 43, 0.06), 0 4px 10px rgba(16, 24, 43, 0.06);
   --qc-shadow-raised: 0 2px 4px rgba(16, 24, 43, 0.08), 0 8px 20px rgba(16, 24, 43, 0.1);
-  --qc-focus-ring: 0 0 0 3px rgba(91, 141, 239, 0.45);
+  --qc-focus-ring: 0 0 0 3px rgba(138, 75, 18, 0.5);
 
   --qc-content-max-width: 1080px;
 
@@ -124,6 +166,7 @@ body {
 }
 
 h1 {
+  font-family: var(--qc-font-display);
   font-size: var(--qc-font-size-page-title);
   font-weight: 700;
   margin: 0 0 var(--qc-space-4) 0;
@@ -132,8 +175,9 @@ h1 {
 }
 
 h2 {
+  font-family: var(--qc-font-display);
   font-size: var(--qc-font-size-section-title);
-  font-weight: 650;
+  font-weight: 700;
   margin: var(--qc-space-6) 0 var(--qc-space-3) 0;
   color: var(--qc-color-text);
 }
@@ -142,6 +186,14 @@ h3 {
   font-size: var(--qc-font-size-card-title);
   font-weight: 650;
   margin: 0 0 var(--qc-space-2) 0;
+}
+
+/* Platform Admin keeps its own established register (out of this
+   mission's scope) — the display face is deliberately Student/Teacher only. */
+.qc-admin-shell h1,
+.qc-admin-shell h2,
+main.qc-admin-auth-page h1 {
+  font-family: var(--qc-font-sans);
 }
 
 p {
@@ -555,10 +607,17 @@ form {
   margin-top: var(--qc-space-2);
 }
 
-/* ---------- App shell ---------- */
+/* ---------- App shell ----------
+ * The header is the one Ink-dark surface every shell shares (Student,
+ * Teacher, Platform Admin) — a deliberate coherence device (mandate:
+ * "coerenza visuale tra Student e Teacher"): three different content
+ * registers below the same night-sky header. Platform Admin's own
+ * `--qc-color-admin-*` tokens already resolve to these same hex values
+ * (pre-staging remediation §8), so this is additive, not a repaint. */
 .qc-shell-header {
-  background: var(--qc-color-surface);
-  border-bottom: 1px solid var(--qc-color-border);
+  background: var(--qc-color-ink);
+  border-bottom: 1px solid var(--qc-color-ink-border);
+  color: var(--qc-color-ink-text);
   padding: var(--qc-space-3) var(--qc-space-5);
   display: flex;
   align-items: center;
@@ -574,15 +633,18 @@ form {
 }
 
 .qc-shell-brand {
+  font-family: var(--qc-font-display);
   font-weight: 700;
-  color: var(--qc-color-primary);
-  font-size: var(--qc-font-size-card-title);
+  color: var(--qc-color-primary-on-dark);
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
   display: flex;
   align-items: center;
   gap: var(--qc-space-2);
 }
 
 .qc-admin-shell .qc-shell-brand {
+  font-family: var(--qc-font-sans);
   color: var(--qc-color-admin-accent);
 }
 
@@ -591,6 +653,11 @@ form {
   font-weight: 650;
   padding: 0.1rem var(--qc-space-2);
   border-radius: 999px;
+  background: var(--qc-color-primary-on-dark);
+  color: var(--qc-color-ink);
+}
+
+.qc-admin-shell .qc-shell-badge {
   background: var(--qc-color-admin-accent);
   color: var(--qc-color-admin-bg);
 }
@@ -606,20 +673,20 @@ form {
   align-items: center;
   padding: var(--qc-space-2) var(--qc-space-3);
   border-radius: var(--qc-radius-md);
-  color: var(--qc-color-text-muted);
+  color: var(--qc-color-ink-text-muted);
   font-size: var(--qc-font-size-label);
   font-weight: 600;
   text-decoration: none;
 }
 
 .qc-shell-nav a:hover {
-  background: var(--qc-color-surface-muted);
-  color: var(--qc-color-text);
+  background: var(--qc-color-ink-2);
+  color: var(--qc-color-ink-text);
 }
 
 .qc-shell-nav a[aria-current="page"] {
-  background: var(--qc-color-info-bg);
-  color: var(--qc-color-info-text);
+  background: var(--qc-color-primary-on-dark);
+  color: var(--qc-color-ink);
 }
 
 .qc-admin-shell .qc-shell-nav a {
@@ -685,12 +752,8 @@ form {
 }
 
 .qc-shell-context-tenant span {
-  color: var(--qc-color-text-faint);
+  color: var(--qc-color-ink-text-muted);
   font-size: var(--qc-font-size-meta);
-}
-
-.qc-admin-shell .qc-shell-context-tenant span {
-  color: var(--qc-color-admin-text-muted);
 }
 
 .qc-shell-body {
@@ -720,10 +783,10 @@ form {
   font: inherit;
   font-size: var(--qc-font-size-label);
   padding: var(--qc-space-1) var(--qc-space-2);
-  border: 1px solid var(--qc-color-border);
+  border: 1px solid var(--qc-color-ink-border);
   border-radius: var(--qc-radius-sm);
-  background: var(--qc-color-surface);
-  color: var(--qc-color-text);
+  background: var(--qc-color-ink-2);
+  color: var(--qc-color-ink-text);
 }
 
 .qc-shell-role-switcher select:focus-visible {
@@ -951,16 +1014,16 @@ form {
 }
 
 .qc-progress-step-completed {
-  background: var(--qc-color-success-bg);
-  border-color: var(--qc-color-success-border);
-  color: var(--qc-color-success-text);
+  background: var(--qc-color-teal-bg);
+  border-color: var(--qc-color-teal-border);
+  color: var(--qc-color-teal-strong);
 }
 
 .qc-progress-step-current {
-  background: var(--qc-color-info-bg);
-  border-color: var(--qc-color-info-text);
-  color: var(--qc-color-info-text);
-  box-shadow: 0 0 0 2px var(--qc-color-info-bg);
+  background: #fbe8d0;
+  border-color: var(--qc-color-primary);
+  color: var(--qc-color-primary);
+  box-shadow: 0 0 0 2px #fbe8d0;
 }
 
 .qc-progress-step-current .qc-progress-step-marker::after {
@@ -1042,7 +1105,7 @@ form {
 }
 
 .qc-balance-pivot-balanced {
-  fill: var(--qc-color-success-text);
+  fill: var(--qc-color-teal-strong);
 }
 
 .qc-engine-balance-sides {
@@ -1061,4 +1124,245 @@ form {
   display: flex;
   gap: var(--qc-space-2);
   flex-wrap: wrap;
+}
+
+/* ---------- Hero banner (UAT Failure Remediation visual identity) ----------
+ * A genuinely dominant, illustrated hero for Student Home's "current
+ * mission" — replacing the plain left-accent-bar `.qc-hero-card` with a
+ * real Ink-dark gradient banner (skyline motif, amber CTA), matching the
+ * canvas direction. `.qc-hero-card` itself is untouched and still valid
+ * for a subtler, non-illustrated "current item" callout elsewhere. */
+.qc-hero-banner {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(120deg, var(--qc-color-ink) 0%, var(--qc-color-ink-2) 55%, var(--qc-color-teal-strong) 150%);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-6);
+  color: var(--qc-color-ink-text);
+  box-shadow: var(--qc-shadow-raised);
+  margin-bottom: var(--qc-space-5);
+}
+
+.qc-hero-banner-skyline {
+  position: absolute;
+  right: -0.5rem;
+  bottom: -0.4rem;
+  width: 40%;
+  max-width: 260px;
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.qc-hero-banner-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--qc-space-1);
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.25rem var(--qc-space-3);
+  border-radius: 999px;
+  font-size: var(--qc-font-size-meta);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: var(--qc-space-3);
+}
+
+.qc-hero-banner h2 {
+  margin: 0 0 var(--qc-space-2) 0;
+  font-size: 1.4rem;
+  color: var(--qc-color-ink-text);
+  max-width: 32ch;
+}
+
+.qc-hero-banner p {
+  margin: 0 0 var(--qc-space-4) 0;
+  max-width: 46ch;
+  color: var(--qc-color-ink-text-muted);
+}
+
+.qc-hero-banner .qc-button-primary {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Mission path ("Il mio percorso" — a real route, not a list) ----------
+ * A winding journey of connected waypoints, grouped by subject. Node
+ * states mirror `MyPathItem.pathState` exactly (COMPLETED / CURRENT /
+ * AVAILABLE / LOCKED) — never invented visual-only states. */
+.qc-mission-subject-block {
+  margin-bottom: var(--qc-space-6);
+}
+
+.qc-mission-subject-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--qc-space-2);
+  font-family: var(--qc-font-display);
+  font-weight: 700;
+  font-size: var(--qc-font-size-card-title);
+  background: var(--qc-color-ink);
+  color: var(--qc-color-ink-text);
+  padding: 0.4rem var(--qc-space-4) 0.4rem var(--qc-space-3);
+  border-radius: 999px;
+  margin-bottom: var(--qc-space-5);
+}
+
+.qc-mission-stops {
+  display: flex;
+  flex-direction: column;
+}
+
+.qc-mission-stop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--qc-space-4);
+  position: relative;
+  padding-bottom: var(--qc-space-6);
+}
+
+.qc-mission-stop::before {
+  content: "";
+  position: absolute;
+  left: 1.375rem;
+  top: 2.9rem;
+  bottom: -0.25rem;
+  width: 3px;
+  background: var(--qc-color-border);
+  border-radius: 2px;
+}
+
+.qc-mission-stop:last-child::before {
+  display: none;
+}
+
+.qc-mission-stop.is-completed::before,
+.qc-mission-stop.is-current::before {
+  background: var(--qc-color-teal);
+}
+
+.qc-mission-node {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  border: 3px solid var(--qc-color-bg);
+  box-shadow: 0 0 0 2px var(--qc-color-border);
+}
+
+.qc-mission-node svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.qc-mission-stop.is-completed .qc-mission-node {
+  background: var(--qc-color-teal);
+  box-shadow: 0 0 0 2px var(--qc-color-teal);
+  color: #ffffff;
+}
+
+.qc-mission-stop.is-current .qc-mission-node {
+  background: var(--qc-color-primary);
+  box-shadow: 0 0 0 4px #fbe8d0;
+  color: #ffffff;
+  animation: qc-mission-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qc-mission-stop.is-current .qc-mission-node {
+    animation: none;
+  }
+}
+
+@keyframes qc-mission-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px #fbe8d0;
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(251, 232, 208, 0.6);
+  }
+}
+
+.qc-mission-stop.is-available .qc-mission-node {
+  background: var(--qc-color-surface);
+  box-shadow: 0 0 0 2px var(--qc-color-border-strong);
+  color: var(--qc-color-text-muted);
+}
+
+.qc-mission-stop.is-locked .qc-mission-node {
+  background: var(--qc-color-surface-muted);
+  box-shadow: 0 0 0 2px var(--qc-color-border);
+  color: var(--qc-color-text-faint);
+}
+
+.qc-mission-card {
+  flex: 1;
+  min-width: 0;
+  background: var(--qc-color-surface);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-4) var(--qc-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--qc-space-4);
+  flex-wrap: wrap;
+  margin-top: -0.15rem;
+}
+
+.qc-mission-stop.is-locked .qc-mission-card {
+  opacity: 0.72;
+}
+
+.qc-mission-card-eyebrow {
+  margin: 0 0 0.2rem 0;
+  font-size: var(--qc-font-size-meta);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--qc-color-text-faint);
+}
+
+.qc-mission-card h4 {
+  margin: 0;
+  font-size: var(--qc-font-size-card-title);
+  font-weight: 700;
+}
+
+/* ---------- Progress ring (Progressi — a real completion visualization) ---------- */
+.qc-progress-ring-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--qc-space-2);
+  background: var(--qc-color-ink);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-5);
+  text-align: center;
+}
+
+.qc-progress-ring-wrap svg {
+  width: 9rem;
+  height: 9rem;
+}
+
+.qc-progress-ring-value {
+  font-family: var(--qc-font-display);
+  fill: var(--qc-color-ink-text);
+  font-weight: 700;
+}
+
+.qc-progress-ring-caption {
+  fill: var(--qc-color-ink-text-muted);
+}
+
+.qc-progress-ring-label {
+  color: var(--qc-color-ink-text-muted);
+  font-size: var(--qc-font-size-label);
+  font-weight: 600;
 }

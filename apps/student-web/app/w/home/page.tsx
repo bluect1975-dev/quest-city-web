@@ -63,13 +63,20 @@ export default function StudentHomePage() {
         </div>
       )}
 
-      <Card className="qc-hero-card">
+      <div className="qc-hero-banner">
+        <svg className="qc-hero-banner-skyline" viewBox="0 0 340 140" fill="none" aria-hidden="true">
+          <path
+            d="M0 140 L0 90 L30 90 L30 60 L60 60 L60 100 L90 100 L90 40 L120 40 L120 80 L150 80 L150 55 L180 55 L180 100 L210 100 L210 70 L240 70 L240 110 L270 110 L270 30 L300 30 L300 95 L340 95 L340 140 Z"
+            fill="white"
+          />
+        </svg>
+        <p className="qc-hero-banner-eyebrow">{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceEyebrow")}</p>
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceSectionTitle")}</h2>
         <p>{t(STUDENT_WEB_CATALOG_IT_IT, "home.fullSequenceDescription")}</p>
         <Link href="/w/full-sequence">
           <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "home.startFullSequenceButton")}</Button>
         </Link>
-      </Card>
+      </div>
 
       <Card>
         <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "home.myAssignmentsSectionTitle")}</h2>
