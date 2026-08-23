@@ -201,7 +201,7 @@
       "assignContentPickerPlaceholder": "Scegli un contenuto pubblicato...",
       "assignContentPickerEmpty": "Nessun contenuto pubblicato disponibile al momento.",
       "assignContentPickerError": "Non è stato possibile caricare il catalogo dei contenuti.",
-      "assignContentPickerOptionLabel": "{subject} — {bundleType} — v{version}",
+      "assignContentPickerOptionLabelNoTitle": "{subject} — {bundleType} — v{version} (titolo non disponibile)",
       "assignContentTitleLabel": "Titolo assegnazione",
       "assignContentSubmit": "Assegna",
       "assignContentSubmitting": "Assegnazione in corso...",

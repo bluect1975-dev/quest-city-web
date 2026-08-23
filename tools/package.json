@@ -18,6 +18,7 @@
     "seed:tranche4-content-bundle": "tsx seed-tranche4-content-bundle.ts",
     "seed:tranche5-content-bundle": "tsx seed-tranche5-content-bundle.ts",
     "seed:tranche6-content-bundle": "tsx seed-tranche6-content-bundle.ts",
+    "backfill:content-bundle-titles": "tsx backfill-content-bundle-titles.ts",
     "seed:staff": "tsx seed-staff.ts",
     "bootstrap:platform-admin": "tsx bootstrap-platform-admin.ts",
     "generate:theme-assets": "tsx generate-theme-assets.ts",
@@ -34,6 +35,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1115.0",
+    "@quest-city-web/attempts": "workspace:*",
     "@quest-city-web/content-runtime": "workspace:*",
     "@quest-city-web/identity": "workspace:*",
     "@quest-city-web/operations": "workspace:*",
