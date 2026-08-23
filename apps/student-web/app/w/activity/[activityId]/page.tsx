@@ -106,6 +106,14 @@ const ACTIVITY_REGISTRY: Record<string, ActivityRegistryEntry> = {
     runtimeStatePrefix: "web-m4-runtime",
     titleKey: "activity.sequenceTitle",
     descriptionKey: "activity.sequenceDescription",
+    // UAT Failure Remediation: without this, the stage opened on an
+    // unexplained 0/0 balance with no indication of what the weights meant
+    // or what "equilibrium" was supposed to represent (UAT-RC4-VISUAL-
+    // DIRECTION-01, mandate's own "evitare ambiguità iniziale 0/0").
+    // Real numbers only, from WEB_M4_MAT_M06_ACTIVITY_DEFINITION.sourceEquation.
+    stagePrompts: {
+      [WEB_M4_ACTIVITY_STAGE_ID]: { titleKey: "activity.balancePromptTitle", bodyKey: "activity.balancePromptBody" },
+    },
   },
   [WEB_TRANCHE1_MAT_M06_CONTENT_BUNDLE_ID]: {
     definition: WEB_TRANCHE1_GUIDED_PRACTICE_SEQUENCE_DEFINITION,

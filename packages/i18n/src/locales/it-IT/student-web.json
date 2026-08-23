@@ -153,7 +153,9 @@
     "readOnlySessionBlocked": "Per svolgere questa attività devi accedere di nuovo.",
     "sequenceTitle": "Balance Machine",
     "sequenceDescription": "Metti in equilibrio la bilancia per completare l'attività.",
-    "unknownContentBundle": "Contenuto non riconosciuto per questa assegnazione."
+    "unknownContentBundle": "Contenuto non riconosciuto per questa assegnazione.",
+    "balancePromptTitle": "Verifica l'equazione 3x − 4 = 11",
+    "balancePromptBody": "Isolando 3x, l'equazione diventa 3x = 11 + 4. Il peso 15 rappresenta 3x: posizionalo sul piatto sinistro. I pesi 11 e 4 sono le due costanti: posizionali entrambi sul piatto destro. Quando la bilancia è in equilibrio, l'equazione è verificata."
   },
   "guidedPractice": {
     "sequenceTitle": "Pratica guidata: equazioni di primo grado",

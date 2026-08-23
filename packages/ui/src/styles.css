@@ -1054,7 +1054,28 @@ form {
 .qc-engine-balance {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--qc-space-4);
+  background: var(--qc-color-surface);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-6);
+  box-shadow: var(--qc-shadow-card);
+}
+
+.qc-engine-balance fieldset {
+  width: 100%;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.qc-engine-balance legend {
+  font-family: var(--qc-font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0;
+  margin-bottom: var(--qc-space-2);
 }
 
 /* ---------- Balance Machine illustration (Pilot Product Experience
@@ -1112,6 +1133,49 @@ form {
   display: flex;
   gap: var(--qc-space-4);
   flex-wrap: wrap;
+}
+
+.qc-engine-balance-sides section {
+  flex: 1;
+  min-width: 200px;
+  background: var(--qc-color-surface);
+  border: 1px solid var(--qc-color-border);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-4);
+}
+
+.qc-engine-balance-sides h3 {
+  font-size: var(--qc-font-size-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--qc-color-text-faint);
+  margin: 0 0 var(--qc-space-1) 0;
+}
+
+.qc-engine-balance-sides > section > p {
+  font-family: var(--qc-font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 var(--qc-space-3) 0;
+}
+
+.qc-engine-balance-sides ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--qc-space-2);
+}
+
+.qc-engine-balance-sides li {
+  background: var(--qc-color-primary);
+  color: var(--qc-color-primary-contrast);
+  font-weight: 700;
+  font-size: var(--qc-font-size-meta);
+  padding: 0.3rem var(--qc-space-3);
+  border-radius: var(--qc-radius-md);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 .qc-engine-drag {
