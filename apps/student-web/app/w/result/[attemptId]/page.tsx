@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button, Card, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { ERRORS_CATALOG_IT_IT, STUDENT_WEB_CATALOG_IT_IT, t, translateErrorCode } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../../lib/student-auth-context";
-import { getAttempt, type AttemptDetail } from "../../../../lib/student-api-client";
+import { getAttempt, getMyFeedback, type AttemptDetail, type MyFeedbackItem } from "../../../../lib/student-api-client";
 import { StudentApiError } from "../../../../lib/student-api-error";
 import { ATTEMPT_STATE_TONE, attemptStateLabel } from "../../../../lib/attempt-state-label";
 
@@ -14,6 +14,14 @@ import { ATTEMPT_STATE_TONE, attemptStateLabel } from "../../../../lib/attempt-s
  * `/w/result/:attemptId` (WEB-M4, 07_25 v1.0 §7-G/§15). Real data only —
  * `GET /attempts/{attemptId}` (new, student-scoped, ownership-checked),
  * never a hardcoded/demo outcome.
+ *
+ * Also the "Review risultato" surface `UAT-RC4-STUDENT-FEEDBACK-
+ * VISIBILITY-01` names as an acceptable place for published docente
+ * feedback to become visible: fetches `GET /me/feedback` (the student's
+ * full feedback list) and filters client-side to this one attempt — no
+ * per-attempt endpoint needed since the list is already small per
+ * student. A failed feedback fetch never blocks the attempt result
+ * itself from rendering (independent loading state).
  */
 export default function ResultPage() {
   const params = useParams<{ attemptId: string }>();
@@ -23,6 +31,7 @@ export default function ResultPage() {
 
   const [attempt, setAttempt] = useState<AttemptDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<MyFeedbackItem[] | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -46,6 +55,13 @@ export default function ResultPage() {
             ? translateErrorCode(ERRORS_CATALOG_IT_IT, caught.code)
             : translateErrorCode(ERRORS_CATALOG_IT_IT, "UNKNOWN_ERROR"),
         );
+      });
+    getMyFeedback()
+      .then((all) => {
+        if (!cancelled) setFeedback(all.filter((item) => item.learningAttemptId === attemptId));
+      })
+      .catch(() => {
+        if (!cancelled) setFeedback([]);
       });
     return () => {
       cancelled = true;
@@ -128,6 +144,26 @@ export default function ResultPage() {
           <Button type="button">{t(STUDENT_WEB_CATALOG_IT_IT, "result.homeButton")}</Button>
         </Link>
       </Card>
+
+      {feedback && feedback.length > 0 && (
+        <Card>
+          <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "result.feedbackTitle")}</h2>
+          <ul className="qc-feedback-list">
+            {feedback.map((item) => (
+              <li key={item.feedbackId} className="qc-feedback-item">
+                <p className="qc-feedback-text">{item.freeText}</p>
+                {item.publishedAt && (
+                  <p className="qc-assignment-list-due">
+                    {t(STUDENT_WEB_CATALOG_IT_IT, "result.feedbackPublishedAtLabel", {
+                      params: { date: new Date(item.publishedAt).toLocaleString("it-IT") },
+                    })}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </main>
   );
 }
