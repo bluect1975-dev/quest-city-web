@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, StatusMessage } from "@quest-city-web/ui";
+import { Card, Icon, StatusBadge, StatusMessage } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { useStudentAuth } from "../../../lib/student-auth-context";
 import { getMyClass } from "../../../lib/student-api-client";
@@ -27,37 +27,54 @@ export default function ProfilePage() {
     );
   }
 
+  const alias = context?.displayAlias ?? "";
+  const initial = alias.trim().charAt(0).toUpperCase() || "?";
+
   return (
     <main>
       <h1>{t(STUDENT_WEB_CATALOG_IT_IT, "profile.title")}</h1>
-      <Card>
-        <dl className="qc-detail-list">
-          <div>
-            <dt>{t(STUDENT_WEB_CATALOG_IT_IT, "profile.aliasLabel")}</dt>
-            <dd>{context?.displayAlias ?? ""}</dd>
-          </div>
-        </dl>
-      </Card>
+
+      <div className="qc-profile-header">
+        <span className="qc-profile-avatar" aria-hidden="true">
+          {initial}
+        </span>
+        <div>
+          <p className="qc-profile-header-name">{alias}</p>
+          <p className="qc-profile-header-meta">{t(STUDENT_WEB_CATALOG_IT_IT, "profile.aliasLabel")}</p>
+        </div>
+      </div>
+
       {loading && <StatusMessage kind="loading">{t(STUDENT_WEB_CATALOG_IT_IT, "profile.loading")}</StatusMessage>}
       {!loading && error && <StatusMessage kind="empty">{t(STUDENT_WEB_CATALOG_IT_IT, "profile.error")}</StatusMessage>}
       {!loading && !error && data && (
         <Card>
           <dl className="qc-detail-list">
             <div>
-              <dt>{t(STUDENT_WEB_CATALOG_IT_IT, "profile.schoolLabel")}</dt>
+              <dt className="qc-detail-list-icon-row">
+                <Icon name="book" size={18} />
+                {t(STUDENT_WEB_CATALOG_IT_IT, "profile.schoolLabel")}
+              </dt>
               <dd>{data.schoolName}</dd>
             </div>
             <div>
-              <dt>{t(STUDENT_WEB_CATALOG_IT_IT, "profile.classLabel")}</dt>
+              <dt className="qc-detail-list-icon-row">
+                <Icon name="users" size={18} />
+                {t(STUDENT_WEB_CATALOG_IT_IT, "profile.classLabel")}
+              </dt>
               <dd>{data.className}</dd>
             </div>
             <div>
-              <dt>{t(STUDENT_WEB_CATALOG_IT_IT, "profile.statusLabel")}</dt>
+              <dt className="qc-detail-list-icon-row">
+                <Icon name="check" size={18} />
+                {t(STUDENT_WEB_CATALOG_IT_IT, "profile.statusLabel")}
+              </dt>
               <dd>
-                {t(
-                  STUDENT_WEB_CATALOG_IT_IT,
-                  data.enrollmentStatus === "ACTIVE" ? "profile.statusActive" : "profile.statusSuspended",
-                )}
+                <StatusBadge tone={data.enrollmentStatus === "ACTIVE" ? "success" : "warning"}>
+                  {t(
+                    STUDENT_WEB_CATALOG_IT_IT,
+                    data.enrollmentStatus === "ACTIVE" ? "profile.statusActive" : "profile.statusSuspended",
+                  )}
+                </StatusBadge>
               </dd>
             </div>
           </dl>

@@ -78,6 +78,9 @@
   },
   "progress": {
     "title": "Progressi",
+    "heroTitle": "Il tuo riepilogo",
+    "heroSubtitle": "Ogni attività completata ti avvicina al traguardo. Continua così!",
+    "ringCaption": "su {total} tentativi",
     "loading": "Caricamento dei progressi in corso...",
     "error": "Non è stato possibile caricare i tuoi progressi.",
     "completedActivitiesLabel": "Attività completate",

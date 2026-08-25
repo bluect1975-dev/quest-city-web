@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button, EmptyState, FormField, StatusMessage, Table } from "@quest-city-web/ui";
+import { Button, Card, EmptyState, FormField, Icon, StatusMessage } from "@quest-city-web/ui";
 import { COMMON_CATALOG_IT_IT, DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../lib/staff-auth-context";
@@ -72,18 +72,19 @@ function ClassesView({ canCreate }: { canCreate: boolean }) {
         <EmptyState title={t(DASHBOARD_CATALOG_IT_IT, "app.classes.empty")} />
       ) : null}
       {result.status === "success" && result.data.length > 0 ? (
-        <Table
-          columns={[
-            { key: "name", header: t(DASHBOARD_CATALOG_IT_IT, "app.classes.columnName"), render: (row) => row.name },
-            {
-              key: "open",
-              header: "",
-              render: (row) => <Link href={`/app/classes/${encodeURIComponent(row.classId)}`}>{t(DASHBOARD_CATALOG_IT_IT, "app.classes.openClass")}</Link>,
-            },
-          ]}
-          rows={result.data}
-          rowKey={(row) => row.classId}
-        />
+        <div className="qc-class-grid">
+          {result.data.map((row) => (
+            <Card key={row.classId} className="qc-class-grid-card">
+              <span className="qc-class-grid-card-icon" aria-hidden="true">
+                <Icon name="users" size={20} />
+              </span>
+              <h3>{row.name}</h3>
+              <Link href={`/app/classes/${encodeURIComponent(row.classId)}`} className="qc-button qc-button-secondary">
+                {t(DASHBOARD_CATALOG_IT_IT, "app.classes.openClass")}
+              </Link>
+            </Card>
+          ))}
+        </div>
       ) : null}
     </main>
   );

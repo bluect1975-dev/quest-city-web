@@ -58,9 +58,12 @@ describe("ProgressPage", () => {
       },
     });
     render(<ProgressPage />);
-    // Headline "Attività completate" is 1, not the raw total of 4.
-    expect(await screen.findByText("Attività completate")).toBeInTheDocument();
-    const completedCard = (await screen.findByText("Attività completate")).closest(".qc-stats-card");
+    // Headline "Attività completate" is 1, not the raw total of 4. The label
+    // now also appears as the ProgressRing's caption, so disambiguate to the
+    // stats-card instance specifically.
+    const completedLabels = await screen.findAllByText("Attività completate");
+    expect(completedLabels.length).toBeGreaterThan(0);
+    const completedCard = completedLabels.map((el) => el.closest(".qc-stats-card")).find(Boolean);
     expect(completedCard).toHaveTextContent("1");
     // The breakdown reconciles exactly to totalAttempts, with no raw enum leaking.
     expect(screen.getByText("Completate")).toBeInTheDocument();
