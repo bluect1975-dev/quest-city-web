@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, EmptyState, StatsCard, StatusMessage } from "@quest-city-web/ui";
+import { Card, EmptyState, ProgressRing, StatsCard, StatusMessage } from "@quest-city-web/ui";
 import { STUDENT_WEB_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { getProgressSummary } from "../../../lib/student-api-client";
 import { useAuthedResource } from "../../../lib/use-authed-resource";
@@ -79,6 +79,19 @@ export default function ProgressPage() {
       )}
       {!loading && !error && data && data.aggregate.totalAttempts > 0 && (
         <>
+          <div className="qc-progress-hero">
+            <ProgressRing
+              value={completedCount}
+              max={data.aggregate.totalAttempts}
+              caption={t(STUDENT_WEB_CATALOG_IT_IT, "progress.ringCaption", { params: { total: data.aggregate.totalAttempts } })}
+              label={t(STUDENT_WEB_CATALOG_IT_IT, "progress.completedActivitiesLabel")}
+            />
+            <div className="qc-progress-hero-text">
+              <h2>{t(STUDENT_WEB_CATALOG_IT_IT, "progress.heroTitle")}</h2>
+              <p>{t(STUDENT_WEB_CATALOG_IT_IT, "progress.heroSubtitle")}</p>
+            </div>
+          </div>
+
           <div className="qc-stats-grid">
             <StatsCard label={t(STUDENT_WEB_CATALOG_IT_IT, "progress.completedActivitiesLabel")} value={completedCount} />
             <StatsCard label={t(STUDENT_WEB_CATALOG_IT_IT, "progress.inProgressActivitiesLabel")} value={inProgressCount} />

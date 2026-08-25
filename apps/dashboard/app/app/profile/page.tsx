@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, FormField, StatusMessage } from "@quest-city-web/ui";
+import { Button, FormField, Icon, StatusMessage } from "@quest-city-web/ui";
 import { DASHBOARD_CATALOG_IT_IT, t } from "@quest-city-web/i18n";
 import { RequireStaffAuth } from "../../../lib/RequireStaffAuth";
 import { useStaffAuth } from "../../../lib/staff-auth-context";
@@ -82,14 +82,22 @@ function ProfileForm({
     }
   }
 
+  const initialSource = (profile.displayName ?? profile.email).trim();
+  const initial = initialSource.charAt(0).toUpperCase() || "?";
+
   return (
     <section className="qc-card">
-      <dl className="qc-detail-list">
+      <div className="qc-profile-header">
+        <span className="qc-profile-avatar" aria-hidden="true">
+          {initial}
+        </span>
         <div>
-          <dt>{t(DASHBOARD_CATALOG_IT_IT, "app.profile.emailLabel")}</dt>
-          <dd>{profile.email}</dd>
+          <p className="qc-profile-header-name">{profile.displayName ?? profile.email}</p>
+          <p className="qc-profile-header-meta">
+            <Icon name="users" size={14} /> {t(DASHBOARD_CATALOG_IT_IT, "app.profile.emailLabel")}: {profile.email}
+          </p>
         </div>
-      </dl>
+      </div>
       <form onSubmit={handleSubmit}>
         <FormField label={t(DASHBOARD_CATALOG_IT_IT, "app.profile.displayNameLabel")} hint={t(DASHBOARD_CATALOG_IT_IT, "app.profile.displayNameHint")}>
           {(fieldProps) => (

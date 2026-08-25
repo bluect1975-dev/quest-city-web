@@ -1455,3 +1455,128 @@ form {
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* ---------- Profile header (UAT Remediation Verification Gap Closure —
+ * blocker 2: secondary pages read as plain label/value forms). A compact
+ * identity header — initial-letter avatar on the Ink surface, name +
+ * role/context line — reusing the exact hero-banner gradient/radius/shadow
+ * tokens so Profilo reads as part of the same brand system as Home,
+ * not a bolted-on card. Deliberately no illustration/skyline motif here
+ * (that stays Home's signature); the avatar carries the visual weight. */
+.qc-profile-header {
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-4);
+  background: linear-gradient(120deg, var(--qc-color-ink) 0%, var(--qc-color-ink-2) 100%);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-5) var(--qc-space-6);
+  color: var(--qc-color-ink-text);
+  box-shadow: var(--qc-shadow-raised);
+  margin-bottom: var(--qc-space-5);
+}
+
+.qc-profile-avatar {
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: rgba(240, 169, 78, 0.16);
+  border: 1.5px solid var(--qc-color-primary-on-dark);
+  color: var(--qc-color-primary-on-dark);
+  font-family: var(--qc-font-display);
+  font-weight: 700;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qc-profile-header-name {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--qc-color-ink-text);
+}
+
+.qc-profile-header-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-1);
+  margin: var(--qc-space-1) 0 0;
+  color: var(--qc-color-ink-text-muted);
+  font-size: var(--qc-font-size-label);
+}
+
+/* Icon-accented detail row — same `.qc-detail-list` rhythm, with a small
+ * Ink-toned icon slot before the label so a plain label/value line reads
+ * as a real information card rather than a spreadsheet row. */
+.qc-detail-list-icon-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--qc-space-2);
+}
+
+.qc-detail-list-icon-row .qc-icon {
+  align-self: center;
+  color: var(--qc-color-primary);
+  flex-shrink: 0;
+}
+
+/* ---------- Progress hero (Progressi — same dark Ink gradient the Home
+ * hero banner and the ProgressRing component were already designed for;
+ * previously the ring existed but no page used it, leaving Progressi as
+ * two plain stat numbers over a list). Ring + a plain-language summary
+ * line side by side; the existing reconciled breakdown lists stay
+ * completely unchanged below this, per §4's "no re-litigating closed
+ * functional fixes". */
+.qc-progress-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--qc-space-6);
+  flex-wrap: wrap;
+  background: linear-gradient(120deg, var(--qc-color-ink) 0%, var(--qc-color-ink-2) 55%, var(--qc-color-teal-strong) 150%);
+  border-radius: var(--qc-radius-lg);
+  padding: var(--qc-space-6);
+  box-shadow: var(--qc-shadow-raised);
+  margin-bottom: var(--qc-space-5);
+}
+
+.qc-progress-hero-text h2 {
+  margin: 0 0 var(--qc-space-2) 0;
+  color: var(--qc-color-ink-text);
+  font-size: 1.25rem;
+}
+
+.qc-progress-hero-text p {
+  margin: 0;
+  color: var(--qc-color-ink-text-muted);
+  max-width: 40ch;
+}
+
+/* ---------- Class list grid (Teacher "Classi" — was a bare link table). */
+.qc-class-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--qc-space-4);
+}
+
+.qc-class-grid-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--qc-space-3);
+}
+
+.qc-class-grid-card-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--qc-radius-md);
+  background: var(--qc-color-teal-bg);
+  color: var(--qc-color-teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qc-class-grid-card h3 {
+  margin: 0;
+  font-size: var(--qc-font-size-card-title);
+}
